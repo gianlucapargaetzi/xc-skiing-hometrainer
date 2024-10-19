@@ -1,0 +1,24 @@
+:root {
+    --black: #0A131F;
+    --white: #ebebeb;
+    --lightblue: #99C4EA;
+    --midblue: #6085A9;
+    --darkblue: #253C55;
+    --darkdarkblue: #151828;
+    --lightgray: #A1A9BA;
+    --midgray: #727E97; /*727E97   A1A9BA */
+    --darkgray: #2E2F38;
+
+	--base-font-size: calc(5px + 1vw);
+
+
+	--color-text-primary: rgb(180, 188, 208);
+	--color-text-secondary: rgb(255, 255, 255);
+	--color-background-primary: #18181b;
+	--color-background-secondary: rgb(34, 35, 38);
+    --color-background-third: rgb(49, 50, 54);
+	--color-border: rgb(49, 48, 53);
+	--color-accent: rgb(85, 214, 121);
+	--shadow-alpha: 0.25;
+	--spinner: var(--color-accent);
+}
