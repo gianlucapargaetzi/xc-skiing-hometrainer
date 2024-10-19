@@ -1,0 +1,18 @@
+Hello
+
+I want to program a web-based Python application using Flask, HTML and CSS
+The whole GUI should be styled in a simplistic "Apple-Style".
+
+On the right side, there is a fixed size "Task Bar" with the GUI logo, a Settings Button and a Button to start / stop.
+Pushing the settings button should open another tab with all settings which can be changed.
+
+In the Middle. There should be some kind of "Tab View"-Section, where i can switch between a Map Controlled Mode and a Manual Control Mode.
+
+In the Map Control Mode. I want to be able to browse a local .gpx file and upload it to the GUI.
+The uploaded .gpx file should be displayed in the map and also the elevation profile should be plotted on the bottom.
+Additionally, i want to display my current GPS location from backend to the frontend map and elevation.
+
+On the right side (The border between middle view and right view should be adjustable), i want a "Anayltics"-Section.
+On the top there should be a list of check boxes with different values that can be displayed as graphs in a scroll view below.
+The height of each graph should be adjustable.
+

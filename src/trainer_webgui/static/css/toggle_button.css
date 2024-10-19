@@ -1,0 +1,86 @@
+@import url("color_palette.css");
+
+.toggle-button {
+    width: 0;
+    height:0;
+    visibility: hidden;
+  }
+
+.toggle-button-label {
+	font-size: 1.5rem;
+	border-radius: 99em;
+	padding: 0;
+	display: grid;
+	grid-template-columns: 1fr;
+	place-items: center;
+	cursor: pointer;
+    aspect-ratio: 1;
+    transition: background-color 0.15s ease, width 0.25s ease-out;
+    position: relative;
+    background-color: var(--darkblue); /* Use a background color */
+    box-shadow: 0 0.2rem 0.8rem #00000080;
+    z-index: 100;
+}
+
+.toggle-button-label:after {
+    content: "";
+    display: block;
+    width: calc(100% + 10px);
+    height: calc(100% + 10px);
+    z-index: -1;
+    left: -5px;
+    top: -5px;
+    position: absolute;
+    background-image: conic-gradient(transparent, var(--lightblue));
+    border-radius: 99em;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.toggle-button-label .ph-play,
+.toggle-button-label .ph-pause {
+    color: var(--white);
+    grid-row-start: 1;
+    grid-column-start: 1;
+    transition: opacity 0.15s ease, transform 0.25s ease;
+}
+
+.toggle-button-label .ph-play {
+    opacity: 1;
+}
+
+.toggle-button-label .ph-pause {
+    opacity: 0;
+    transform: rotate(0);
+}
+
+.toggle-button:checked + .toggle-button-label {
+    color: var(--darkdarkblue);
+    z-index: 200; 
+}
+
+.toggle-button:checked + .toggle-button-label .ph-play {
+    opacity: 0;
+    transform: rotate(180deg);
+}
+
+.toggle-button:checked + .toggle-button-label .ph-pause {
+    opacity: 1;
+    transform: rotate(180deg);
+}
+
+.toggle-button:checked + .toggle-button-label:after {
+    opacity: 1;
+    animation: spin 2s linear infinite;
+}
+
+.toggle-button-label:hover {
+	background-color: var(--darkgray);
+}
+
+
+@keyframes spin {
+	100% {
+		transform: rotate(360deg);
+	}
+}
