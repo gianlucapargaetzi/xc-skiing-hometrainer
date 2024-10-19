@@ -1,0 +1,30 @@
+@import url("../color_palette.css");
+
+.control-button-row {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+    width: 100%;
+	align-items: center;
+    flex-grow: 1;
+	justify-content: space-between;
+	color: #b4bcd0;
+    gap:8px;
+    flex-wrap: nowrap; /* Prevents buttons from wrapping to the next line */
+}
+
+#toggle-repeat:checked + #button-repeat .icon-not-active {
+    opacity: 1;
+    color: var(--color-accent)
+}
+
+#toggle-repeat:checked + #button-repeat:after {
+    opacity: 0;
+}
+
+
+#button-start-stop {
+    width: 25%;
+    flex: 1 1 auto;
+    aspect-ratio: 1;
+}

@@ -1,0 +1,179 @@
+<!--index.html-->
+
+<!doctype html>
+<html lang="en">
+ <head>
+   <meta charset="UTF-8" />
+   <title>GridStack.js Example</title>
+   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+   <link rel="stylesheet" href="../static/css/style.css" />
+   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/gridstack.js/10.3.1/gridstack.min.css"/>
+   <link rel="stylesheet" href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"/>
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/gridstack.js/10.3.1/gridstack-all.js"></script>
+  </head>
+ <body>
+   <div class="body-content">
+     <aside>
+       <h1 class="app-name">Dashboard</h1>
+       <ul>
+         <li class="active">
+           <i class="bx bxs-dashboard active"></i> Overview
+         </li>
+         <div include-html="control_widget.html"></div>
+         <li><i class="bx bx-money"></i> Expenses</li>
+         <li><i class="bx bxs-wallet"></i> Budget</li>
+       </ul>
+       <div class="logout-bar"><i class="bx bx-log-out"></i> Logout</div>
+     </aside>
+     <div class="overview">
+       <header>
+         <div><span class="avatar">A</span> Admin</div>
+       </header>
+       <main>
+         <h2>Overview</h2>
+
+
+         <div class="grid-stack test">
+           <div
+             class="grid-stack-item"
+             gs-x="0"
+             gs-y="0"
+             gs-w="4"
+             gs-max-h="1"
+             gs-min-w="3"
+             gs-max-w="4"
+           >
+             <div class="grid-stack-item-content revenue">
+              {% include 'widgets/control_widget.html' %}
+             </div>
+           </div>
+
+           <div
+             class="grid-stack-item"
+             gs-x="4"
+             gs-y="0"
+             gs-w="4"
+             gs-max-h="3"
+             gs-min-w="3"
+             gs-max-w="6"
+           >
+             <div class="grid-stack-item-content revenue">
+              {% include 'widgets/heart_rate_widget.html' %}
+             </div>
+           </div>
+
+
+
+           <div
+             class="grid-stack-item"
+             gs-x="4"
+             gs-y="0"
+             gs-w="4"
+             gs-min-w="2"
+           >
+             <div class="grid-stack-item-content customer-overview">
+               <p class="description">Total Customers</p>
+               <p class="metric-value">5,133</p>
+             </div>
+           </div>
+           <div
+             class="grid-stack-item"
+             gs-x="8"
+             gs-y="0"
+             gs-w="4"
+             gs-min-w="2"
+           >
+             <div class="grid-stack-item-content growth">
+               <p class="description">Monthly Growth</p>
+               <p class="metric-value profit">
+                 <i class="bx bxs-up-arrow-circle"></i> 20.8%
+               </p>
+             </div>
+           </div>
+           <div
+             class="grid-stack-item"
+             gs-x="0"
+             gs-y="1"
+             gs-w="7"
+             gs-h="2"
+             gs-min-w="5"
+             gs-min-h="2"
+           >
+             <div class="grid-stack-item-content transactions-overview">
+               <p class="description">Latest Transactions</p>
+               <table class="transaction-table">
+                 <thead>
+                   <tr>
+                     <th>Name</th>
+                     <th>Email</th>
+                     <th>Amount</th>
+                     <th>Time</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+                   <tr>
+                     <td>Elijah Yusuf</td>
+                     <td>placeholder@mail.com</td>
+                     <td>$50</td>
+                     <td>1 hour ago</td>
+                   </tr>
+                   <tr>
+                     <td>Elijah Yusuf</td>
+                     <td>placeholder@mail.com</td>
+                     <td>$50</td>
+                     <td>1 hour ago</td>
+                   </tr>
+                   <tr>
+                     <td>Elijah Yusuf</td>
+                     <td>placeholder@mail.com</td>
+                     <td>$50</td>
+                     <td>1 hour ago</td>
+                   </tr>
+                   <tr>
+                     <td>Elijah Yusuf</td>
+                     <td>placeholder@mail.com</td>
+                     <td>$50</td>
+                     <td>1 hour ago</td>
+                   </tr>
+                   <tr>
+                     <td>Elijah Yusuf</td>
+                     <td>placeholder@mail.com</td>
+                     <td>$50</td>
+                     <td>1 hour ago</td>
+                   </tr>
+                 </tbody>
+               </table>
+             </div>
+           </div>
+           <div
+             class="grid-stack-item"
+             gs-x="7"
+             gs-y="1"
+             gs-w="5"
+             gs-min-w="2"
+           >
+             <div class="grid-stack-item-content top-customers">
+               <p class="description">Top Paying Customers</p>
+               <ul class="customers">
+                 <li class="customer">
+                   Majeed Johnson
+                   <i class="bx bxs-badge-check"></i>
+                 </li>
+                 <li class="customer">
+                   Uzo Onyekachi
+                   <i class="bx bxs-badge-check"></i>
+                 </li>
+                 <li class="customer">
+                   Liz Schmidt
+                   <i class="bx bxs-badge-check"></i>
+                 </li>
+               </ul>
+             </div>
+           </div>
+         </div>
+       </main>
+     </div>
+   </div>
+   <script src="../static/js/script.js"></script>
+ </body>
+</html>

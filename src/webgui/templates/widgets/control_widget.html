@@ -1,0 +1,38 @@
+<!-- content.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="stylesheet" href="../../static/css/objects/round_buttons.css">
+    <link rel="stylesheet" href="../../static/css/widgets/control_widgets.css">
+    <title>Control Widget</title>
+</head>
+<body>
+    <div class="control-button-row">
+        <button class="round-button">
+            <i class="ph-fill ph-skip-back"></i>
+        </button>
+
+        <button class="round-button">
+            <i class="ph-fill ph-rewind"></i>
+        </button>
+
+        <input type="checkbox" id="toggle-start-stop" class="toggle-checkbox"/>
+        <label id="button-start-stop" for="toggle-start-stop" class="round-button round-button-toggle">
+            <i class="ph-fill ph-play icon-not-active"></i>
+            <i class="ph-fill ph-pause icon-active"></i>
+        </label>
+
+        <button class="round-button">
+            <i class="ph-fill ph-fast-forward"></i>
+        </button>
+
+        <input type="checkbox" id="toggle-repeat" class="toggle-checkbox"/>
+        <label id="button-repeat" for="toggle-repeat" class="round-button round-button-toggle">
+            <i class="ph-fill ph-repeat icon-not-active"></i>
+        </label>
+    </div>
+</body>
+</html>
