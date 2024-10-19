@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../static/css/styles.css">
+    <link rel="stylesheet" href="../static/css/color_palette.css">
+    <link rel="stylesheet" href="../static/css/custom_objects.css">
+    <link rel="stylesheet" href="../static/css/toggle_switch.css">
+    <link rel="stylesheet" href="../static/css/toggle_button.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>XC Trainer</title>
+</head>
+<body>
+    <div class="container">
+        <div class="taskbar" id="taskBar">
+            <img src="../static/images/logo.svg" alt="Logo" class="logo" id="taskbar-logo">
+
+
+
+            <div id="taskbar-controls">
+                <!-- Toggle Switch for switching Map / Manual Control -->
+                <input type="checkbox" id="control-mode-toggle" class="toggle-switch"/>
+                <label id="control-mode-toggle-label" for="control-mode-toggle" class="toggle-switch-label">
+                    <i class="ph-fill ph-map-pin-area"></i>
+                    <i class="ph-fill ph-faders"></i>
+                </label>
+    
+    
+                <input type="checkbox" id="start-stop-toggle" class="toggle-button"/>
+                <label id="start-stop-toggle-label" for="start-stop-toggle" class="toggle-button-label">
+                    <i class="ph-fill ph-play"></i>
+                    <i class="ph-fill ph-pause"></i>
+                </label>             
+            </div>
+
+
+
+            <button id="settings-button" type="button" class="button" value="Start"  onclick="startStop()">
+
+            </button>
+        </div>
+
+
+
+
+        <div class="content">
+            <div class="mode-panel" id="modePanel">
+                <h3 class="tab-title">Controls</h3><br>
+                <div id="mode-view-gps" class="mode-view" style="display: flex" scrolling="auto">
+                    <h3 class="tab-title">GPS 1</h3><br>
+
+                    
+                    <form id="uploadForm" method="POST" enctype="multipart/form-data" class="form">
+                        <input type="file" name="gps-upload" accept=".gpx" id="gps-upload">
+                        <input type="button" class="button" value="Upload" style="margin: 10px 10px 0px 0px;" onclick="uploadGpxFile()"></button>
+                    </form>
+
+
+                    <div id="map" class="map"></div>                
+                    <script>
+
+                    </script>
+
+
+                    <div class="elevation-plot" id="elevation-plot">
+                        <canvas id="elevationChart" style="background-color: #cccccc; width: 100%; height: 100%"></canvas>
+                    </div>
+
+
+
+                </div>
+                <div id="mode-view-manual" class="mode-view" scrolling="auto">
+                    <h3 class="tab-title">Manual</h3><br>
+                    
+                </div>
+            </div>
+            <div class="resizer" id="resizer"></div>
+            <div class="analytics-panel" id="analyticsPanel">
+                <h3 class="tab-title">Analytics</h3>
+            </div>
+        </div>
+    </div>
+    <script src="../static/js/script.js"></script>
+    <script src="../static/js/map_control.js"></script>
+    <script src="../static/js/trainer_control.js"></script>
+</body>
+</html>

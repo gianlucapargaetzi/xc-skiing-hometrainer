@@ -1,0 +1,162 @@
+/* styles.css */
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    height: 100vh; /* Full height of the viewport */
+}
+
+html, body {
+    height: 100%; /* Ensure the body takes up the full height */
+}
+
+.container {
+    display: flex;
+    height: 100%; /* Full height for the container */
+}
+
+
+/* Taskbar */
+
+.taskbar {
+    width: 10%; /* Adjust the width of the taskbar */
+    min-width: 10%;
+    max-width: 10%;
+    background-color: var(--darkgray); /* #282c34 */
+    color: white;
+    box-sizing: border-box; /* Include padding in the element's total width and height */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+}
+
+#control-mode-toggle-label {
+  width: 65%;
+}
+
+#start-stop-toggle-label {
+  width:65%;
+  margin-top: 20px;
+}
+
+#taskbar-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: auto;
+  justify-content: start; /* Distribute controls with equal spacing */
+  width: 100%; /* Ensure controls take full width of taskbar */
+}
+
+
+
+#taskbar-logo {
+    width: 75%; /* Adjust the size as necessary */
+    height: auto; /* Maintain aspect ratio */
+    margin-top: 20px;
+    fill: #fff;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.content {
+    display: flex;
+    flex-grow: 1; /* Allow content area to expand */
+}
+
+
+.mode-panel {
+    background-color: #f0f0f0;
+    padding: 20px;
+    min-width: 25%; /* Minimum width for left panel */
+    max-width: 75%;
+    width: 50%;
+    height: 100%; /* Full height for left panel */
+    box-sizing: border-box; /* Include padding in height */
+    display: flex;
+    flex-direction: column;
+}
+
+.tab-title {
+  flex: 0 0 auto; /* Prevent the title from growing or shrinking */
+  margin: 0; /* Remove default margins */
+  padding: 10px; /* Add some padding for aesthetics */
+  border: 1px solid #000;
+}
+
+.mode-view {
+  display: none; /* Hide all views by default */
+  flex: 1 1 auto; /* Allow the mode views to grow and fill the space */
+  overflow-y: auto; /* Make it scrollable if content overflows */
+  padding: 20px; /* Optional padding */
+  border: 1px solid #000; /* Optional border for better visibility */
+  flex-direction: column;
+}
+
+.analytics-panel {
+    background-color: #e0e0e0;
+    padding: 20px;
+    flex-grow: 1; /* Right panel will take the remaining space */
+    height: 100%; /* Full height for right panel */
+    box-sizing: border-box; /* Include padding in height */
+}
+
+.resizer {
+    cursor: ew-resize; /* Cursor indicates that it can be resized */
+    background-color: #ccc;
+    width: 5px; /* Width of the resizer */
+    height: 100%; /* Full height for the resizer */
+}
+
+
+  .panel-title {
+    font-size: 1.5em;
+    font-weight: bold;
+  }
+ 
+
+  .form {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: column;
+    align-content: space-between;
+    background-color: #cccccc;
+    border-radius: 12px;
+    margin-top: 10px;
+    padding: 10px;
+    box-shadow: 0 0.2rem 0.8rem #00000080;
+  }
+
+
+  .map {
+    border-radius: 12px;
+    min-height: 500px;
+    height: 500px;
+    margin-top: 20px;
+    box-shadow: 0 0.2rem 0.8rem #00000080;
+    display: none;
+  }
+
+  .elevation-plot {
+    position: relative;
+    background-color: #cccccc;
+    border-radius: 12px;
+    margin-top: 20px;
+    min-height: 250px;
+    padding: 10px;
+    box-sizing: border-box;
+    width: 100%;
+    box-shadow: 0 0.2rem 0.8rem #00000080;
+    display: none;
+  }
