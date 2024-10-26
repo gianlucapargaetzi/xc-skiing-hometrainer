@@ -14,36 +14,31 @@
 </head>
 <body>
     <div class="heart-rate-row">
-        <input type="checkbox" id="toggle-sensor-list" class="toggle-checkbox"/>
-          <div class="overview-wrapper">
+      <input type="checkbox" id="toggle-sensor-list" class="toggle-checkbox"/>
+      <div class="overview-wrapper">
+        <div class="extended-info">
+            <label class="label-sensor-name">Hello</label>
+            <label class="battery-container">
+              <i class="ph-bold ph-bluetooth-slash bt-not-connected"></i>
+              <i class="ph-bold ph-bluetooth-connected bt-connected"></i>
+          </label>
+        </div>
 
-            <div class="extended-info">
-                <label class="label-sensor-name">Hello</label>
-                <label class="battery-container">
-                  <i class="ph-bold ph-bluetooth-slash bt-not-connected"></i>
-                  <i class="ph-bold ph-bluetooth-connected bt-connected"></i>
-              </label>
-            </div>
+        <label class="heart-rate-container" for="toggle-sensor-list">
+          <i class="ph-fill ph-heart icon-heart-rate"></i>
+          <label class="label-heart-rate">---</label>
+          <label class="bluetooth-container">
+              <i class="ph-bold ph-bluetooth-slash bt-not-connected"></i>
+              <i class="ph-bold ph-bluetooth-connected bt-connected"></i>
+          </label>
+        </label>
+      </div>
 
-            <label class="heart-rate-container" for="toggle-sensor-list">
-              <i class="ph-fill ph-heart icon-heart-rate"></i>
-              <label class="label-heart-rate">---</label>
-              <label class="bluetooth-container">
-                  <i class="ph-bold ph-bluetooth-slash bt-not-connected"></i>
-                  <i class="ph-bold ph-bluetooth-connected bt-connected"></i>
-              </label>
-            </label>
-
-
-
-          </div>
-
-          <div class="chart-wrapper">
-            <canvas id="heartRateChart"></canvas>
-          </div>
+      <div class="chart-wrapper">
+        <canvas id="heartRateChart"></canvas>
+      </div>
 
           <!-- <div id="chart"></div> -->
-        </div>
     </div>
     <script src="../../static/js/heart_rate_widget.js"></script>
 </body>
