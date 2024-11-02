@@ -1,36 +1,25 @@
 @import url("../color_palette.css");
 
-.settings-group 
-{
-    width:100%;
-    height: fit-content;
-    flex: 1 1 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
-	background-color: var(--color-background-secondary);
-	border: 1px solid var(--color-border);
-    border-radius: 0.5em;
-	box-shadow: 0 4px 8px 0 rgba(0 0 0 / var(--shadow-alpha));
-    transition:display 0.5s ease,  background-color 0.5s ease, width 0.5s ease, border-radius 1s ease-in-out, height 0.5s ease, position 0.5s ease, opacity 0.5s ease, height 0.5s ease; /* Transition width smoothly */
-}
-
 .setting-line {
+    margin-bottom: 10px;
     flex: 1 1 0;
-    height: fit-content;
+    width: 100%;
+    min-height: 5vh;
+    height: 5vh;
+    max-height: 100px;
     display: flex;
     align-items: center;
     background-color: transparent;
     justify-content: space-between;
     flex-direction: row;
     color: var(--color-text-primary);
-    
+    background-color: aqua;
+    gap: 1vw;;   
 }
 
 .setting-label {
     font-size: 1em;
-    padding-left: 10px;
+    width: 30%;
 }
 
 .setting-element {
@@ -41,12 +30,71 @@
     border-radius: 90em;
     box-shadow: 0 4px 8px 0 rgba(0 0 0 / var(--shadow-alpha));
     color: var(--color-text-primary);
+    height: 100%;
+}
+
+/* Hide the second icon by default */
+.second-icon {
+    display: none;
+    animation: spin .3s;
+}
+
+.first-icon {
+    animation: spin .3s;
+}
+
+/* When the checkbox is checked, hide the first icon and show the second icon */
+#check-custom-hr:checked ~ .column .first-icon {
+    display: none;  
+}
+
+#check-custom-hr:checked ~ .column .second-icon {
+    display: inline;
+}
+
+/* When the checkbox is checked, hide the first icon and show the second icon */
+#check-modify:checked ~ .column .first-icon {
+    display: none;  
+}
+
+#check-modify:checked ~ .column .second-icon {
+    display: inline;
+}
+
+#button-abort {
+    transition: ease-out 0.3s;
+    opacity: 0;
+    transform: translateX(150%);
+}
+
+#check-modify:checked ~ .column #button-abort {
+    transform: translateX(0%);
+    opacity: 1;
+    transition: ease-out 0.3s;
 }
 
 #button-setting-import {
-    height: 40px;
+    max-height: 100%;
+    aspect-ratio: 1;
 }
 
 #button-setting-add {
-    height: 40px;
+    max-height: 100%;
+    aspect-ratio: 1;
+}
+
+#dropdown-profile-selection {
+    flex: 1 1 0;
+    padding-left: 10px;
+}
+
+#scan-bluetooth:checked ~ .column #scan-icon {
+	animation: spin 2s linear infinite;
+}
+
+
+@keyframes spin {
+	100% {
+		transform: rotate(360deg);
+	}
 }

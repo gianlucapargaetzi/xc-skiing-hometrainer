@@ -5,7 +5,7 @@ import time
 import random
 import threading
 
-
+from flask import Flask, jsonify
 
 
 import os
@@ -18,6 +18,12 @@ import numpy as np
 from HeartRateManager import BluetoothHeartRateSensor
 
 from threading import Thread, Lock
+
+profiles_data = [
+    {"file_name": "alice.cgf", "name": "Alice", "age": 30, "max_heart_rate": 180, "mac_address": "00:1B:44:11:3A:B7", "pole_length": 120},
+    {"file_name": "bob.cfg", "name": "Bob", "age": 25, "max_heart_rate": 175, "mac_address": "00:1B:44:11:3A:B8", "pole_length": 115},
+    # Add more profiles as needed
+]
 
 class WebGUIBackend(Flask):
     def __init__(self, importName):
@@ -63,7 +69,13 @@ class WebGUIBackend(Flask):
 
 
     def add_routes(self):
-        self.add_url_rule("/", view_func=self._index)
+        # self.add_url_rule("/", view_func=self._index)
+        self.add_url_rule("/", view_func=self._settings)
+        self.add_url_rule("/api/profiles", view_func=self._get_profiles, methods=['GET'])
+
+
+    def _get_profiles(self):
+        return jsonify({"profiles": profiles_data})
         # self.add_url_rule("/settings", view_func=self._settings)
         # self.add_url_rule("/set-gpx", view_func=self._set_gpx, methods=['POST'])
         # self.add_url_rule("/update-checkbox", view_func=self._set_control_mode, methods=['POST'])
@@ -76,6 +88,9 @@ class WebGUIBackend(Flask):
         
     def _index(self):
         return render_template('index.html', async_mode=self._socket.async_mode)
+    
+    def _settings(self):
+        return render_template('settings.html', async_mode=self._socket.async_mode)
     
     def _settings(self):
         return render_template('settings.html')

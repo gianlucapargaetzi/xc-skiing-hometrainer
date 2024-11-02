@@ -1,0 +1,179 @@
+<!-- content.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="stylesheet" href="../static/css/widgets/settings.css">
+    <link rel="stylesheet" href="../static/css/objects/round_buttons.css">
+    <link rel="stylesheet" href="../static/css/objects/toggle.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.0/socket.io.js" integrity="sha512-OovVc8Xk/+ils70VE978+ILm2IvIisZskNCaDvaTtXt7a2O3eioYv8SVKfjdVU1za9Ir/KHIqweNEGLLFk6bdw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
+    <title>Control Widget</title>
+</head>
+<body>
+  
+  <div class="columns">
+    <div class="column">
+        <div class="control has-icons-left" style="width:100%;">
+          <div class="select is-rounded" style="width: 100%;" >
+            <select style="width:100%;" id="profile-list">
+            </select>
+          </div>
+          <span class="icon is-small is-left">
+            <i class="ph-bold ph-folder-user"></i>
+          </span>
+        </div>
+    </div>
+
+    <div class="column is-narrow">
+      <label class="button is-rounded">
+        <span class="icon is-small">
+          <i class="ph-bold ph-upload-simple"></i>
+        </span>
+      </label>
+    </div>
+
+    <div class="column is-narrow">
+      <label class="button is-rounded">
+        <span class="icon is-small">
+          <i class="ph-bold ph-plus"></i>
+        </span>
+      </label>
+    </div>
+  </div>
+
+  
+  <div class="box">
+
+    <div class="columns" style="height: fit-content; justify-content: end;">
+      <input type="checkbox" class="toggle-checkbox" id="check-modify">
+      <!-- <div class="column is-narrow button-group" style="display: flex; flex-direction: row; justify-content: space-evenly; flex-wrap: nowrap; width:fit-content; gap:1rem;"> -->
+        <div class="column is-narrow button-group">
+        <label class="button is-rounded" id="button-abort" for="check-modify" >
+          <span class="icon is-small">
+            <i class="ph-bold ph-x"></i>
+          </span>
+        </label>
+        <label class="button is-rounded" id="button-modify" for="check-modify">
+          <span class="icon is-small">
+            <i class="ph-bold ph-pencil first-icon" id="icon1"></i>
+            <i class="ph-bold ph-check second-icon" ></i>
+          </span>
+        </label>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+    <!-- Name -->
+    <div class="columns">
+      <div class="column is-full">
+        <div class="field">
+          <p class="control has-icons-left">
+            <input class="input is-rounded" type="text" placeholder="Name" id="textbox-name" disabled>
+            <span class="icon is-small is-left">
+              <i class="ph-bold ph-user"></i>
+            </span>
+          </p>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Age -->
+    <div class="columns">
+      <div class="column is-full">
+        <div class="field">
+          <p class="control has-icons-left">
+            <input class="input is-rounded" type="number" placeholder="Age" id="textbox-age" disabled>
+            <span class="icon is-small is-left">
+              <i class="ph-bold ph-calendar"></i>
+            </span>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Max. Heart Rate -->
+    <div class="columns">
+      <input type="checkbox" class="toggle-checkbox" id="check-custom-hr">
+      <div class="column is-narrow">
+        <label class="button is-rounded" id="button-custom-hr" for="check-custom-hr" disabled>
+          <span class="icon is-small">
+            <i class="ph-bold ph-check first-icon" id="icon1"></i>
+            <i class="ph-bold ph-x second-icon"></i>
+          </span>
+        </label>
+      </div>
+
+      <div class="column">
+        <div class="field">
+          <p class="control has-icons-left">
+            <input class="input is-rounded" type="number" placeholder="Heart Rate" id="textbox-hr" disabled>
+            <span class="icon is-small is-left">
+              <i class="ph-bold ph-heartbeat"></i>
+            </span>
+          </p>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Bluetooth Device Selection -->
+    <div class="columns">
+      <input type="checkbox" class="toggle-checkbox" id="scan-bluetooth">
+      <div class="column">
+          <div class="control has-icons-left" style="width:100%;">
+            <div class="select is-rounded" style="width: 100%;">
+              <select style="width:100%;" disabled>
+              </select>
+            </div>
+
+            <span class="icon is-small is-left">
+              <i class="ph-bold ph-bluetooth"></i>
+            </span>
+
+          </div>
+      </div>
+
+      <div class="column is-narrow">
+        <label class="button is-rounded" id="button-scan-bt" for="scan-bluetooth" disabled>
+          <span class="icon is-small">
+            <i class="ph-bold ph-arrows-clockwise" id="scan-icon"></i>
+          </span>
+        </label>
+      </div>
+    </div>
+
+
+    <!-- Pole Length -->
+    <div class="columns">
+      <div class="column is-full">
+        <div class="field">
+          <p class="control has-icons-left">
+            <input class="input is-rounded" type="number" placeholder="Pole Length" id="textbox-pole" disabled>
+            <span class="icon is-small is-left">
+              <i class="ph-bold ph-arrows-out-simple"></i>
+            </span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  
+  <script src="../static/js/settings.js"></script>
+
+</body>
+</html>
