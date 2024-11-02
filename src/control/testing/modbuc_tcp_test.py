@@ -6,17 +6,17 @@ from time import sleep, time
 client1 = ModbusClient(host="192.168.200.199", port=502, unit_id=0, auto_open=True)
 
 def writeTorque(torque):
-    print("Writing Torque 407", torque)
+    print("Writing Torque", torque)
     #client1.write_register(408, torque,1,16, False)
     client1.write_single_register(408, torque*10)
 
 def writeSpeed(speed):
-    print("Writing 117", speed)
+    print("Writing", speed)
     #client1.write_register(117, speed, 1, 16, False)
     client1.write_single_register(117, speed*10)
 
 def writeClockWiseDirection(direction):
-    print("Writing Direction 629", direction)
+    print("Writing Direction", direction)
     #client1.write_register(629,direction,0,16,True)
     client1.write_single_register(629, direction)
 
