@@ -27,6 +27,7 @@ def DriveReset():
     #print("Initialise DriveReset 10.033")
     client1.write_single_register(1032, 1)
     client1.write_single_register(1032, 0)
+    client1.write_single_register(1032, 1)
 
 def EnableDisableWatchDog(watchdog):
     #print("Writing WatchDog 06.043      :", watchdog)
@@ -102,6 +103,8 @@ def readPower():
 
 def main():
 
+    torque_reference = 20
+
     # 0 - Position ist auf 1920mm
     # Weg pro Umdrehung 166mm
     # Normalisierter Weg pro Umdrehung 65536
@@ -114,8 +117,14 @@ def main():
     top_position = 1870     # mm
     pole_lenght = 1450      # mm
     dist_par_rev = round((pulli_diameter+rope_diameter)*3.14159)
-
     print("Distanz pro Umdrehung", dist_par_rev, "mm")
+
+    min_torque = 10          # %
+    max_torque = 40          # %
+    swing_lenght_dist = 1000     # mm
+    start_max_torque = 200   # mm
+    end_max_torque = 500     # mm
+
 
     DriveReset()
     sleep(1)
@@ -176,18 +185,30 @@ def main():
     while readHardwareEnabled():
         pass
 
-    
-
-
-
     pole_offset = round((top_position-pole_lenght )/dist_par_rev*65536)
-    print("Pole Offset", pole_offset)
+    print("Pole Offset                   :", pole_offset)
 
-    zeroposition = readNormalisedPosition()
-    stockposition = zeroposition - pole_offset
+    abs_zero_position = readNormalisedPosition()
+    pole_zero_position = abs_zero_position - pole_offset
+    print("Pole Zero Position            :",  pole_zero_position)
+
+    start_max_torque_position = pole_zero_position - round(start_max_torque/dist_par_rev*65536)
+    print("Start Max. Torque Position    : ", start_max_torque_position)
+    end_max_torque_positition = pole_zero_position - round(end_max_torque/dist_par_rev*65536)
+    print("End Max. Torque Position      : ", end_max_torque_positition)
+    end_swing_position = pole_zero_position - round(swing_lenght_dist/dist_par_rev*65536)
+    print("End Swing Position            : ", end_swing_position)
+
+    scale_factor_up = (pole_zero_position-start_max_torque_position)/100
+    print("Scale Factor Up               : ", scale_factor_up )
+    scale_factor_down = (end_max_torque_positition-end_swing_position)/100
+    print("Scale Factor Down             : ", scale_factor_down )
+
+
+
 
     print("Kalibrierung der Stockposition - bitte langsam ziehen")
-    while (readNormalisedPosition()>stockposition):
+    while (readNormalisedPosition()>pole_zero_position):
         pass
 
 
@@ -211,16 +232,55 @@ def main():
     EnableDisableWatchDog(1)
     DriveEnable(1)
 
+    min_power=0;
+    max_power=0;
+
     while True:
+
+        scale_factor = 0
 
         writeWatchDog(0)
         #start = datetime.datetime.now()
         # Prozessdaten lesen
-        #print("Position                     :",readNormalisedPosition())
         #print("Speed                        :",readSpeed(),end="\r")
         #print("Load                         :",readLoad())
-        print("Power                        :",readPower(),end="\r")
-        writeTorque(torque_reference)
+        actual_position = readNormalisedPosition()
+        power =  readPower()
+        if power < min_power:
+            min_power=power
+        if power > max_power:
+            max_power=power
+
+
+        print("Actual Position  :",readNormalisedPosition())
+
+        if actual_position >= pole_zero_position:
+            scale_factor = 0
+
+        if actual_position < pole_zero_position and actual_position >=  start_max_torque_position:
+            scale_factor = round(100-(actual_position-start_max_torque_position)/scale_factor_up)
+            print("0 bis max Torque -", scale_factor )
+
+        if actual_position < start_max_torque_position and actual_position >=  end_max_torque_positition:
+            scale_factor = 100
+            print("max Torque")
+
+        
+        if actual_position < end_max_torque_positition and actual_position >=  end_swing_position:
+            scale_factor = round(actual_position-end_swing_position)/scale_factor_down
+            print("max Torque bis 0 - ",scale_factor)
+
+        # Ein bisschen Sicherheit
+        if scale_factor < 0:
+            scale_factor=0
+
+        if scale_factor > 100:
+            scale_factor = 100
+
+        act_torque = round(min_torque+(max_torque-min_torque)/100*scale_factor)
+        print("Actual Torque Reference:",act_torque)
+        writeTorque(act_torque)
+
         writeWatchDog(16384)
 
 if __name__ == '__main__':
