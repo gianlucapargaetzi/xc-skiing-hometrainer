@@ -69,6 +69,23 @@ def saveForwardLimitSwitchPosition():
     #print("Setting 12.010 to Input 1")
     client1.write_single_register(1209, 1)
 
+def driveHealthy():
+    sw = client1.read_holding_registers(1000,1)[0]
+    if sw==1:
+        return True
+    else:
+        return False
+    return False
+
+def driveRunning():
+    sw = client1.read_holding_registers(1001,1)[0]
+    if sw==1:
+        return True
+    else:
+        return False
+    return False
+
+
 def readHardwareEnabled():
     sw = client1.read_holding_registers(628,1)[0]
     if sw==1:
@@ -117,19 +134,26 @@ def main():
     top_position = 1870     # mm
     pole_lenght = 1450      # mm
     dist_par_rev = round((pulli_diameter+rope_diameter)*3.14159)
-    print("Distanz pro Umdrehung", dist_par_rev, "mm")
-
+    
     min_torque = 10          # %
     max_torque = 40          # %
     swing_lenght_dist = 1000     # mm
     start_max_torque = 200   # mm
     end_max_torque = 500     # mm
 
-
-    DriveReset()
-    sleep(1)
-    DriveReset()
+    print("***************************************************************")
+    print("Wait until Drive is ready")
+    print("***************************************************************")
     
+    while not driveHealthy():
+        print("Drive is not ready",end="\r")
+        DriveReset()
+    
+    print("---------------------------------------------------------------")
+    print("Drive is ready")
+    print("---------------------------------------------------------------")
+    
+
     DriveEnable(0)
     writeTorque(0)
     writeSpeed(0)
@@ -141,33 +165,48 @@ def main():
 
     # Sicherheitseinstellungen vor dem Initialisieren
     
+    print("***************************************************************")
+    print("Wait until STO is released")
+    print("***************************************************************")
     
     while readHardwareEnabled():
-        print("Warten bis Sicherheitsschalter gelöst")
+        print("Please release the STO",end="\r")
+    
+    print("---------------------------------------------------------------")
+    print("STO is released")
+    print("---------------------------------------------------------------")
         
     
     print("***************************************************************")
-    print("Ziehen sie das Seil ein Stück weit heraus und lassen sie es los")
+    print("Pull the rope out abouth 50cm")
+    print("Then push both STO's and the rope will be moved in automatically")
+    print("to the top limit")
     print("***************************************************************")
     # Endschalterüberwachung deaktivieren
     EnableDisableForwardLimit(0)
-
-    sleep(5)
-    print("Betätigen sie dann beide Sicherheitsschalter.")
-    print("das System fährt automatisch an den oberen Anschlag und stopp da")
     
     DriveEnable(1)
     writeForwardDirection(1)
     writeTorque(10)
     writeSpeed(100)
 
+    print("***************************************************************")
+    print("Wait until STO is ON")
+    print("***************************************************************")
+    
     while not readHardwareEnabled():
-        print ("Sicherheitsschalter betätigen")
-        
+        print ("Pleas push both STO's",end="\r")
+    
+    print("---------------------------------------------------------------")
+    print("STO is ON")
+    print("---------------------------------------------------------------")    
 
     sleep(1)
 
-    print("Warten auf Anschlag")
+    print("***************************************************************")
+    print("Finding endposition")
+    print("***************************************************************")
+    
     while readSpeed()>0:
         pass
 
@@ -179,11 +218,21 @@ def main():
     saveForwardLimitSwitchPosition()    
     EnableDisableForwardLimit(1)
     
-    print("Die Sicherheitsschaltung ist kalibriert")
-    print("Bitte Sicherheitsschalter lösen")
+    print("---------------------------------------------------------------")
+    print("Endposition calibrated")
+    print("---------------------------------------------------------------")    
+
+
+    print("***************************************************************")
+    print("Wait until STO is released")
+    print("***************************************************************")
 
     while readHardwareEnabled():
-        pass
+        print("Please release the STO",end="\r")
+
+    print("---------------------------------------------------------------")
+    print("STO is released")
+    print("---------------------------------------------------------------")
 
     pole_offset = round((top_position-pole_lenght )/dist_par_rev*65536)
     print("Pole Offset                   :", pole_offset)
@@ -206,23 +255,32 @@ def main():
 
 
 
-
-    print("Kalibrierung der Stockposition - bitte langsam ziehen")
+    print("***************************************************************")
+    print("Finding the Pole Zero position")
+    print("***************************************************************")
     while (readNormalisedPosition()>pole_zero_position):
-        pass
+        print("Please pull the rope slowly until the pole possitio is found",end="\r")
+
+    print("---------------------------------------------------------------")
+    print("This is the Pole Zero position")
+    print("---------------------------------------------------------------")
 
 
-    print("Die Stockposition ist kalibriert")
-    print("Bitte Sicherheitsschaltung lösen um System zu aktivieren")
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    print("The Training can start")
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
-    while readHardwareEnabled():
-        pass
-
-    print("Schlaufen halten und Sicherheitsschalter betätigen")
-
+    print("***************************************************************")
+    print("Pleas Hold the rope, then push both STO's")
+    print("***************************************************************")
+    
     while not readHardwareEnabled():
-        pass
-
+        print ("Pleas push both STO's",end="\r")
+    
+    print("---------------------------------------------------------------")
+    print("STO is ON - Training has started")
+    print("---------------------------------------------------------------")    
+ 
     torque_reference = 20
     EnableDisableForwardLimit(1)
     writeForwardDirection(1)
@@ -234,54 +292,62 @@ def main():
 
     min_power=0;
     max_power=0;
+    
+    with open("training.txt","w") as file:
+        file.write("TIMESTAMP;POSITION;SPEED;LOAD;POWER;TORQUEREF\n")
 
-    while True:
+        while readHardwareEnabled():
 
-        scale_factor = 0
-
-        writeWatchDog(0)
-        #start = datetime.datetime.now()
-        # Prozessdaten lesen
-        #print("Speed                        :",readSpeed(),end="\r")
-        #print("Load                         :",readLoad())
-        actual_position = readNormalisedPosition()
-        power =  readPower()
-        if power < min_power:
-            min_power=power
-        if power > max_power:
-            max_power=power
-
-
-        print("Actual Position  :",readNormalisedPosition())
-
-        if actual_position >= pole_zero_position:
             scale_factor = 0
 
-        if actual_position < pole_zero_position and actual_position >=  start_max_torque_position:
-            scale_factor = round(100-(actual_position-start_max_torque_position)/scale_factor_up)
-            print("0 bis max Torque -", scale_factor )
+            writeWatchDog(0)
+            #start = datetime.datetime.now()
+            # Prozessdaten lesen
+            #print("Speed                        :",readSpeed(),end="\r")
+            #print("Load                         :",readLoad())
+            actual_position = readNormalisedPosition()
+            power =  readPower()
+            if power < min_power:
+                min_power=power
+            if power > max_power:
+                max_power=power
 
-        if actual_position < start_max_torque_position and actual_position >=  end_max_torque_positition:
-            scale_factor = 100
-            print("max Torque")
+
+            print("Actual Position  :",readNormalisedPosition())
+
+            if actual_position >= pole_zero_position:
+                scale_factor = 0
+
+            if actual_position < pole_zero_position and actual_position >=  start_max_torque_position:
+                scale_factor = round(100-(actual_position-start_max_torque_position)/scale_factor_up)
+                print("0 bis max Torque -", scale_factor )
+
+            if actual_position < start_max_torque_position and actual_position >=  end_max_torque_positition:
+                scale_factor = 100
+                print("max Torque")
 
         
-        if actual_position < end_max_torque_positition and actual_position >=  end_swing_position:
-            scale_factor = round(actual_position-end_swing_position)/scale_factor_down
-            print("max Torque bis 0 - ",scale_factor)
+            if actual_position < end_max_torque_positition and actual_position >=  end_swing_position:
+                scale_factor = round(actual_position-end_swing_position)/scale_factor_down
+                print("max Torque bis 0 - ",scale_factor)
 
-        # Ein bisschen Sicherheit
-        if scale_factor < 0:
-            scale_factor=0
+            # Ein bisschen Sicherheit
+            if scale_factor < 0:
+                scale_factor=0
 
-        if scale_factor > 100:
-            scale_factor = 100
+            if scale_factor > 100:
+                scale_factor = 100
 
-        act_torque = round(min_torque+(max_torque-min_torque)/100*scale_factor)
-        print("Actual Torque Reference:",act_torque)
-        writeTorque(act_torque)
+            act_torque = round(min_torque+(max_torque-min_torque)/100*scale_factor)
 
-        writeWatchDog(16384)
+            print("Actual Torque Reference:",act_torque)
+            writeTorque(act_torque)
+
+
+
+            file.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")+";"+str(actual_position)+";"+str(readSpeed())+";"+str(readLoad())+";"+str(readPower())+";"+str(act_torque)+"\n")
+
+            writeWatchDog(16384)
 
 if __name__ == '__main__':
     main()
