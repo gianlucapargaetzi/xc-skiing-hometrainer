@@ -291,9 +291,18 @@ def main():
 
     min_power=0;
     max_power=0;
+
+    sequence_running = False
+    actual_dir = True
+    old_dir = True
+    sequence_start_time = int(datetime.datetime.now().timestamp()*1000)
+    sequence_end_time =  int(datetime.datetime.now().timestamp()*1000)
+    sequence_freq =0
+
+
     
     with open("training.txt","w") as file:
-        file.write("TIMESTAMP;POSITION;SPEED;LOAD;POWER;TORQUEREF\n")
+        file.write("TIMESTAMP;POSITION;SPEED;LOAD;POWER;TORQUEREF;SEQFREQ\n")
 
         while readHardwareEnabled():
 
@@ -302,6 +311,26 @@ def main():
             toggleWatchDog()
 
             actual_position = readNormalisedPosition()
+            actual_speed = readSpeed()
+
+            if actual_speed < 0:
+                actual_dir=False    # Zug
+            else:
+                actual_dir=True     # Wickeln
+
+            if old_dir and not actual_dir:
+                # Zug beginnt
+                sequence_end_time=sequence_start_time
+                sequence_start_time = int(datetime.datetime.now().timestamp()*1000)
+                sequence_freq=1/((sequence_start_time-sequence_end_time)/1000)*60
+                print("Frequenz in Hub/min:",sequence_freq)
+                old_dir = actual_dir
+            if not old_dir and actual_dir:
+                # Wickeln beginnt
+                old_dir = actual_dir
+
+            
+
             power =  readPower()
             if power < min_power:
                 min_power=power
@@ -339,7 +368,7 @@ def main():
             #print("Actual Torque Reference:",act_torque)
             writeTorque(act_torque)
 
-            file.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")+";"+str(actual_position)+";"+str(readSpeed())+";"+str(readLoad())+";"+str(readPower())+";"+str(act_torque)+"\n")
+            file.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")+";"+str(actual_position)+";"+str(actual_speed)+";"+str(readLoad())+";"+str(readPower())+";"+str(act_torque)+";"+str(sequence_freq)+"\n")
 
 if __name__ == '__main__':
     main()
