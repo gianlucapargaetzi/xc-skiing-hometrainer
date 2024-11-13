@@ -7,61 +7,14 @@ from time import sleep, time
 from threading import Lock, Thread
 
 # Bei Modbus TCP ist die SlaveID immer 0
-# max_torque = 30         # %
-# max_torque_lock = Lock()
 client1 = ModbusClient(host="192.168.200.199", port=502, unit_id=0, auto_open=True)
 from flask import Flask, jsonify, request, render_template
 
-# app = Flask(__name__)
 
 # Constants
 MIN_VALUE = 10
 MAX_VALUE = 100
 STEP = 5  # This is the increment/decrement step
-
-# Initialize the variable
-# variable_value = 50  # Start with a middle value for demonstration
-
-# @app.route('/')
-# def index():
-#     return render_template('index.html')
-
-# @app.route('/get_value', methods=['GET'])
-# def get_value():
-#     with max_torque_lock:
-#         json = jsonify({"value": max_torque})
-#         print("Torque: ", max_torque)
-#     return json
-
-# @app.route('/increment', methods=['POST'])
-# def increment():
-#     global max_torque
-#     global max_torque_lock
-#     with max_torque_lock:
-#         max_torque = min(max_torque + STEP, MAX_VALUE)
-#         print("Torque: ", max_torque)
-#         return jsonify({"value": max_torque})
-
-# @app.route('/decrement', methods=['POST'])
-# def decrement():
-#     global max_torque
-#     global max_torque_lock
-#     with max_torque_lock:
-#         max_torque = max(max_torque - STEP, MIN_VALUE)
-#         print("Torque: ", max_torque)
-#         return jsonify({"value": max_torque})
-
-# @app.route('/set_to_20', methods=['POST'])
-# def set_to_20():
-#     global max_torque
-#     global max_torque_lock
-#     with max_torque_lock:
-#         max_torque = 20
-#         print("Torque: ", max_torque)
-#         return jsonify({"value": max_torque})
-
-# if __name__ == '__main__':
-#     app.run(host="0.0.0.0",debug=True)
 
 
 class GUIBackend(Flask):
@@ -76,14 +29,6 @@ class GUIBackend(Flask):
         self.add_url_rule("/decrement", view_func=self.decrement,  methods=['POST'])
         self.add_url_rule("/increment", view_func=self.increment,methods=['POST'])
         self.add_url_rule("/get_value", view_func=self.get_value,methods=['GET'])
-
-
-
-    # def __enter__(self):
-    #     self._max_torque_lock.acquire()
-
-    # def __exit__(self):
-    #     self._max_torque_lock.release()
 
     @property
     def max_torque(self):
@@ -120,14 +65,12 @@ class GUIBackend(Flask):
 
 
 def uint16_to_int16(uint16):
-    # Assuming the unsigned integer is meant to fit in 32 bits
     if uint16 >= 2**15:
         return uint16- 2**16
     return uint16
 
 
 def uint32_to_int32(uint32):
-    # Assuming the unsigned integer is meant to fit in 32 bits
     if uint32 >= 2**31:
         return uint32 - 2**32
     return uint32
@@ -140,44 +83,34 @@ def DriveReset():
     client1.write_single_register(1032, 1)
 
 def EnableDisableWatchDog(watchdog):
-    #print("Writing WatchDog 06.043      :", watchdog)
     client1.write_single_register(642, watchdog)
     
 def toggleWatchDog():
-    #print("Writing WatchDog 06.042      :", watchdog)
     client1.write_single_register(641, 0)
     client1.write_single_register(641, 16384)
     
 
 def writeTorque(torque):
-    #print("Writing Torque 04.008        :", torque)
     client1.write_single_register(407, torque*100)
 
 def writeSpeed(speed):
-    #print("Writing Speed 01.018         :", speed)
     client1.write_single_register(117, speed*10)
 
 def DriveEnable(driveenable):
-    #print("Writing Drive Enable 06.015     :", driveenable)
     client1.write_single_register(614, driveenable)
 
 def writeForwardDirection(direction):
-    #print("Writing Forward Direction 06.030     :", direction)
     client1.write_single_register(629, direction)
 
 def writeReverseDirection(direction):
-    #print("Writing Reverse Direction 06.032     :", direction)
     client1.write_single_register(631, direction)
 
 def EnableDisableForwardLimit(flag):
-    #print("Initialise  12.036           :", flag)
     client1.write_single_register(1235, flag)
 
 def saveForwardLimitSwitchPosition():
-    #print("Setting 12.010 to Input 0")
     client1.write_single_register(1209, 0)
     sleep(0.1)
-    #print("Setting 12.010 to Input 1")
     client1.write_single_register(1209, 1)
 
 def driveHealthy():
@@ -260,7 +193,6 @@ def wait_for_sto_ON():
 
     while not readHardwareEnabled():
         print ("Pleas push both STO's",end="\r")
-    sleep(1)
     print("---------------------------------------------------------------")
     print("STO is ON")
     print("---------------------------------------------------------------")    
@@ -271,6 +203,7 @@ def calibrate_end_position():
     print("***************************************************************")
     print("Finding end position")
     print("***************************************************************")
+    sleep(1)
     DriveEnable(1)
     writeForwardDirection(1)
     writeTorque(5)  # Min Torque
@@ -291,8 +224,6 @@ def calibrate_end_position():
 if __name__ == '__main__':
     
     app = GUIBackend()
-
-
 
     def thread():
         pulli_diameter = 40
@@ -356,14 +287,7 @@ if __name__ == '__main__':
         print("***************************************************************")
         print("Please hold the rope, then push both STO's")
 
-        # Warten auf das Training
-        while not readHardwareEnabled():
-            print("Please push both STO's", end="\r")
-
-        # Training starten
-        print("---------------------------------------------------------------")
-        print("STO is ON - Training has started")
-        print("---------------------------------------------------------------")
+        wait_for_sto_ON()
 
         torque_reference = 20
         EnableDisableForwardLimit(1)
