@@ -229,8 +229,8 @@ def readPower():
     power = uint16_to_int16(client1.read_holding_registers(502,1)[0])
     return power
 
-def main():
 
+if __name__ == '__main__':
     # 0 - Position ist auf 1920mm
     # Weg pro Umdrehung 166mm
     # Normalisierter Weg pro Umdrehung 65536
@@ -255,9 +255,6 @@ def main():
         dist_par_rev = round((pulli_diameter+rope_diameter)*3.14159)
 
         min_torque = 5          # %
-
-        global max_torque_lock
-        global max_torque
 
         swing_lenght_dist = 1000     # mm
         start_max_torque = 200   # mm
@@ -423,91 +420,74 @@ def main():
 
 
 
-        with open("training.csv","w") as file:
-            file.write("TIMESTAMP;POSITION;SPEED;LOAD;POWER;TORQUEREF;SEQFREQ\n")
+        while readHardwareEnabled():
 
-            while readHardwareEnabled():
-                global max_torque_lock
-                global max_torque
-                scale_factor = 0
+            scale_factor = 0
 
-                toggleWatchDog()
+            toggleWatchDog()
 
-                actual_position = readNormalisedPosition()
-                actual_speed = readSpeed()
+            actual_position = readNormalisedPosition()
+            actual_speed = readSpeed()
 
-                if actual_speed < 0:
-                    actual_dir=False    # Zug
-                else:
-                    actual_dir=True     # Wickeln
+            if actual_speed < 0:
+                actual_dir=False    # Zug
+            else:
+                actual_dir=True     # Wickeln
 
-                if old_dir and not actual_dir:
-                    # Zug beginnt
-                    sequence_end_time=sequence_start_time
-                    sequence_start_time = int(datetime.datetime.now().timestamp()*1000)
-                    sequence_freq=1/((sequence_start_time-sequence_end_time)/1000)*60
-                    print("Frequenz in Hub/min:",sequence_freq)
-                    old_dir = actual_dir
-                if not old_dir and actual_dir:
-                    # Wickeln beginnt
-                    old_dir = actual_dir
+            if old_dir and not actual_dir:
+                # Zug beginnt
+                sequence_end_time=sequence_start_time
+                sequence_start_time = int(datetime.datetime.now().timestamp()*1000)
+                sequence_freq=1/((sequence_start_time-sequence_end_time)/1000)*60
+                print("Frequenz in Hub/min:",sequence_freq)
+                old_dir = actual_dir
 
-                toggleWatchDog()
+            if not old_dir and actual_dir:
+                # Wickeln beginnt
+                old_dir = actual_dir
+
+            toggleWatchDog()
                 
 
-                power =  readPower()
-                if power < min_power:
-                    min_power=power
-                if power > max_power:
-                    max_power=power
+            power =  readPower()
+            if power < min_power:
+                min_power=power
+            if power > max_power:
+                max_power=power
 
+            if actual_position >= pole_zero_position:
+                scale_factor = 0
 
-                #print("Actual Position  :",readNormalisedPosition())
+            if actual_position < pole_zero_position and actual_position >=  start_max_torque_position:
+                scale_factor = round(100-(actual_position-start_max_torque_position)/scale_factor_up)
 
-                if actual_position >= pole_zero_position:
-                    scale_factor = 0
-
-                if actual_position < pole_zero_position and actual_position >=  start_max_torque_position:
-                    scale_factor = round(100-(actual_position-start_max_torque_position)/scale_factor_up)
-                    #print("0 bis max Torque -", scale_factor )
-
-                if actual_position < start_max_torque_position and actual_position >=  end_max_torque_positition:
-                    scale_factor = 100
-                    #print("max Torque")
-
+            if actual_position < start_max_torque_position and actual_position >=  end_max_torque_positition:
+                scale_factor = 100
             
-                if actual_position < end_max_torque_positition and actual_position >=  end_swing_position:
-                    scale_factor = round(actual_position-end_swing_position)/scale_factor_down
-                    #print("max Torque bis 0 - ",scale_factor)
+            if actual_position < end_max_torque_positition and actual_position >=  end_swing_position:
+                scale_factor = round(actual_position-end_swing_position)/scale_factor_down
 
 
-                toggleWatchDog()
+            toggleWatchDog()
 
-                # Ein bisschen Sicherheit
-                if scale_factor < 0:
-                    scale_factor=0
+            # Ein bisschen Sicherheit
+            if scale_factor < 0:
+                scale_factor=0
 
-                if scale_factor > 100:
-                    scale_factor = 100
+            if scale_factor > 100:
+                scale_factor = 100
 
-                with app._max_torque_lock:
-                    act_torque = round(min_torque+(app.max_torque-min_torque)/100*scale_factor)
-                    print("Torque Value:",act_torque)
+            with app._max_torque_lock:
+                act_torque = round(min_torque+(app.max_torque-min_torque)/100*scale_factor)
+                writeTorque(act_torque)
 
-                #print("Actual Torque Reference:",act_torque)
-                    writeTorque(act_torque)
+            toggleWatchDog()
 
-                toggleWatchDog()
 
-                file.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")+";"+str(actual_position)+";"+str(actual_speed)+";"+str(readLoad())+";"+str(readPower())+";"+str(act_torque)+";"+str(sequence_freq)+"\n")
-
-            EnableDisableWatchDog(0)
+        EnableDisableWatchDog(0)
 
     t = Thread(target=thread)
     t.start()
-    app.run(host="0.0.0.0",debug=True)
+    app.run(host="0.0.0.0",debug=False)
 
-
-if __name__ == '__main__':
-    main()
 
