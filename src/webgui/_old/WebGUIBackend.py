@@ -91,9 +91,6 @@ class WebGUIBackend(Flask):
     
     def _settings(self):
         return render_template('settings.html', async_mode=self._socket.async_mode)
-    
-    def _settings(self):
-        return render_template('settings.html')
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)

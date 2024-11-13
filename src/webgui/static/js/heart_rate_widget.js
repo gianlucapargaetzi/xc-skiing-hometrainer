@@ -67,6 +67,12 @@ socket.on('connect', function() {
     socket.emit('my_event', {data: 'Connected!'});
 });
 
+
+socket.on('test', function(msg) {
+  console.log(msg);
+});
+
+
 socket.on('heart_rate_update', function(msg) {
     console.log(msg);
 
