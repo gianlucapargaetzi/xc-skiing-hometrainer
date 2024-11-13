@@ -229,262 +229,206 @@ def readPower():
     power = uint16_to_int16(client1.read_holding_registers(502,1)[0])
     return power
 
+def wait_for_drive():
+    """Warte, bis das Antriebssystem bereit ist."""
+    print("***************************************************************")
+    print("Wait until Drive is ready")
+    print("***************************************************************")
+    while not driveHealthy():
+        print("Drive is not ready", end="\r")
+        DriveReset()
+    print("---------------------------------------------------------------")
+    print("Drive is ready")
+    print("---------------------------------------------------------------")
+
+
+def wait_for_sto_OFF():
+    """Warte auf die Freigabe von STO."""
+    print("***************************************************************")
+    print("Wait until STO is released")
+    print("***************************************************************")
+    while readHardwareEnabled():
+        print("Please release the STO", end="\r")
+    print("---------------------------------------------------------------")
+    print("STO is released")
+    print("---------------------------------------------------------------")
+
+def wait_for_sto_ON():
+    print("***************************************************************")
+    print("Wait until STO is ON")
+    print("***************************************************************")
+
+    while not readHardwareEnabled():
+        print ("Pleas push both STO's",end="\r")
+    sleep(1)
+    print("---------------------------------------------------------------")
+    print("STO is ON")
+    print("---------------------------------------------------------------")    
+
+
+def calibrate_end_position():
+    """Kalibriert die Endposition des Antriebs."""
+    print("***************************************************************")
+    print("Finding end position")
+    print("***************************************************************")
+    DriveEnable(1)
+    writeForwardDirection(1)
+    writeTorque(5)  # Min Torque
+    writeSpeed(100)
+
+    while readSpeed() > 0:
+        pass
+
+    DriveEnable(0)
+    writeForwardDirection(0)
+    saveForwardLimitSwitchPosition()
+    EnableDisableForwardLimit(1)
+    print("---------------------------------------------------------------")
+    print("End position calibrated")
+    print("---------------------------------------------------------------")
+
 
 if __name__ == '__main__':
-    # 0 - Position ist auf 1920mm
-    # Weg pro Umdrehung 166mm
-    # Normalisierter Weg pro Umdrehung 65536
-    # Stockhöhe 1450mm
-    # Zu fahrender Weg 370mm
-    # Normailiserte Weg  = 148838
-    # global app
-    # def thread():
-    #     app.run(host="0.0.0.0",debug=True)
-
-    # t = Thread(target=thread)
-
-    # t.start()
     
     app = GUIBackend()
 
+
+
     def thread():
-        pulli_diameter = 40     # mm
-        rope_diameter = 3       # mm
-        top_position = 1860     # mm
-        pole_lenght = 1450      # mm
-        dist_par_rev = round((pulli_diameter+rope_diameter)*3.14159)
+        pulli_diameter = 40
+        rope_diameter = 3
+        top_position = 1860
+        pole_length = 1450
+        dist_par_rev = round((pulli_diameter + rope_diameter) * 3.14159)
+        min_torque = 5
 
-        min_torque = 5          # %
-
-        swing_lenght_dist = 1000     # mm
-        start_max_torque = 200   # mm
-        end_max_torque = 500     # mm
-
-        print("***************************************************************")
-        print("Wait until Drive is ready")
-        print("***************************************************************")
-
-        while not driveHealthy():
-            print("Drive is not ready",end="\r")
-            DriveReset()
-
-        print("---------------------------------------------------------------")
-        print("Drive is ready")
-        print("---------------------------------------------------------------")
-
+        # Initialisiere und konfiguriere
+        wait_for_drive()
         DriveEnable(0)
         writeTorque(0)
         writeSpeed(0)
         writeForwardDirection(0)
         writeReverseDirection(0)
         EnableDisableWatchDog(0)
-        DriveReset()
 
+        wait_for_sto_OFF()
 
-        # Sicherheitseinstellungen vor dem Initialisieren
-
+        # Sicherheitsvorkehrungen und Kalibrierung des Endschalters
         print("***************************************************************")
-        print("Wait until STO is released")
+        print("Pull the rope out about 50cm, then push both STO's")
         print("***************************************************************")
-
-        while readHardwareEnabled():
-            print("Please release the STO",end="\r")
-
-        print("---------------------------------------------------------------")
-        print("STO is released")
-        print("---------------------------------------------------------------")
-            
-
-        print("***************************************************************")
-        print("Pull the rope out abouth 50cm")
-        print("Then push both STO's and the rope will be moved in automatically")
-        print("to the top limit")
-        print("***************************************************************")
-        # Endschalterüberwachung deaktivieren
         EnableDisableForwardLimit(0)
+        wait_for_sto_ON()
+        calibrate_end_position()
 
-        DriveEnable(1)
-        writeForwardDirection(1)
-        writeTorque(min_torque)
-        writeSpeed(100)
-
-        print("***************************************************************")
-        print("Wait until STO is ON")
-        print("***************************************************************")
-
-        while not readHardwareEnabled():
-            print ("Pleas push both STO's",end="\r")
-
-        print("---------------------------------------------------------------")
-        print("STO is ON")
-        print("---------------------------------------------------------------")    
-
-        sleep(1)
-
-        print("***************************************************************")
-        print("Finding endposition")
-        print("***************************************************************")
-
-        while readSpeed()>0:
-            pass
-
-        # Am Anschlag wird das Richtungsbit entfernd
-        DriveEnable(0)
-        writeForwardDirection(0)
-
-        # Enschalterposition speichern und Endschalter aktivieren
-        saveForwardLimitSwitchPosition()    
-        EnableDisableForwardLimit(1)
-
-        print("---------------------------------------------------------------")
-        print("Endposition calibrated")
-        print("---------------------------------------------------------------")    
-
-
-        print("***************************************************************")
-        print("Wait until STO is released")
-        print("***************************************************************")
-
-        while readHardwareEnabled():
-            print("Please release the STO",end="\r")
-
-        print("---------------------------------------------------------------")
-        print("STO is released")
-        print("---------------------------------------------------------------")
-
-        pole_offset = round((top_position-pole_lenght )/dist_par_rev*65536)
-        print("Pole Offset                   :", pole_offset)
-
+        # Berechnungen der Pole-Positionen und Drehmomentfaktoren
+        pole_offset = round((top_position - pole_length) / dist_par_rev * 65536)
         abs_zero_position = readNormalisedPosition()
         pole_zero_position = abs_zero_position - pole_offset
-        print("Pole Zero Position            :",  pole_zero_position)
 
-        start_max_torque_position = pole_zero_position - round(start_max_torque/dist_par_rev*65536)
-        print("Start Max. Torque Position    : ", start_max_torque_position)
-        end_max_torque_positition = pole_zero_position - round(end_max_torque/dist_par_rev*65536)
-        print("End Max. Torque Position      : ", end_max_torque_positition)
-        end_swing_position = pole_zero_position - round(swing_lenght_dist/dist_par_rev*65536)
-        print("End Swing Position            : ", end_swing_position)
+        print("Pole Offset:", pole_offset)
+        print("Pole Zero Position:", pole_zero_position)
 
-        scale_factor_up = (pole_zero_position-start_max_torque_position)/100
-        print("Scale Factor Up               : ", scale_factor_up )
-        scale_factor_down = (end_max_torque_positition-end_swing_position)/100
-        print("Scale Factor Down             : ", scale_factor_down )
+        start_max_torque_position = pole_zero_position - round(200 / dist_par_rev * 65536)
+        end_max_torque_position = pole_zero_position - round(500 / dist_par_rev * 65536)
+        end_swing_position = pole_zero_position - round(1000 / dist_par_rev * 65536)
 
+        print("Start Max Torque Position:", start_max_torque_position)
+        print("End Max Torque Position:", end_max_torque_position)
+        print("End Swing Position:", end_swing_position)
 
+        scale_factor_up = (pole_zero_position - start_max_torque_position) / 100
+        scale_factor_down = (end_max_torque_position - end_swing_position) / 100
 
+        print("Scale Factor Up:", scale_factor_up)
+        print("Scale Factor Down:", scale_factor_down)
+
+        # Positionierung des Pole-Zero
         print("***************************************************************")
         print("Finding the Pole Zero position")
         print("***************************************************************")
-        while (readNormalisedPosition()>pole_zero_position):
-            print("Please pull the rope slowly until the pole possitio is found",end="\r")
+        while readNormalisedPosition() > pole_zero_position:
+            print("Please pull the rope slowly until the pole position is found", end="\r")
 
-        print("---------------------------------------------------------------")
         print("This is the Pole Zero position")
-        print("---------------------------------------------------------------")
-
-
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print("***************************************************************")
         print("The Training can start")
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-
         print("***************************************************************")
-        print("Pleas Hold the rope, then push both STO's")
-        print("***************************************************************")
+        print("Please hold the rope, then push both STO's")
 
+        # Warten auf das Training
         while not readHardwareEnabled():
-            print ("Pleas push both STO's",end="\r")
+            print("Please push both STO's", end="\r")
 
+        # Training starten
         print("---------------------------------------------------------------")
         print("STO is ON - Training has started")
-        print("---------------------------------------------------------------")    
+        print("---------------------------------------------------------------")
 
         torque_reference = 20
         EnableDisableForwardLimit(1)
         writeForwardDirection(1)
         writeTorque(torque_reference)
         writeSpeed(2000)
-
         EnableDisableWatchDog(1)
         DriveEnable(1)
 
-        min_power=0
-        max_power=0
-
-        sequence_running = False
-        actual_dir = True
-        old_dir = True
-        sequence_start_time = int(datetime.datetime.now().timestamp()*1000)
-        sequence_end_time =  int(datetime.datetime.now().timestamp()*1000)
-        sequence_freq =0
-
-
+        # Initialisierung der Leistungsmessungen und des Sequenzstatus
+        min_power = max_power = 0
+        actual_dir = old_dir = True
+        sequence_start_time = sequence_end_time = int(datetime.datetime.now().timestamp() * 1000)
+        sequence_freq = 0
 
         while readHardwareEnabled():
-
             scale_factor = 0
 
+            # Toggle Watchdog zu Beginn und Ende der Schleife
             toggleWatchDog()
 
+            # Lese aktuelle Position und Geschwindigkeit
             actual_position = readNormalisedPosition()
             actual_speed = readSpeed()
+            actual_dir = actual_speed >= 0  # True für Wickeln, False für Zug
 
-            if actual_speed < 0:
-                actual_dir=False    # Zug
-            else:
-                actual_dir=True     # Wickeln
-
+            # Frequenzberechnung, wenn sich die Richtung ändert
             if old_dir and not actual_dir:
                 # Zug beginnt
-                sequence_end_time=sequence_start_time
-                sequence_start_time = int(datetime.datetime.now().timestamp()*1000)
-                sequence_freq=1/((sequence_start_time-sequence_end_time)/1000)*60
-                print("Frequenz in Hub/min:",sequence_freq)
+                sequence_end_time = sequence_start_time
+                sequence_start_time = int(datetime.datetime.now().timestamp() * 1000)
+                sequence_freq = 60000 / (sequence_start_time - sequence_end_time)
+                print("Frequenz in Hub/min:", sequence_freq)
                 old_dir = actual_dir
-
-            if not old_dir and actual_dir:
+            elif not old_dir and actual_dir:
                 # Wickeln beginnt
                 old_dir = actual_dir
 
-            toggleWatchDog()
-                
+            # Aktualisiere minimale und maximale Leistung
+            power = readPower()
+            min_power = min(min_power, power)
+            max_power = max(max_power, power)
 
-            power =  readPower()
-            if power < min_power:
-                min_power=power
-            if power > max_power:
-                max_power=power
-
+            # Berechnung des Scale-Faktors basierend auf Position
             if actual_position >= pole_zero_position:
                 scale_factor = 0
-
-            if actual_position < pole_zero_position and actual_position >=  start_max_torque_position:
-                scale_factor = round(100-(actual_position-start_max_torque_position)/scale_factor_up)
-
-            if actual_position < start_max_torque_position and actual_position >=  end_max_torque_positition:
+            elif actual_position >= start_max_torque_position:
+                scale_factor = round(100 - (actual_position - start_max_torque_position) / scale_factor_up)
+            elif actual_position >= end_max_torque_position:
                 scale_factor = 100
-            
-            if actual_position < end_max_torque_positition and actual_position >=  end_swing_position:
-                scale_factor = round(actual_position-end_swing_position)/scale_factor_down
+            elif actual_position >= end_swing_position:
+                scale_factor = round((actual_position - end_swing_position) / scale_factor_down)
 
+            # Begrenzen des Scale-Faktors auf 0 bis 100
+            scale_factor = max(0, min(100, scale_factor))
 
-            toggleWatchDog()
-
-            # Ein bisschen Sicherheit
-            if scale_factor < 0:
-                scale_factor=0
-
-            if scale_factor > 100:
-                scale_factor = 100
-
+            # Berechnung und Schreiben des Drehmoments mit Lock
             with app._max_torque_lock:
-                act_torque = round(min_torque+(app.max_torque-min_torque)/100*scale_factor)
+                act_torque = round(min_torque + (app.max_torque - min_torque) * scale_factor / 100)
                 writeTorque(act_torque)
 
-            toggleWatchDog()
-
+            toggleWatchDog()  # Watchdog-Toggle am Ende der Schleife
 
         EnableDisableWatchDog(0)
+
 
     t = Thread(target=thread)
     t.start()
