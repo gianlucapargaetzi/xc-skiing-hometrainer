@@ -46,7 +46,7 @@
         }
 
         button#increment { background-color: #4CAF50; color: white; }
-        button#decrement { background-color: #f44336; color: white; }
+        button#decrement { background-color: #ff7b00; color: white; }
         button#set_to_20 { background-color: #2196F3; color: white; }
 
         button:hover {
@@ -62,6 +62,7 @@
     <button id="decrement">-</button>
     <button id="set_to_20">20%</button>
     <button id="increment">+</button>
+    
 </div>
 
 <script>
@@ -91,6 +92,7 @@
             .then(data => updateDisplay(data.value))
             .catch(error => console.error('Error:', error));
     }
+
 
     document.getElementById('increment').addEventListener('click', incrementValue);
     document.getElementById('decrement').addEventListener('click', decrementValue);

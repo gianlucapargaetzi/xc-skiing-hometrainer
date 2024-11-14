@@ -22,15 +22,16 @@ class GUIBackend(Flask):
         super().__init__(__name__)
         self._max_torque_lock = Lock()
         self._max_torque = 40
-        print("Max Torque gesetzt:")
 
         self.add_url_rule("/", view_func=self.index)
         self.add_url_rule("/set_to_20", view_func=self.set_to_20,  methods=['POST'])
         self.add_url_rule("/decrement", view_func=self.decrement,  methods=['POST'])
-        self.add_url_rule("/increment", view_func=self.increment,methods=['POST'])
+        self.add_url_rule("/increment", view_func=self.increment,  methods=['POST'])
         self.add_url_rule("/get_value", view_func=self.get_value,methods=['GET'])
 
     @property
+
+   
     def max_torque(self):
         return self._max_torque
 
@@ -163,7 +164,6 @@ def readPower():
     return power
 
 def wait_for_drive():
-    """Warte, bis das Antriebssystem bereit ist."""
     print("***************************************************************")
     print("Wait until Drive is ready")
     print("***************************************************************")
@@ -176,7 +176,6 @@ def wait_for_drive():
 
 
 def wait_for_sto_OFF():
-    """Warte auf die Freigabe von STO."""
     print("***************************************************************")
     print("Wait until STO is released")
     print("***************************************************************")
@@ -199,7 +198,6 @@ def wait_for_sto_ON():
 
 
 def calibrate_end_position():
-    """Kalibriert die Endposition des Antriebs."""
     print("***************************************************************")
     print("Finding end position")
     print("***************************************************************")
@@ -208,6 +206,8 @@ def calibrate_end_position():
     writeForwardDirection(1)
     writeTorque(5)  # Min Torque
     writeSpeed(100)
+
+    sleep(0.5)
 
     while readSpeed() > 0:
         pass
@@ -303,7 +303,9 @@ if __name__ == '__main__':
         sequence_start_time = sequence_end_time = int(datetime.datetime.now().timestamp() * 1000)
         sequence_freq = 0
 
-        while readHardwareEnabled():
+
+        #while readHardwareEnabled():
+        while True:
             scale_factor = 0
 
             # Toggle Watchdog zu Beginn und Ende der Schleife
@@ -357,5 +359,3 @@ if __name__ == '__main__':
     t = Thread(target=thread)
     t.start()
     app.run(host="0.0.0.0",debug=False)
-
-
