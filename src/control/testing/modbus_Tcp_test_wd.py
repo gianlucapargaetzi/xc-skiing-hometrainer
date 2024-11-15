@@ -226,10 +226,13 @@ if __name__ == '__main__':
     app = GUIBackend()
 
     def thread():
-        pulli_diameter = 40
-        rope_diameter = 3
-        top_position = 1860
-        pole_length = 1450
+        pulli_diameter = 40             # mm
+        rope_diameter = 3               # mm
+        top_position = 1860             # mm
+        pole_length = 1425              # mm
+        swing_length = 1200             # mm
+        swing_start_max_torque = 200    # mm
+        swing_end_max_torque = 600      # mm
         dist_par_rev = round((pulli_diameter + rope_diameter) * 3.14159)
         min_torque = 10
 
@@ -260,9 +263,9 @@ if __name__ == '__main__':
         print("Pole Offset:", pole_offset)
         print("Pole Zero Position:", pole_zero_position)
 
-        start_max_torque_position = pole_zero_position - round(200 / dist_par_rev * 65536)
-        end_max_torque_position = pole_zero_position - round(500 / dist_par_rev * 65536)
-        end_swing_position = pole_zero_position - round(1000 / dist_par_rev * 65536)
+        start_max_torque_position = pole_zero_position - round(swing_start_max_torque / dist_par_rev * 65536)
+        end_max_torque_position = pole_zero_position - round(swing_end_max_torque / dist_par_rev * 65536)
+        end_swing_position = pole_zero_position - round(swing_length / dist_par_rev * 65536)
 
         print("Start Max Torque Position:", start_max_torque_position)
         print("End Max Torque Position:", end_max_torque_position)
