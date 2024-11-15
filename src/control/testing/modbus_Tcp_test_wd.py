@@ -21,7 +21,7 @@ class GUIBackend(Flask):
     def __init__(self, *args, **kwargs):
         super().__init__(__name__)
         self._max_torque_lock = Lock()
-        self._max_torque = 40
+        self._max_torque = 30
 
         self.add_url_rule("/", view_func=self.index)
         self.add_url_rule("/set_to_20", view_func=self.set_to_20,  methods=['POST'])
@@ -231,7 +231,7 @@ if __name__ == '__main__':
         top_position = 1860
         pole_length = 1450
         dist_par_rev = round((pulli_diameter + rope_diameter) * 3.14159)
-        min_torque = 5
+        min_torque = 10
 
         # Initialisiere und konfiguriere
         wait_for_drive()
@@ -289,10 +289,9 @@ if __name__ == '__main__':
 
         wait_for_sto_ON()
 
-        torque_reference = 20
         EnableDisableForwardLimit(1)
         writeForwardDirection(1)
-        writeTorque(torque_reference)
+        writeTorque(min_torque)
         writeSpeed(2000)
         EnableDisableWatchDog(1)
         DriveEnable(1)
@@ -333,7 +332,7 @@ if __name__ == '__main__':
             min_power = min(min_power, power)
             max_power = max(max_power, power)
 
-            # Berechnung des Scale-Faktors basierend auf Position
+                # Berechnung des Scale-Faktors basierend auf Position
             if actual_position >= pole_zero_position:
                 scale_factor = 0
             elif actual_position >= start_max_torque_position:
