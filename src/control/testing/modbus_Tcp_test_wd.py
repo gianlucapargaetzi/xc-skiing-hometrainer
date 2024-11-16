@@ -317,9 +317,8 @@ if __name__ == '__main__':
 
 
         #while readHardwareEnabled():
-        while app.active:
+        while True:
             scale_factor = 0
-
             # Toggle Watchdog zu Beginn und Ende der Schleife
             toggleWatchDog()
 
