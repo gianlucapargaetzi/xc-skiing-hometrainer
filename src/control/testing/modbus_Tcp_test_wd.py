@@ -22,18 +22,23 @@ class GUIBackend(Flask):
         super().__init__(__name__)
         self._max_torque_lock = Lock()
         self._max_torque = 30
+        self._active = True
 
         self.add_url_rule("/", view_func=self.index)
         self.add_url_rule("/set_to_20", view_func=self.set_to_20,  methods=['POST'])
         self.add_url_rule("/decrement", view_func=self.decrement,  methods=['POST'])
         self.add_url_rule("/increment", view_func=self.increment,  methods=['POST'])
         self.add_url_rule("/get_value", view_func=self.get_value,methods=['GET'])
+        self.add_url_rule("/stop", view_func=self.stop,methods=['POST'])
+
 
     @property
-
-   
     def max_torque(self):
         return self._max_torque
+
+    @property
+    def active(self) -> bool:
+        return self._active
 
     def index(self):
         return render_template('index.html')
@@ -62,7 +67,12 @@ class GUIBackend(Flask):
             print("Torque: ", self._max_torque)
         return json
 
-        
+    def stop(self):
+        data = request.get_json()
+        if data and "active" in data:
+            self._active = data["active"]
+            return jsonify({"message": "Stop action received", "active": self._active}), 200
+        return jsonify({"error": "Invalid payload"}), 400        
 
 
 def uint16_to_int16(uint16):
@@ -307,7 +317,7 @@ if __name__ == '__main__':
 
 
         #while readHardwareEnabled():
-        while True:
+        while app.active:
             scale_factor = 0
 
             # Toggle Watchdog zu Beginn und Ende der Schleife
@@ -355,8 +365,12 @@ if __name__ == '__main__':
 
             toggleWatchDog()  # Watchdog-Toggle am Ende der Schleife
 
+        # wird das Training gestoppt so werden ein paar Parameter im Drive zurückgesetzt,
+        # damit nichts ungewolltes passiert
+        DriveEnable(0)
+        writeSpeed(0)
+        writeTorque(0)
         EnableDisableWatchDog(0)
-
 
     t = Thread(target=thread)
     t.start()
