@@ -1,5 +1,5 @@
 import numpy as np
-
+from typing import Tuple
 
 def A(x0, x1, xk):
     return  np.array([  [x0**2, x0,     1,      0,      0,      0],
@@ -17,7 +17,7 @@ def b(y0, y1):
                     [0],
                     [0]])
 
-def createTorqueCurve(ease_in: float, ease_out: float, xkrit: float, y0: float, y1: float, len=1000, relative = True) -> np.ndarray:
+def createTorqueCurve(ease_in: float, ease_out: float, xkrit: float, y0: float, y1: float, len=1000, relative = True) -> Tuple[np.ndarray, np.ndarray]:
     """Create a Torque curve with ease in and ease out around xkirt. 
         The ease in starts at (xkrit - ease_in) * len and the ease out ends at (xkrit + ease_out) * len
 
@@ -54,7 +54,7 @@ def createTorqueCurve(ease_in: float, ease_out: float, xkrit: float, y0: float, 
     param = np.linalg.solve(a,B)
 
     values = np.zeros(len)
-    x = np.arange(0, len-1, 1)
+    x = np.arange(0, len, 1)
     values[0:xkrit-ease_in] = y0
     values[xkrit+ease_out:] = y1
     ease_in_vals = param[0]*x**2 +param[1]*x +param[2]
@@ -63,5 +63,6 @@ def createTorqueCurve(ease_in: float, ease_out: float, xkrit: float, y0: float, 
     values[xkrit-ease_in    :       xkrit]              = ease_in_vals[xkrit-ease_in            : xkrit]
     values[xkrit            :       xkrit+ ease_out]    = ease_out_vals[xkrit                   : xkrit+ease_out]
     
+    # print(np.shape(x), np.shape(values))
 
-    return values
+    return x,values

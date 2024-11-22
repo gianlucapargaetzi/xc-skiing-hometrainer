@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interval Intensity Controller</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.0/socket.io.js" integrity="sha512-OovVc8Xk/+ils70VE978+ILm2IvIisZskNCaDvaTtXt7a2O3eioYv8SVKfjdVU1za9Ir/KHIqweNEGLLFk6bdw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+            background-color: #f7f7f7;
+        }
+        h1 {
+            text-align: center;
+        }
+        form, .list-container {
+            margin: 20px auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            background-color: #fff;
+            width: 50%;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        label {
+            font-weight: bold;
+        }
+        input[type="file"], button {
+            display: block;
+            margin: 10px 0;
+            padding: 10px;
+            font-size: 16px;
+        }
+        .list-container ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        .list-container li {
+            padding: 5px 0;
+            border-bottom: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>Interval Intensity Controller</h1>
+
+    <form id="uploadForm">
+        <label for="intervalFile">Upload Interval File:</label>
+        <input type="file" id="intervalFile" name="intervalFile" />
+        <button type="button" onclick="uploadFile()">Upload</button>
+    </form>
+
+    <div class="list-container">
+        <h2>Available Interval Files</h2>
+        <button onclick="fetchFileList()">Refresh List</button>
+        <ul id="fileList"></ul>
+    </div>
+
+    <form id="loadForm">
+        <label for="fileName">Load Interval File:</label>
+        <input type="text" id="fileName" placeholder="Enter file name" />
+        <button type="button" onclick="loadFile()">Load File</button>
+    </form>
+
+    <div class="chart-container">
+        <canvas id="intervalChart" width="400" height="200"></canvas>
+    </div>
+
+    <script>
+
+        const backendUrl = "http://127.0.0.1:5000";
+
+        var socket = io();
+        socket.on('interval_intensity', function(msg) {
+            console.log(msg);
+            updateMarker(msg.time);
+        });
+
+        function uploadFile() {
+            const fileInput = document.getElementById('intervalFile');
+            if (!fileInput.files.length) {
+                alert("Please select a file to upload.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('intervalFile', fileInput.files[0]);
+
+            fetch(`${backendUrl}/upload_interval_file`, {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        alert("File uploaded successfully!");
+                    } else {
+                        alert(`Error uploading file: ${result.error}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert("An error occurred while uploading the file.");
+                });
+        }
+
+        function fetchFileList() {
+            fetch(`${backendUrl}/get_interval_list`, {
+                method: 'GET',
+            })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        const fileList = document.getElementById('fileList');
+                        fileList.innerHTML = '';
+                        result.files.forEach(file => {
+                            const li = document.createElement('li');
+                            li.textContent = file;
+                            fileList.appendChild(li);
+                        });
+                    } else {
+                        alert(`Error fetching file list: ${result.error}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert("An error occurred while fetching the file list.");
+                });
+        }
+
+        let chart = null;
+        let markerIndex = null;
+        const markerColor = 'rgba(255, 0, 0, 1)'; // Red glowing color
+
+        function loadFile() {
+            const fileName = document.getElementById('fileName').value.trim();
+            if (!fileName) {
+                alert("Please enter a file name to load.");
+                return;
+            }
+
+            fetch(`${backendUrl}/load_interval_file`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ fileName })
+            })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        alert("File loaded successfully!");
+
+                        // Plot the diagram
+                        const xValues = result.data.x;
+                        const yValues = result.data.y;
+
+                        plotChart(xValues, yValues);
+                        // startMarkerUpdate(); // Start updating the marker position
+                    } else {
+                        alert(`Error loading file: ${result.error}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert("An error occurred while loading the file.");
+                });
+        }
+
+        function plotChart(xValues, yValues) {
+            const ctx = document.getElementById('intervalChart').getContext('2d');
+
+            if (chart) chart.destroy(); // Clear previous chart
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: xValues,
+                    datasets: [
+                        {
+                            label: 'Marker',
+                            data: [], // Empty initially
+                            backgroundColor: 'rgba(255, 0, 0, 1)', // Red color for marker
+                            borderColor: 'rgba(255, 0, 0, 1)',
+                            radius: 6, // Size of the point
+                            fill: false, // Don't fill the point
+                            pointStyle: 'circle' // Round marker
+                        },
+                        {
+                            label: 'Intensity',
+                            data: yValues,
+                            borderColor: 'blue',
+                            fill: false,
+                            tension: 0.1,
+                            pointRadius: 0 // Hide points on the line
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Intensity'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateMarker(index) {
+            if (!chart) return;
+
+            markerIndex = index;
+
+            // Get the x and y values of the marker
+            const x = chart.data.labels[markerIndex];
+            const y = chart.data.datasets[0].data[markerIndex];
+
+            // Update the marker dataset with the new position
+            chart.data.datasets[1].data = [{ x: x, y: y }]; // Add a single point
+
+            // Update the chart to display the red point
+            chart.update();
+        }
+
+    </script>
+</body>
+</html>

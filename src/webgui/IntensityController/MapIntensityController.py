@@ -1,5 +1,5 @@
 from IntensityController.IntensityControllerInterface import IntensityControllerInterface
-from webgui.webgui import BackendNode
+from BasicWebGUI import BackendNode
 from threading import Lock
 
 
@@ -133,8 +133,6 @@ class MapIntensityController(IntensityControllerInterface, BackendNode):
         self._last_map_state_lock = Lock()
         self._last_map_state: dict = {"timestamp": 0.0, "speed": 0.0, "map_information": {"lon": 0.0, "lat": 0.0, "distance": 0.0, "elevation": 0.0}}
 
-
-
     def loadGPX(self, filepath: str):
         self._map = Map(filepath=filepath)
         pass
@@ -153,8 +151,8 @@ class MapIntensityController(IntensityControllerInterface, BackendNode):
                                                          "distance": 0.0, 
                                                          "elevation": 0.0}}
             return
-
-        if self._running.is_set():
+        
+        if self._publisher_running.is_set():
             dt = sim_value['timestamp'] - self._last_map_state['timestamp']
             # Calculate covered distance since last update with linear interpolation betwee v0 and v1
             ds = (self._last_map_state['speed'] + sim_value['speed'])/2 * dt

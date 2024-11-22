@@ -1,179 +1,170 @@
-<!--index.html-->
-
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
- <head>
-   <meta charset="UTF-8" />
-   <title>GridStack.js Example</title>
-   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-   <link rel="stylesheet" href="../static/css/style.css" />
-   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/gridstack.js/10.3.1/gridstack.min.css"/>
-   <link rel="stylesheet" href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"/>
-   <script src="https://cdnjs.cloudflare.com/ajax/libs/gridstack.js/10.3.1/gridstack-all.js"></script>
-  </head>
- <body>
-   <div class="body-content">
-     <aside>
-       <h1 class="app-name">Dashboard</h1>
-       <ul>
-         <li class="active">
-           <i class="bx bxs-dashboard active"></i> Overview
-         </li>
-         <div include-html="control_widget.html"></div>
-         <li><i class="bx bx-money"></i> Expenses</li>
-         <li><i class="bx bxs-wallet"></i> Budget</li>
-       </ul>
-       <div class="logout-bar"><i class="bx bx-log-out"></i> Logout</div>
-     </aside>
-     <div class="overview">
-       <header>
-         <div><span class="avatar">A</span> Admin</div>
-       </header>
-       <main>
-         <h2>Overview</h2>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scope Values Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.0/socket.io.js" integrity="sha512-OovVc8Xk/+ils70VE978+ILm2IvIisZskNCaDvaTtXt7a2O3eioYv8SVKfjdVU1za9Ir/KHIqweNEGLLFk6bdw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        #chartContainer {
+            flex: 1; /* Allow this container to grow and fill available space */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            width: 100% !important; /* Ensure canvas fills the width */
+            height: 100% !important; /* Ensure canvas fills the height */
+            max-width: 100%; /* Ensure no overflow */
+            max-height: 100%; /* Ensure no overflow */
+        }
+        #startButton {
+            margin: 20px auto;
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #startButton:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <button id="startButton">Start Simulation</button>
+    <div id="chartContainer">
+        <canvas id="powerChart"></canvas>
+    </div>
+    <script>
+        // Connect to Socket.IO
+        const socket = io(); // Update the URL if needed
 
+        // Initialize Chart.js chart
+        const initChart = (ctx, title, color) => {
+            return new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [], // Placeholder for x-axis values
+                    datasets: [
+                        {
+                            label: `${title} (Mean)`,
+                            data: [],
+                            borderColor: color,
+                            pointRadius: 0, // No points on the mean line
+                            fill: false,
+                            tension: 0.1, // Smooth lines
+                        },
+                        {
+                            label: `${title} (+Stddev)`,
+                            data: [],
+                            borderColor: `${color}`,
+                            borderDash: [5, 5], // Dashed line for +Stddev
+                            pointRadius: 0, // No points
+                            fill: false,
+                            tension: 0.1,
+                        },
+                        {
+                            label: `${title} (-Stddev)`,
+                            data: [],
+                            borderColor: `${color}`,
+                            borderDash: [5, 5], // Dashed line for -Stddev
+                            pointRadius: 0, // No points
+                            fill: false,
+                            tension: 0.1,
+                        },
+                        {
+                            label: `${title} (Stddev Range)`,
+                            data: [],
+                            backgroundColor: `${color}33`, // Transparent fill for shaded area
+                            fill: true,
+                            borderWidth: 0, // No border
+                            pointRadius: 0,
+                            tension: 0.1,
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false, // Allow chart to stretch dynamically
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'X-Axis' },
+                        },
+                        y: {
+                            title: { display: true, text: title },
+                        },
+                    },
+                },
+            });
+        };
 
-         <div class="grid-stack test">
-           <div
-             class="grid-stack-item"
-             gs-x="0"
-             gs-y="0"
-             gs-w="4"
-             gs-max-h="1"
-             gs-min-w="3"
-             gs-max-w="4"
-           >
-             <div class="grid-stack-item-content revenue">
-              {% include 'widgets/control_widget.html' %}
-             </div>
-           </div>
+        const powerChart = initChart(document.getElementById('powerChart').getContext('2d'), 'Power', 'red');
 
-           <div
-             class="grid-stack-item"
-             gs-x="4"
-             gs-y="0"
-             gs-w="4"
-             gs-max-h="3"
-             gs-min-w="3"
-             gs-max-w="6"
-           >
-             <div class="grid-stack-item-content revenue">
-              {% include 'widgets/heart_rate_widget.html' %}
-             </div>
-           </div>
+        // Function to update a chart
+        const updateChart = (chart, xData, meanData, stddevData) => {
+            chart.data.labels = xData; // Update x-axis data
 
+            // Update mean line
+            chart.data.datasets[0].data = meanData;
 
+            // Update +Stddev line
+            chart.data.datasets[1].data = meanData.map((mean, i) => mean + stddevData[i]);
 
-           <div
-             class="grid-stack-item"
-             gs-x="4"
-             gs-y="0"
-             gs-w="4"
-             gs-min-w="2"
-           >
-             <div class="grid-stack-item-content customer-overview">
-               <p class="description">Total Customers</p>
-               <p class="metric-value">5,133</p>
-             </div>
-           </div>
-           <div
-             class="grid-stack-item"
-             gs-x="8"
-             gs-y="0"
-             gs-w="4"
-             gs-min-w="2"
-           >
-             <div class="grid-stack-item-content growth">
-               <p class="description">Monthly Growth</p>
-               <p class="metric-value profit">
-                 <i class="bx bxs-up-arrow-circle"></i> 20.8%
-               </p>
-             </div>
-           </div>
-           <div
-             class="grid-stack-item"
-             gs-x="0"
-             gs-y="1"
-             gs-w="7"
-             gs-h="2"
-             gs-min-w="5"
-             gs-min-h="2"
-           >
-             <div class="grid-stack-item-content transactions-overview">
-               <p class="description">Latest Transactions</p>
-               <table class="transaction-table">
-                 <thead>
-                   <tr>
-                     <th>Name</th>
-                     <th>Email</th>
-                     <th>Amount</th>
-                     <th>Time</th>
-                   </tr>
-                 </thead>
-                 <tbody>
-                   <tr>
-                     <td>Elijah Yusuf</td>
-                     <td>placeholder@mail.com</td>
-                     <td>$50</td>
-                     <td>1 hour ago</td>
-                   </tr>
-                   <tr>
-                     <td>Elijah Yusuf</td>
-                     <td>placeholder@mail.com</td>
-                     <td>$50</td>
-                     <td>1 hour ago</td>
-                   </tr>
-                   <tr>
-                     <td>Elijah Yusuf</td>
-                     <td>placeholder@mail.com</td>
-                     <td>$50</td>
-                     <td>1 hour ago</td>
-                   </tr>
-                   <tr>
-                     <td>Elijah Yusuf</td>
-                     <td>placeholder@mail.com</td>
-                     <td>$50</td>
-                     <td>1 hour ago</td>
-                   </tr>
-                   <tr>
-                     <td>Elijah Yusuf</td>
-                     <td>placeholder@mail.com</td>
-                     <td>$50</td>
-                     <td>1 hour ago</td>
-                   </tr>
-                 </tbody>
-               </table>
-             </div>
-           </div>
-           <div
-             class="grid-stack-item"
-             gs-x="7"
-             gs-y="1"
-             gs-w="5"
-             gs-min-w="2"
-           >
-             <div class="grid-stack-item-content top-customers">
-               <p class="description">Top Paying Customers</p>
-               <ul class="customers">
-                 <li class="customer">
-                   Majeed Johnson
-                   <i class="bx bxs-badge-check"></i>
-                 </li>
-                 <li class="customer">
-                   Uzo Onyekachi
-                   <i class="bx bxs-badge-check"></i>
-                 </li>
-                 <li class="customer">
-                   Liz Schmidt
-                   <i class="bx bxs-badge-check"></i>
-                 </li>
-               </ul>
-             </div>
-           </div>
-         </div>
-       </main>
-     </div>
-   </div>
-   <script src="../static/js/script.js"></script>
- </body>
+            // Update -Stddev line
+            chart.data.datasets[2].data = meanData.map((mean, i) => mean - stddevData[i]);
+
+            // Update shaded area (stddev range)
+            const upperBound = meanData.map((mean, i) => ({
+                x: xData[i],
+                y: mean + stddevData[i],
+            }));
+            const lowerBound = meanData.map((mean, i) => ({
+                x: xData[i],
+                y: mean - stddevData[i],
+            }));
+            chart.data.datasets[3].data = [...lowerBound, ...upperBound.reverse()];
+
+            chart.update();
+        };
+
+        // Listen for the "scope_values" event
+        socket.on('scope_values', (data) => {
+            const xData = data.x;
+            updateChart(powerChart, xData, data.power.mean, data.power.stddev);
+        });
+
+        // Handle Start Button Click
+        document.getElementById('startButton').addEventListener('click', () => {
+            console.log("Starting");
+            fetch('/start_simulation', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ start: true }),
+            })
+            .then(response => {
+                if (response.ok) {
+                    console.log('Simulation started');
+                } else {
+                    console.error('Failed to start simulation');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+    </script>
+</body>
 </html>

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Variable Control</title>
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: Arial, sans-serif;
+        }
+
+        #display {
+            height: 50%;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3em;
+            background-color: #f0f0f0;
+            border-bottom: 2px solid #ddd;
+        }
+
+        #controls {
+            height: 50%;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            background-color: #fff;
+        }
+
+        button {
+            width: 100px;
+            height: 50px;
+            font-size: 1.2em;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            transition: background-color 0.3s;
+        }
+
+        button#increment { background-color: #4CAF50; color: white; }
+        button#decrement { background-color: #f44336; color: white; }
+        button#set_to_20 { background-color: #2196F3; color: white; }
+
+        button:hover {
+            filter: brightness(1.2);
+        }
+    </style>
+</head>
+<body>
+
+<div id="display">50</div>
+
+<div id="controls">
+    <button id="decrement">-</button>
+    <button id="set_to_20">20%</button>
+    <button id="increment">+</button>
+</div>
+
+<script>
+    const display = document.getElementById('display');
+
+    function updateDisplay(value) {
+        display.innerText = value;
+    }
+
+    function incrementValue() {
+        fetch('/increment', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => updateDisplay(data.value))
+            .catch(error => console.error('Error:', error));
+    }
+
+    function decrementValue() {
+        fetch('/decrement', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => updateDisplay(data.value))
+            .catch(error => console.error('Error:', error));
+    }
+
+    function setTo20() {
+        fetch('/set_to_20', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => updateDisplay(data.value))
+            .catch(error => console.error('Error:', error));
+    }
+
+    document.getElementById('increment').addEventListener('click', incrementValue);
+    document.getElementById('decrement').addEventListener('click', decrementValue);
+    document.getElementById('set_to_20').addEventListener('click', setTo20);
+
+    // Initial load
+    fetch('/get_value')
+        .then(response => response.json())
+        .then(data => updateDisplay(data.value))
+        .catch(error => console.error('Error:', error));
+</script>
+
+</body>
+</html>
