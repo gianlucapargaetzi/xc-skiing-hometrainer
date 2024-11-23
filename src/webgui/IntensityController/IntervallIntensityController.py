@@ -315,7 +315,7 @@ class IntervallIntensityController(BackendNode, IntensityControllerInterface):
         if self._controller_state == ControllerState.RUNNING:
             self._elapsed = time()-self._start_time
         elif self._controller_state == ControllerState.UNINITIALIZED:
-            return 10
+            return 30
         elif self._controller_state == ControllerState.INITIALIZED:
             return self._interval.get(0)
 
