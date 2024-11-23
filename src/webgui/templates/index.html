@@ -61,6 +61,7 @@
                             label: `${title} (Mean)`,
                             data: [],
                             borderColor: color,
+                            borderWidth: 3, // Bold line for mean
                             pointRadius: 0, // No points on the mean line
                             fill: false,
                             tension: 0.1, // Smooth lines
@@ -68,8 +69,8 @@
                         {
                             label: `${title} (+Stddev)`,
                             data: [],
-                            borderColor: `${color}`,
-                            borderDash: [5, 5], // Dashed line for +Stddev
+                            borderColor: 'black',
+                            borderWidth: 1, // Thin line for +Stddev
                             pointRadius: 0, // No points
                             fill: false,
                             tension: 0.1,
@@ -77,19 +78,10 @@
                         {
                             label: `${title} (-Stddev)`,
                             data: [],
-                            borderColor: `${color}`,
-                            borderDash: [5, 5], // Dashed line for -Stddev
+                            borderColor: 'black',
+                            borderWidth: 1, // Thin line for -Stddev
                             pointRadius: 0, // No points
                             fill: false,
-                            tension: 0.1,
-                        },
-                        {
-                            label: `${title} (Stddev Range)`,
-                            data: [],
-                            backgroundColor: `${color}33`, // Transparent fill for shaded area
-                            fill: true,
-                            borderWidth: 0, // No border
-                            pointRadius: 0,
                             tension: 0.1,
                         },
                     ],
@@ -100,9 +92,13 @@
                     scales: {
                         x: {
                             title: { display: true, text: 'X-Axis' },
+                            min: 0, // Set x-axis to start from 0
+                            max: 100, // Set x-axis to end at 100
                         },
                         y: {
                             title: { display: true, text: title },
+                            beginAtZero: true, // Always start y-axis from 0
+                            suggestedMax: 10, // Optional default for maximum y-value, dynamically adjusted
                         },
                     },
                 },
@@ -124,16 +120,10 @@
             // Update -Stddev line
             chart.data.datasets[2].data = meanData.map((mean, i) => mean - stddevData[i]);
 
-            // Update shaded area (stddev range)
-            const upperBound = meanData.map((mean, i) => ({
-                x: xData[i],
-                y: mean + stddevData[i],
-            }));
-            const lowerBound = meanData.map((mean, i) => ({
-                x: xData[i],
-                y: mean - stddevData[i],
-            }));
-            chart.data.datasets[3].data = [...lowerBound, ...upperBound.reverse()];
+            // Dynamically adjust y-axis maximum
+            const maxY = Math.max(...meanData.map((mean, i) => mean + stddevData[i])) || 10;
+            chart.options.scales.y.min = Math.floor(0); // Round down to nearest whole number
+            chart.options.scales.y.max = Math.ceil(maxY);  // Round up to nearest whole number
 
             chart.update();
         };
@@ -142,28 +132,6 @@
         socket.on('scope_values', (data) => {
             const xData = data.x;
             updateChart(powerChart, xData, data.power.mean, data.power.stddev);
-        });
-
-        // Handle Start Button Click
-        document.getElementById('startButton').addEventListener('click', () => {
-            console.log("Starting");
-            fetch('/start_simulation', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ start: true }),
-            })
-            .then(response => {
-                if (response.ok) {
-                    console.log('Simulation started');
-                } else {
-                    console.error('Failed to start simulation');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
         });
     </script>
 </body>

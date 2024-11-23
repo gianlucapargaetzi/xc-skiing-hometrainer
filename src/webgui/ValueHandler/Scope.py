@@ -10,10 +10,10 @@ import numpy as np
 
 HYSTERESIS_CNT = 3 # Amount of continuous negative speed measurements needed for processing to be triggered
 
-ANALYSIS_AMOUNT = 10 # Amount of curves to be used for mean and std dev calculation
+ANALYSIS_AMOUNT = 4 # Amount of curves to be used for mean and std dev calculation
 
 # Resolution of vector
-VECTOR_SIZE_MULTIPLIER = 5
+VECTOR_SIZE_MULTIPLIER = 1
 
 # Assume that vector values get passed "normalised", so 0 - 100%
 MIN_X_VALUE = 0
@@ -53,7 +53,7 @@ class Scope(ValueHandler, BackendNode):
         Args:
             measurement_value (np.ndarray): Measurement values of one Readout iteration of the hardware controller with content [Position, Velocity, Torque, Power]
         """
-        print(measurement_value[1])
+        # print(measurement_value[1])
         self._speed_cache.append(measurement_value[1])
         if len(self._speed_cache) > HYSTERESIS_CNT:
             self._speed_cache = self._speed_cache[-HYSTERESIS_CNT:] 

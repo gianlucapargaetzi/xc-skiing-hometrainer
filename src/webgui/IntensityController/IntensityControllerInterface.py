@@ -9,9 +9,22 @@ class IntensityControllerInterface(ABC):
         # self._intensity_lock = Lock()
         # self._intensity: float = 0.0
         self._name = name
+    
+    @abstractmethod
+    def start(self):
+        pass
 
     @abstractmethod
-    def get_intensity(self) -> float:
+    def stop(self):
+        pass
+
+    @abstractmethod
+    def pause(self):
+        pass
+
+
+    @abstractmethod
+    def getIntensity(self) -> float:
         """This is the interface for elements using the IntensityControllerInterface within the control structure. 
         Every other control is controller specific and has to be implemented in the class using this interface.
 

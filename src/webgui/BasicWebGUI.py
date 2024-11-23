@@ -84,7 +84,9 @@ class Backend(Flask):
             # Initialize Flask with the import name only once
             super().__init__(importName)
             self.add_url_rule("/", view_func=self._index)
-
+            self.add_url_rule("/control", view_func=self._control)
+            self.add_url_rule("/simple", view_func=self._simple)
+            self.add_url_rule("/interval", view_func=self._interval)
             self._socket = SocketIO(self, async_mode=None)
             def _run():
                 self._socket.run(self)
@@ -125,6 +127,19 @@ class Backend(Flask):
     def _index(self):
         return render_template('index.html', async_mode=self._socket.async_mode)
     
+    def _control(self):
+        return render_template('control.html', async_mode=self._socket.async_mode)
+
+    def _settings(self):
+        return render_template('settings.html', async_mode=self._socket.async_mode)
+
+    def _interval(self):
+        return render_template('interval.html', async_mode=self._socket.async_mode)
+
+    def _simple(self):
+        return render_template('simple.html', async_mode=self._socket.async_mode)
+
+
     def _callback_connect(self):
         print("Connection to frontend established")
 

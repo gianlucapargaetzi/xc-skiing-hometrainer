@@ -16,7 +16,7 @@
         }
 
         #display {
-            height: 50%;
+            height: 40%;
             width: 100%;
             display: flex;
             align-items: center;
@@ -27,12 +27,21 @@
         }
 
         #controls {
-            height: 50%;
+            height: 40%;
             width: 100%;
             display: flex;
             justify-content: space-around;
             align-items: center;
             background-color: #fff;
+        }
+
+        #stop-button-container {
+            height: 20%;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f9f9f9;
         }
 
         button {
@@ -46,8 +55,9 @@
         }
 
         button#increment { background-color: #4CAF50; color: white; }
-        button#decrement { background-color: #f44336; color: white; }
+        button#decrement { background-color: #ff7b00; color: white; }
         button#set_to_20 { background-color: #2196F3; color: white; }
+        button#stop { background-color: #e53935; color: white; }
 
         button:hover {
             filter: brightness(1.2);
@@ -62,6 +72,10 @@
     <button id="decrement">-</button>
     <button id="set_to_20">20%</button>
     <button id="increment">+</button>
+</div>
+
+<div id="stop-button-container">
+    <button id="stop">Stop</button>
 </div>
 
 <script>
@@ -92,9 +106,26 @@
             .catch(error => console.error('Error:', error));
     }
 
+    function stopAction() {
+        fetch('/stop', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ active: false })
+        })
+        .then(response => {
+            if (response.ok) {
+                console.log('Stop action sent successfully.');
+            } else {
+                console.error('Failed to send stop action.');
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+
     document.getElementById('increment').addEventListener('click', incrementValue);
     document.getElementById('decrement').addEventListener('click', decrementValue);
     document.getElementById('set_to_20').addEventListener('click', setTo20);
+    document.getElementById('stop').addEventListener('click', stopAction);
 
     // Initial load
     fetch('/get_value')

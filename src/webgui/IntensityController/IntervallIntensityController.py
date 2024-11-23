@@ -13,6 +13,7 @@ from Utils.State import ControllerState
 from Utils.CustomLogger import Logger
 from Utils.FileSystem import list_files
 from BasicWebGUI import BackendNode, Backend
+from IntensityController.IntensityControllerInterface import IntensityControllerInterface
 import itertools
 
 from flask import jsonify, request
@@ -176,9 +177,10 @@ class IntervallParser():
     def get(self, idx) -> float:
         return self._intensity_list[idx]
     
-class IntervallIntensityController(BackendNode):
+class IntervallIntensityController(BackendNode, IntensityControllerInterface):
     def __init__(self):
-        super().__init__("IntervalIntensityControllerBackend", update_interval=1) # No publishing via socket IO...
+        BackendNode.__init__(self, "IntervalIntensityControllerBackend", update_interval=1) # No publishing via socket IO...
+        IntensityControllerInterface.__init__(self, "IntervallIntensityController")
         self._flask_requests.append(("/upload_interval_file", self._upload_file, ['POST']))
         self._flask_requests.append(("/load_interval_file", self._load_file, ['POST']))
         self._flask_requests.append(("/get_interval_list", self._get_list, ['GET']))
@@ -186,17 +188,21 @@ class IntervallIntensityController(BackendNode):
         self._start_time: float = None
         self._elapsed: float = 0.0
         self._interval: IntervallParser = None
+        self._filepath: str = None
         Backend().registerNode(self)
 
     def __str__(self):
         return "IntervallIntensityController"
 
     def publish(self):
-        return Backend().publish("interval_intensity", {"intensity": self.get_intensity(),"time": int(self._elapsed)})
-    
+        return Backend().publish("interval_intensity", {"intensity": self.getIntensity(),"time": int(self._elapsed)})
+
     def _upload_file(self):
         def ret_json(success: bool, error: str = 'None') :
             return {'success': success, 'error': error}
+
+        print("\nHellooo\n")
+
 
         if 'intervalFile' not in request.files:
             Logger().error(f"{self}: No Interval File in request")
@@ -243,7 +249,7 @@ class IntervallIntensityController(BackendNode):
         def ret_json(success: bool, data: dict = {'x':[], 'y':[]}, error: str = 'None'):
             return {'success': success, 'data': data, 'error': error}
         
-        print(request.get_json())
+        # print(request.get_json())
         data = request.get_json()
         if not data or 'fileName' not in data:
             Logger().error(f"{self}: Filename not provided")
@@ -254,12 +260,14 @@ class IntervallIntensityController(BackendNode):
             Logger().error(f"{self}: File does not exist")
             return jsonify(ret_json(False, error="File does not exist")), 400    
         
-        self.init(filepath)
+        self._filepath = filepath
+        self._interval = IntervallParser(self._filepath)
 
         if not self._interval.isValid():
             Logger().error(f"{self}: Error occurd while parsing interval file")
             return jsonify(ret_json(False, error="Unknown parsing error")), 400    
         
+        self._controller_state=ControllerState.INITIALIZED
         y = self._interval.intensityList
         x = np.linspace(0, len(y)-1, len(y)).tolist()
         # plt.plot(x,y)
@@ -267,16 +275,11 @@ class IntervallIntensityController(BackendNode):
         self.start()
         return jsonify(ret_json(True,data={'x':x, 'y':y}))
 
-
-    def init(self, filename):
-        Logger().info(f"{self}: Loading interval '{filename}'")
-        self._interval = IntervallParser(filename)
-
-        if (self._interval.isValid()):
-            self._controller_state=ControllerState.INITIALIZED
-
     def uninit(self):
         self._interval = None
+        self._filepath = None
+        self._elapsed = 0.0
+        self._start_time = None
         self._controller_state = ControllerState.UNINITIALIZED
 
     def start(self):
@@ -289,12 +292,7 @@ class IntervallIntensityController(BackendNode):
         
         Logger().info(f"{self}: Starting")
         self._controller_state = ControllerState.RUNNING
-        super().start()
-
-
-        # with self._intensity_lock:
-        #     self._intensity = max(self._intensity - STEP, MIN_VALUE)
-        #     return jsonify({"value": self._intensity})
+        BackendNode.start(self)
         
     def stop(self):
         if self._controller_state == ControllerState.RUNNING or self._controller_state == ControllerState.PAUSED:
@@ -303,7 +301,7 @@ class IntervallIntensityController(BackendNode):
             self._elapsed = 0.0
             self._controller_state = ControllerState.INITIALIZED
 
-        super().stop()
+        BackendNode.stop(self)
         
     def pause(self):
         if self._controller_state == ControllerState.RUNNING:
@@ -311,13 +309,13 @@ class IntervallIntensityController(BackendNode):
             self._elapsed = time() - self._start_time
             self._controller_state = ControllerState.PAUSED
 
-        super().stop()
+        BackendNode.stop(self)
 
-    def get_intensity(self) -> float:
+    def getIntensity(self) -> float:
         if self._controller_state == ControllerState.RUNNING:
             self._elapsed = time()-self._start_time
         elif self._controller_state == ControllerState.UNINITIALIZED:
-            return 0.0
+            return 10
         elif self._controller_state == ControllerState.INITIALIZED:
             return self._interval.get(0)
 

@@ -1,0 +1,48 @@
+warmup:       # This block defines the intensity based on start and end intensity over duration
+  type: duration_block
+  duration: 50
+  intensity_start: 20
+  intensity_end: 20
+
+first_transition:
+  type: transition         # How to transition between two blocks (If no transition param is in between blocks, transition should be = step) The intensity value should increase from last nodes end value to next nodes begin value based on transition type
+  curve: ease
+  duration: 20          
+
+first_block:
+  type: interval_block         # An interval of 6x (on_duration at on_intensity) -> transition (in node specified) -> (off_duration at off_intensity)
+  on_duration: 30
+  on_intensity: 50
+  off_duration: 30
+  off_intensity: 20
+  block_amount: 6
+  transition:
+    type: ease             # can be step, linear, ease in ease out
+    duration: 15
+
+second_transition:
+  type: transition
+  curve: ease
+  duration: 60
+
+cool_down:
+  type: duration_block
+  duration: 300
+  intensity_start: 40
+  intensity_end: 35
+
+third_transition:
+  type: transition
+  curve: ease
+  duration: 60
+
+second_block:
+  type: interval_block         # An interval of 6x (on_duration at on_intensity) -> transition (in node specified) -> (off_duration at off_intensity)
+  on_duration: 30
+  on_intensity: 80
+  off_duration: 60
+  off_intensity: 20
+  block_amount: 6
+  transition:
+    type: ease             # can be step, linear, ease in ease out
+    duration: 20
