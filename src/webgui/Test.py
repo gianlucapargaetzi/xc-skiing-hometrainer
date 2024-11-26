@@ -188,6 +188,7 @@ def calibrate_end_position():
     print("---------------------------------------------------------------")
 
 
+
 if __name__ == '__main__':
     
     app = Backend(__name__)
@@ -201,11 +202,21 @@ if __name__ == '__main__':
         rope_diameter = 3               # mm
         top_position = 1860             # mm
         pole_length = 1425              # mm
-        swing_length = 1200             # mm
-        swing_start_max_torque = 200    # mm
-        swing_end_max_torque = 600      # mm
+        swing_length = 1100             # mm
+        swing_start_max_torque_pml = 200 # %
+        swing_end_max_torque_pml = 500   # %
         dist_par_rev = round((pulli_diameter + rope_diameter) * 3.14159)
-        min_torque = 10
+        min_torque_pct = 10             # % Minimales Drehmomemnt
+
+        # fs_curve als array
+        s = np.linspace(0, 1000, 1000)  # Normalisierte Weg-Daten (0 bis 100)
+        f_pull = np.zeros_like(s)
+        f_warp = np.zeros_like(s)
+        f_pull[:swing_start_max_torque_pml-1]=(1/swing_start_max_torque_pml*s[:swing_start_max_torque_pml-1])*100
+        f_pull[swing_start_max_torque_pml:swing_end_max_torque_pml-1]=1*100
+        f_pull[swing_end_max_torque_pml:]=(-1/swing_end_max_torque_pml*s[swing_end_max_torque_pml:]+2)*100
+        f_warp[:]=f_pull[:]*0.5
+
 
         # Initialisiere und konfiguriere
         wait_for_drive()
@@ -234,19 +245,13 @@ if __name__ == '__main__':
         print("Pole Offset:", pole_offset)
         print("Pole Zero Position:", pole_zero_position)
 
-        start_max_torque_position = pole_zero_position - round(swing_start_max_torque / dist_par_rev * 65536)
-        end_max_torque_position = pole_zero_position - round(swing_end_max_torque / dist_par_rev * 65536)
+        start_max_torque_position = pole_zero_position - round(swing_start_max_torque_pml / dist_par_rev * 65536)
+        end_max_torque_position = pole_zero_position - round(swing_end_max_torque_pml / dist_par_rev * 65536)
         end_swing_position = pole_zero_position - round(swing_length / dist_par_rev * 65536)
 
         print("Start Max Torque Position:", start_max_torque_position)
         print("End Max Torque Position:", end_max_torque_position)
         print("End Swing Position:", end_swing_position)
-
-        scale_factor_up = (pole_zero_position - start_max_torque_position) / 100
-        scale_factor_down = (end_max_torque_position - end_swing_position) / 100
-
-        print("Scale Factor Up:", scale_factor_up)
-        print("Scale Factor Down:", scale_factor_down)
 
         # Positionierung des Pole-Zero
         print("***************************************************************")
@@ -261,32 +266,33 @@ if __name__ == '__main__':
         print("***************************************************************")
         print("Please hold the rope, then push both STO's")
 
-        wait_for_sto_ON()
+        #wait_for_sto_ON()
 
         EnableDisableForwardLimit(1)
         writeForwardDirection(1)
-        writeTorque(min_torque)
+        writeTorque(min_torque_pct)
         writeSpeed(2000)
         EnableDisableWatchDog(1)
         DriveEnable(1)
 
         # Initialisierung der Leistungsmessungen und des Sequenzstatus
-        min_power = max_power = 0
         actual_dir = old_dir = True
         sequence_start_time = sequence_end_time = int(datetime.datetime.now().timestamp() * 1000)
         sequence_freq = 0
-
+        torque_scale_factor = 0
+        act_torque_pct = min_torque_pct
+        ic_torque = 0
 
         #while readHardwareEnabled():
         while True:
-            scale_factor = 0
             # Toggle Watchdog zu Beginn und Ende der Schleife
             toggleWatchDog()
 
             # Lese aktuelle Position und Geschwindigkeit
             actual_position = readNormalisedPosition()
             actual_speed = readSpeed()
-            actual_dir = actual_speed >= 0  # True für Wickeln, False für Zug
+            power = readPower()
+            actual_dir = actual_speed > 0  # True für Wickeln, False für Zug
 
             # Frequenzberechnung, wenn sich die Richtung ändert
             if old_dir and not actual_dir:
@@ -294,43 +300,30 @@ if __name__ == '__main__':
                 sequence_end_time = sequence_start_time
                 sequence_start_time = int(datetime.datetime.now().timestamp() * 1000)
                 sequence_freq = 60000 / (sequence_start_time - sequence_end_time)
-                # print("Frequenz in Hub/min:", sequence_freq)
+                ic_torque = ic.getIntensity()
+                print("Frequenz in Hub/min:", sequence_freq, " - Belastung [%]:",ic_torque )
                 old_dir = actual_dir
             elif not old_dir and actual_dir:
                 # Wickeln beginnt
                 old_dir = actual_dir
 
             # Aktualisiere minimale und maximale Leistung
-            power = readPower()
-            min_power = min(min_power, power)
-            max_power = max(max_power, power)
-
                 # Berechnung des Scale-Faktors basierend auf Position
-            if actual_position >= pole_zero_position:
-                scale_factor = 0
-            elif actual_position >= start_max_torque_position:
-                scale_factor = round(100 - (actual_position - start_max_torque_position) / scale_factor_up)
-            elif actual_position >= end_max_torque_position:
-                scale_factor = 100
-            elif actual_position >= end_swing_position:
-                scale_factor = round((actual_position - end_swing_position) / scale_factor_down)
 
-            # Begrenzen des Scale-Faktors auf 0 bis 100
-            scale_factor = max(0, min(100, scale_factor))
+            pos_rel_zero = (100/(end_swing_position-abs_zero_position)) * (actual_position-abs_zero_position)
+            pos_rel_pole = (1000/(end_swing_position-pole_zero_position)) * (actual_position-pole_zero_position)
 
+            if pos_rel_pole>=0:
+                torque_scale_factor=f_pull[round(pos_rel_pole)]
+            else:
+                torque_scale_factor=0
+                        
+            act_torque_pct = round(min_torque_pct + ((ic_torque - min_torque_pct) * torque_scale_factor / 100))
+ 
+            writeTorque(act_torque_pct)
 
-            pos_rel = (100/(end_swing_position-abs_zero_position)) * (actual_position-abs_zero_position)
-            print(pos_rel)
-
-            # Berechnung und Schreiben des Drehmoments mit Lock
-            # with app._max_torque_lock:
-            act_torque = round(min_torque + (ic.getIntensity() - min_torque) * scale_factor / 100)
-            writeTorque(act_torque)
-
-            arr = np.array([pos_rel, actual_speed, act_torque, power, act_torque])
+            arr = np.array([pos_rel_zero, actual_speed, act_torque_pct, power, act_torque_pct])
             scope.evaluateValue(arr)
-
-            toggleWatchDog()  # Watchdog-Toggle am Ende der Schleife
 
         # wird das Training gestoppt so werden ein paar Parameter im Drive zurückgesetzt,
         # damit nichts ungewolltes passiert

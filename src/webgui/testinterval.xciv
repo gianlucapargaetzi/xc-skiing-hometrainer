@@ -12,10 +12,10 @@ first_transition:
 first_block:
   type: interval_block         # An interval of 6x (on_duration at on_intensity) -> transition (in node specified) -> (off_duration at off_intensity)
   on_duration: 30
-  on_intensity: 50
+  on_intensity: 40
   off_duration: 30
   off_intensity: 20
-  block_amount: 6
+  block_amount: 10 
   transition:
     type: ease             # can be step, linear, ease in ease out
     duration: 15
@@ -31,18 +31,3 @@ cool_down:
   intensity_start: 40
   intensity_end: 35
 
-third_transition:
-  type: transition
-  curve: ease
-  duration: 60
-
-second_block:
-  type: interval_block         # An interval of 6x (on_duration at on_intensity) -> transition (in node specified) -> (off_duration at off_intensity)
-  on_duration: 30
-  on_intensity: 80
-  off_duration: 60
-  off_intensity: 20
-  block_amount: 6
-  transition:
-    type: ease             # can be step, linear, ease in ease out
-    duration: 20
