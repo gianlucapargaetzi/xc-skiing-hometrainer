@@ -53,3 +53,4 @@ python3 -m pip install pyModbusTCP
 python3 -m pip install bleak
 python3 -m pip install asyncio
 python3 -m pip install PyYAML
+python3 -m pip install pysoem
