@@ -25,6 +25,20 @@ import numpy as np
 
 
 # Constants
+
+pulli_diameter = 50             # mm
+rope_diameter = 3               # mm
+top_position = 2100             # mm
+pole_length = 1450              # mm
+swing_length = 1100             # mm
+swing_start_max_torque_pml = 200 # %
+swing_end_max_torque_pml = 500   # %
+dist_par_rev = round((pulli_diameter + rope_diameter) * 3.14159)
+min_torque_calib_pct = 15       # % Minimales Drehmomemnt für Kalibrierung
+min_speed_calib = 100           # Minimale Geschwindigkeit für Kalibrierung
+min_torque_pct = 30             # % Minimales Drehmomemnt
+
+
 MIN_VALUE = 10
 MAX_VALUE = 100
 STEP = 5  # This is the increment/decrement step
@@ -171,8 +185,8 @@ def calibrate_end_position():
     sleep(1)
     DriveEnable(1)
     writeForwardDirection(1)
-    writeTorque(5)  # Min Torque
-    writeSpeed(100)
+    writeTorque(min_torque_calib_pct)  # Min Torque
+    writeSpeed(min_speed_calib)
 
     sleep(0.5)
 
@@ -198,15 +212,6 @@ if __name__ == '__main__':
 
 
     def thread():
-        pulli_diameter = 40             # mm
-        rope_diameter = 3               # mm
-        top_position = 1860             # mm
-        pole_length = 1425              # mm
-        swing_length = 1100             # mm
-        swing_start_max_torque_pml = 200 # %
-        swing_end_max_torque_pml = 500   # %
-        dist_par_rev = round((pulli_diameter + rope_diameter) * 3.14159)
-        min_torque_pct = 10             # % Minimales Drehmomemnt
 
         # fs_curve als array
         s = np.linspace(0, 1000, 1000)  # Normalisierte Weg-Daten (0 bis 100)
@@ -282,6 +287,9 @@ if __name__ == '__main__':
         torque_scale_factor = 0
         act_torque_pct = min_torque_pct
         ic_torque = 0
+        old_speed = 0
+        power = 0
+        old_power=0
 
         #while readHardwareEnabled():
         while True:
@@ -292,7 +300,9 @@ if __name__ == '__main__':
             actual_position = readNormalisedPosition()
             actual_speed = readSpeed()
             power = readPower()
-            actual_dir = actual_speed > 0  # True für Wickeln, False für Zug
+            
+
+            actual_dir = actual_speed > -0  # True für Wickeln, False für Zug
 
             # Frequenzberechnung, wenn sich die Richtung ändert
             if old_dir and not actual_dir:
@@ -300,15 +310,11 @@ if __name__ == '__main__':
                 sequence_end_time = sequence_start_time
                 sequence_start_time = int(datetime.datetime.now().timestamp() * 1000)
                 sequence_freq = 60000 / (sequence_start_time - sequence_end_time)
-                ic_torque = ic.getIntensity()
                 print("Frequenz in Hub/min:", sequence_freq, " - Belastung [%]:",ic_torque )
                 old_dir = actual_dir
             elif not old_dir and actual_dir:
                 # Wickeln beginnt
                 old_dir = actual_dir
-
-            # Aktualisiere minimale und maximale Leistung
-                # Berechnung des Scale-Faktors basierend auf Position
 
             pos_rel_zero = (100/(end_swing_position-abs_zero_position)) * (actual_position-abs_zero_position)
             pos_rel_pole = (1000/(end_swing_position-pole_zero_position)) * (actual_position-pole_zero_position)
@@ -318,8 +324,9 @@ if __name__ == '__main__':
             else:
                 torque_scale_factor=0
                         
-            act_torque_pct = round(min_torque_pct + ((ic_torque - min_torque_pct) * torque_scale_factor / 100))
- 
+            ic_torque = ic.getIntensity()
+            act_torque_pct = round(min_torque_pct + ((ic_torque * torque_scale_factor / 100)))
+            print("Drehmoment aus GUI/Scale Faktor/Act Torque", ic_torque, torque_scale_factor,act_torque_pct)
             writeTorque(act_torque_pct)
 
             arr = np.array([pos_rel_zero, actual_speed, act_torque_pct, power, act_torque_pct])
