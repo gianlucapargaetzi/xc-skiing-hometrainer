@@ -21,6 +21,8 @@ from flask import jsonify, request
 import datetime
 
 
+import matplotlib.pyplot as plt
+
 import numpy as np
 
 
@@ -37,11 +39,33 @@ dist_par_rev = round((pulli_diameter + rope_diameter) * 3.14159)
 min_torque_calib_pct = 15       # % Minimales Drehmomemnt für Kalibrierung
 min_speed_calib = 100           # Minimale Geschwindigkeit für Kalibrierung
 min_torque_pct = 30             # % Minimales Drehmomemnt
+CurrentLimit = 50
+pull_speed = 1200
 
 
 MIN_VALUE = 10
 MAX_VALUE = 100
 STEP = 5  # This is the increment/decrement step
+
+def moving_average_filter(data, n):
+    """
+    Apply a moving average filter of length n to an array.
+
+    Parameters:
+        data (numpy.ndarray): Input array of numerical data.
+        n (int): Length of the moving average filter. Must be greater than 0.
+
+    Returns:
+        numpy.ndarray: The filtered array with the moving average applied.
+    """
+    if n <= 0:
+        raise ValueError("The length of the moving average filter (n) must be greater than 0.")
+    if n > len(data):
+        raise ValueError("The length of the filter (n) cannot be greater than the length of the input data.")
+
+    # Use numpy's convolution function to apply the moving average filter
+    kernel = np.ones(n) / n
+    return np.convolve(data, kernel, mode='valid')
 
 def uint16_to_int16(uint16):
     if uint16 >= 2**15:
@@ -67,7 +91,11 @@ def EnableDisableWatchDog(watchdog):
 def toggleWatchDog():
     client1.write_single_register(641, 0)
     client1.write_single_register(641, 16384)
-    
+
+
+def writeMotorCurrentLimit(limit):
+    client1.write_single_register(404, limit*10)
+
 
 def writeTorque(torque):
     client1.write_single_register(407, torque*100)
@@ -185,8 +213,10 @@ def calibrate_end_position():
     sleep(1)
     DriveEnable(1)
     writeForwardDirection(1)
+    writeMotorCurrentLimit(CurrentLimit)
     writeTorque(min_torque_calib_pct)  # Min Torque
     writeSpeed(min_speed_calib)
+
 
     sleep(0.5)
 
@@ -206,23 +236,31 @@ def calibrate_end_position():
 if __name__ == '__main__':
     
     app = Backend(__name__)
-    # sic = SimpleIntensityController()
-    ic = IntervallIntensityController()
+    sic = SimpleIntensityController()
+    # ic = IntervallIntensityController()
     scope = Scope()
 
 
     def thread():
 
         # fs_curve als array
-        s = np.linspace(0, 1000, 1000)  # Normalisierte Weg-Daten (0 bis 100)
+        s = np.linspace(0, 1500, 1500)  # Normalisierte Weg-Daten (0 bis 100)
+
         f_pull = np.zeros_like(s)
         f_warp = np.zeros_like(s)
-        f_pull[:swing_start_max_torque_pml-1]=(1/swing_start_max_torque_pml*s[:swing_start_max_torque_pml-1])*100
-        f_pull[swing_start_max_torque_pml:swing_end_max_torque_pml-1]=1*100
+        f_pull[:swing_start_max_torque_pml]=(1/swing_start_max_torque_pml*s[:swing_start_max_torque_pml])*100
+        f_pull[swing_start_max_torque_pml:swing_end_max_torque_pml]=100
         f_pull[swing_end_max_torque_pml:]=(-1/swing_end_max_torque_pml*s[swing_end_max_torque_pml:]+2)*100
         f_warp[:]=f_pull[:]*0.5
 
+        f_pull[f_pull<0]=0
+        # plt.figure()
+        # plt.plot(f_pull)
+        f_pull=moving_average_filter(f_pull,100)
 
+
+        # plt.plot(f_pull)
+        # plt.show()
         # Initialisiere und konfiguriere
         wait_for_drive()
         DriveEnable(0)
@@ -231,6 +269,8 @@ if __name__ == '__main__':
         writeForwardDirection(0)
         writeReverseDirection(0)
         EnableDisableWatchDog(0)
+        writeMotorCurrentLimit(CurrentLimit)
+
 
         wait_for_sto_OFF()
 
@@ -276,7 +316,7 @@ if __name__ == '__main__':
         EnableDisableForwardLimit(1)
         writeForwardDirection(1)
         writeTorque(min_torque_pct)
-        writeSpeed(2000)
+        writeSpeed(pull_speed)
         EnableDisableWatchDog(1)
         DriveEnable(1)
 
@@ -324,7 +364,7 @@ if __name__ == '__main__':
             else:
                 torque_scale_factor=0
                         
-            ic_torque = ic.getIntensity()
+            ic_torque = sic.getIntensity()
             act_torque_pct = round(min_torque_pct + ((ic_torque * torque_scale_factor / 100)))
             print("Drehmoment aus GUI/Scale Faktor/Act Torque", ic_torque, torque_scale_factor,act_torque_pct)
             writeTorque(act_torque_pct)
