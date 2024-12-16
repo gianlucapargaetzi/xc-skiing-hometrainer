@@ -38,9 +38,9 @@ swing_end_max_torque_pml = 500   # %
 dist_par_rev = round((pulli_diameter + rope_diameter) * 3.14159)
 min_torque_calib_pct = 15       # % Minimales Drehmomemnt für Kalibrierung
 min_speed_calib = 100           # Minimale Geschwindigkeit für Kalibrierung
-min_torque_pct = 30             # % Minimales Drehmomemnt
-CurrentLimit = 50
-pull_speed = 1200
+min_torque_pct = 20             # % Minimales Drehmomemnt
+CurrentLimit = 80
+pull_speed = 1500
 
 
 MIN_VALUE = 10
@@ -108,9 +108,6 @@ def DriveEnable(driveenable):
 
 def writeForwardDirection(direction):
     client1.write_single_register(629, direction)
-
-def writeReverseDirection(direction):
-    client1.write_single_register(631, direction)
 
 def EnableDisableForwardLimit(flag):
     client1.write_single_register(1235, flag)
@@ -244,30 +241,28 @@ if __name__ == '__main__':
     def thread():
 
         # fs_curve als array
-        s = np.linspace(0, 1500, 1500)  # Normalisierte Weg-Daten (0 bis 100)
+        s = np.linspace(0, 2000, 2000)  # Normalisierte Weg-Daten (0 bis 200%)
 
-        f_pull = np.zeros_like(s)
-        f_warp = np.zeros_like(s)
-        f_pull[:swing_start_max_torque_pml]=(1/swing_start_max_torque_pml*s[:swing_start_max_torque_pml])*100
-        f_pull[swing_start_max_torque_pml:swing_end_max_torque_pml]=100
-        f_pull[swing_end_max_torque_pml:]=(-1/swing_end_max_torque_pml*s[swing_end_max_torque_pml:]+2)*100
-        f_warp[:]=f_pull[:]*0.5
+        f_push = np.zeros_like(s)       # Stockstoss
+        f_pull = np.zeros_like(s)       # Aufwickeln
+        f_push[:swing_start_max_torque_pml]=(1/swing_start_max_torque_pml*s[:swing_start_max_torque_pml])*100
+        f_push[swing_start_max_torque_pml:swing_end_max_torque_pml]=100
+        f_push[swing_end_max_torque_pml:]=(-1/swing_end_max_torque_pml*s[swing_end_max_torque_pml:]+2)*100
+        f_push[f_push<0]=0
+        f_pull[:]=f_push[:]*0.5
+        
+        plt.figure()
+        plt.plot(f_push)
+        f_push=moving_average_filter(f_push,100)
+        plt.plot(f_push)
+        plt.show()
 
-        f_pull[f_pull<0]=0
-        # plt.figure()
-        # plt.plot(f_pull)
-        f_pull=moving_average_filter(f_pull,100)
-
-
-        # plt.plot(f_pull)
-        # plt.show()
-        # Initialisiere und konfiguriere
+        #Initialisiere und konfiguriere
         wait_for_drive()
         DriveEnable(0)
         writeTorque(0)
         writeSpeed(0)
         writeForwardDirection(0)
-        writeReverseDirection(0)
         EnableDisableWatchDog(0)
         writeMotorCurrentLimit(CurrentLimit)
 
@@ -360,7 +355,7 @@ if __name__ == '__main__':
             pos_rel_pole = (1000/(end_swing_position-pole_zero_position)) * (actual_position-pole_zero_position)
 
             if pos_rel_pole>=0:
-                torque_scale_factor=f_pull[round(pos_rel_pole)]
+                torque_scale_factor=f_push[round(pos_rel_pole)]
             else:
                 torque_scale_factor=0
                         
