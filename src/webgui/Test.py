@@ -233,8 +233,8 @@ def calibrate_end_position():
 if __name__ == '__main__':
     
     app = Backend(__name__)
-    sic = SimpleIntensityController()
-    # ic = IntervallIntensityController()
+    # sic = SimpleIntensityController()
+    ic = IntervallIntensityController()
     scope = Scope()
 
 
@@ -251,11 +251,11 @@ if __name__ == '__main__':
         f_push[f_push<0]=0
         f_pull[:]=f_push[:]*0.5
         
-        plt.figure()
-        plt.plot(f_push)
+        #plt.figure()
+        #plt.plot(f_push)
         f_push=moving_average_filter(f_push,100)
-        plt.plot(f_push)
-        plt.show()
+        #plt.plot(f_push)
+        #plt.show()
 
         #Initialisiere und konfiguriere
         wait_for_drive()
@@ -322,53 +322,93 @@ if __name__ == '__main__':
         torque_scale_factor = 0
         act_torque_pct = min_torque_pct
         ic_torque = 0
-        old_speed = 0
+        speed = 0
+        max_speed = 0
         power = 0
-        old_power=0
+        max_power = 0
+        max_torque_pct = 0
 
-        #while readHardwareEnabled():
-        while True:
-            # Toggle Watchdog zu Beginn und Ende der Schleife
-            toggleWatchDog()
 
-            # Lese aktuelle Position und Geschwindigkeit
-            actual_position = readNormalisedPosition()
-            actual_speed = readSpeed()
-            power = readPower()
+        current_time = datetime.datetime.now()
+        formatted_time = current_time.strftime("%Y-%m-%d_%H-%M-%S")
+
+        # Create the filename with the formatted date and time
+        filename = f"x-ski_{formatted_time}.txt"
+
+        with open(filename, 'w', encoding='ascii') as file:
+
+            # writing file header
+            file.write("TIMESTAMP"+";"+"PULL_CADENCE"+";"+"MAX_POWER"+";"+"MAX_SPEED"+";"+"MAX_TORQUE"+"\n")
+
+            #while readHardwareEnabled():
+            while True:
+                # Toggle Watchdog zu Beginn und Ende der Schleife
+                toggleWatchDog()
+
+                # Lese aktuelle Position und Geschwindigkeit
+
+                # ic_torque = sic.getIntensity()
+                ic_torque = ic.getIntensity()
+                actual_position = readNormalisedPosition()
+                speed = readSpeed()
+                power = readPower()
+                if power > max_power:
+                    max_power = power
+                if speed > max_speed:
+                    max_speed = speed
+                if ic_torque > max_torque_pct:
+                    max_torque_pct = ic_torque
             
+                actual_dir = speed > -0  # True für Wickeln, False für Zug
 
-            actual_dir = actual_speed > -0  # True für Wickeln, False für Zug
+                # Frequenzberechnung, wenn sich die Richtung ändert
+                if old_dir and not actual_dir:
+                    # Zug beginnt
+                    sequence_end_time = sequence_start_time
+                    current_time = datetime.datetime.now()
+                    sequence_time_stamp = current_time.timestamp()
+                    sequence_start_time = int( sequence_time_stamp* 1000)
+                    sequence_freq = 60000 / (sequence_start_time - sequence_end_time)
+                    if sequence_freq > 150 or sequence_freq < 20:
+                        sequence_freq=0
 
-            # Frequenzberechnung, wenn sich die Richtung ändert
-            if old_dir and not actual_dir:
-                # Zug beginnt
-                sequence_end_time = sequence_start_time
-                sequence_start_time = int(datetime.datetime.now().timestamp() * 1000)
-                sequence_freq = 60000 / (sequence_start_time - sequence_end_time)
-                print("Frequenz in Hub/min:", sequence_freq, " - Belastung [%]:",ic_torque )
-                old_dir = actual_dir
-            elif not old_dir and actual_dir:
-                # Wickeln beginnt
-                old_dir = actual_dir
+                    formatted_time = current_time.strftime("%Y-%m-%d_%H:%M:%S")
+                    milliseconds = f"{current_time.microsecond // 1000:03d}"
+                    formatted_time_with_ms = f"{formatted_time}.{milliseconds}"
 
-            pos_rel_zero = (100/(end_swing_position-abs_zero_position)) * (actual_position-abs_zero_position)
-            pos_rel_pole = (1000/(end_swing_position-pole_zero_position)) * (actual_position-pole_zero_position)
+                    text = formatted_time_with_ms+";"+f"{sequence_freq:.2f}"+";"+f"{max_power}"+";"+f"{max_speed:.1f}"+";"+f"{ic_torque}"+"\n"
 
-            if pos_rel_pole>=0:
-                torque_scale_factor=f_push[round(pos_rel_pole)]
-            else:
-                torque_scale_factor=0
+                    print(text)
+                    file.write(text)
+                    file.flush()
+
+
+                    old_dir = actual_dir
+                    max_power = 0
+                    max_speed = 0
+                    max_torque_pct = 0
+
+                elif not old_dir and actual_dir:
+                    # Wickeln beginnt
+                    old_dir = actual_dir
+
+                pos_rel_zero = (100/(end_swing_position-abs_zero_position)) * (actual_position-abs_zero_position)
+                pos_rel_pole = (1000/(end_swing_position-pole_zero_position)) * (actual_position-pole_zero_position)
+
+                if pos_rel_pole>=0:
+                    torque_scale_factor=f_push[round(pos_rel_pole)]
+                else:
+                    torque_scale_factor=0
                         
-            ic_torque = sic.getIntensity()
-            act_torque_pct = round(min_torque_pct + ((ic_torque * torque_scale_factor / 100)))
-            print("Drehmoment aus GUI/Scale Faktor/Act Torque", ic_torque, torque_scale_factor,act_torque_pct)
-            writeTorque(act_torque_pct)
+                act_torque_pct = round(min_torque_pct + ((ic_torque * torque_scale_factor / 100)))
+                # print("Drehmoment aus GUI/Scale Faktor/Act Torque", ic_torque, torque_scale_factor,act_torque_pct)
+                writeTorque(act_torque_pct)
 
-            arr = np.array([pos_rel_zero, actual_speed, act_torque_pct, power, act_torque_pct])
-            scope.evaluateValue(arr)
+                arr = np.array([pos_rel_zero, speed, act_torque_pct, power, act_torque_pct])
+                scope.evaluateValue(arr)
 
-        # wird das Training gestoppt so werden ein paar Parameter im Drive zurückgesetzt,
-        # damit nichts ungewolltes passiert
+            # wird das Training gestoppt so werden ein paar Parameter im Drive zurückgesetzt,
+            # damit nichts ungewolltes passiert
         DriveEnable(0)
         writeSpeed(0)
         writeTorque(0)
