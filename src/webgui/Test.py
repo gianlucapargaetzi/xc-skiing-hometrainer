@@ -369,7 +369,7 @@ if __name__ == '__main__':
                     sequence_time_stamp = current_time.timestamp()
                     sequence_start_time = int( sequence_time_stamp* 1000)
                     sequence_freq = 60000 / (sequence_start_time - sequence_end_time)
-                    if sequence_freq > 150 or sequence_freq < 20:
+                    if sequence_freq > 100 or sequence_freq < 20:
                         sequence_freq=0
 
                     formatted_time = current_time.strftime("%Y-%m-%d_%H:%M:%S")
