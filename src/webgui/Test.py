@@ -30,7 +30,7 @@ import numpy as np
 
 pulli_diameter = 50             # mm
 rope_diameter = 3               # mm
-top_position = 2100             # mm
+top_position = 1850             # mm
 pole_length = 1450              # mm
 swing_length = 1100             # mm
 swing_start_max_torque_pml = 200 # %
