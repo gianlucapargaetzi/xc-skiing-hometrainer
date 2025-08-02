@@ -24,7 +24,7 @@ source "$VENV_DIR/bin/activate"
 # Starten des Python-Programms
 if [ -f "$PYTHON_SCRIPT" ]; then
   echo "Starte das Python-Programm: $PYTHON_SCRIPT"
-  python "$PYTHON_SCRIPT" sic
+  python "$PYTHON_SCRIPT" iic
 else
   echo "Fehler: Python-Skript $PYTHON_SCRIPT nicht gefunden."
 fi

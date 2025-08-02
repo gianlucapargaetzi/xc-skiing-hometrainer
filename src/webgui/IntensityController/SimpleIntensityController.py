@@ -4,27 +4,31 @@ from BasicWebGUI import BackendNode, Backend
 from flask import jsonify
 
 MIN_VALUE = 5
-INIT_VALUE = 20
+INIT_VALUE = 60
 MAX_VALUE = 120
 STEP = 5
 
 class SimpleIntensityController(BackendNode):
     def __init__(self):
-        BackendNode.__init__(self, "SimpleIntensityControllerBackend", update_interval=None) # No publishing via socket IO...
+        BackendNode.__init__(self, "SimpleIntensityControllerBackend", update_interval=None)
         IntensityControllerInterface.__init__(self, "SimpleIntensityController")
         self._intensity_lock = Lock()
-        self._intensity = 40
+        self._intensity = INIT_VALUE
+        self.active = True  # Steuerung für laufende Prozesse
+
+        # Flask-Routen
         self._flask_requests.append(("/set_to_20", self._set_to_20, ['POST']))
         self._flask_requests.append(("/decrement", self._decrement, ['POST']))
         self._flask_requests.append(("/increment", self._increment, ['POST']))
         self._flask_requests.append(("/get_value", self._get_value, ['GET']))
+        self._flask_requests.append(("/stop", self._stop, ['POST']))  # Neue Route für Stop-Button
 
         Backend().registerNode(self)
         self.cnt = 0
 
     def __str__(self):
         return "SimpleIntensityController"
-    
+
     def _set_to_20(self):
         with self._intensity_lock:
             self._intensity = 20
@@ -34,7 +38,7 @@ class SimpleIntensityController(BackendNode):
         with self._intensity_lock:
             self._intensity = max(self._intensity - STEP, MIN_VALUE)
             return jsonify({"value": self._intensity})
-        
+
     def _increment(self):
         with self._intensity_lock:
             self._intensity = min(self._intensity + STEP, MAX_VALUE)
@@ -42,21 +46,24 @@ class SimpleIntensityController(BackendNode):
 
     def _get_value(self):
         with self._intensity_lock:
-            json = jsonify({"value": self._intensity})
-        return json
+            return jsonify({"value": self._intensity})
+
+    def _stop(self):
+        self.stop()  # Ruft stop()-Methode auf
+        return jsonify({"status": "stopped"})
 
     def getIntensity(self) -> float:
         return self._intensity
-    # Override functions even though they do nothing...
-    def publish(self):
-        pass
 
+    # Steuerungsmethoden (erweiterbar)
     def start(self):
-        pass
+        self.active = True
+        print("SimpleIntensityController started.")
 
     def stop(self):
-        pass
-    
+        self.active = False
+        print("SimpleIntensityController stopped.")
+
     def pause(self):
         pass
 
@@ -64,4 +71,7 @@ class SimpleIntensityController(BackendNode):
         pass
 
     def uninit(self):
+        pass
+
+    def publish(self):
         pass

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dual View</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            height: 100vh;
+        }
+        iframe {
+            flex: 1;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <iframe src="http://localhost:5000/interval"></iframe>
+    <iframe src="http://localhost:5000"></iframe>
+    <script>
+        fetch("/page_ready", { method: "POST" });
+    </script>
+
+</body>
+</html>

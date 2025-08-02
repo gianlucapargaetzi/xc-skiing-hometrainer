@@ -1,3 +1,4 @@
+
 from ValueHandler.ValueHandlerInterface import ValueHandler
 import sys
 import os
@@ -5,36 +6,30 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'
 
 from BasicWebGUI import BackendNode, Backend
 from scipy.interpolate import interp1d
-
 import numpy as np
+from typing import List
 
-HYSTERESIS_CNT = 3 # Amount of continuous negative speed measurements needed for processing to be triggered
-
-ANALYSIS_AMOUNT = 4 # Amount of curves to be used for mean and std dev calculation
-
-# Resolution of vector
+HYSTERESIS_CNT = 3
+ANALYSIS_AMOUNT = 4
 VECTOR_SIZE_MULTIPLIER = 1
-
-# Assume that vector values get passed "normalised", so 0 - 100%
 MIN_X_VALUE = 0
 MAX_X_VALUE = 100
-
 VEC_LENGTH = (MAX_X_VALUE - MIN_X_VALUE) * VECTOR_SIZE_MULTIPLIER + 1
 
-from typing import List
+
 class Scope(ValueHandler, BackendNode):
+
     def __init__(self):
         ValueHandler.__init__(self, "Scope")
-        BackendNode.__init__(self, "IntervalIntensityControllerBackend", update_interval=None) # No publishing via socket IO...
-        self._last_cycle_measurements: List[np.ndarray] = []
-
-
+        BackendNode.__init__(self, "IntervalIntensityControllerBackend", update_interval=None)
         self._speed_cache: List[float] = []
         self._cycles: List[np.ndarray] = []
         self._last_cycle_measurements: List[np.ndarray] = []
         self._processed = False
         self._x_vec = np.linspace(MIN_X_VALUE, MAX_X_VALUE, VEC_LENGTH)
         self._data: dict = {}
+        self._summary_data: dict = {}
+        self._total_distance: float = 0.0
         Backend().registerNode(self)
 
     def reset(self):
@@ -42,62 +37,60 @@ class Scope(ValueHandler, BackendNode):
         self._cycles.clear()
         self._last_cycle_measurements.clear()
         self._processed = False
-        pass
+        self._total_distance = 0.0
 
     def publish(self):
-        return Backend().publish("scope_values", self._data)
+        Backend().publish("scope_values", self._data)
+        return Backend().publish("scope_summary", self._summary_data)
+    
+    def log_message(self, message: str):
+        Backend().publish("scope_log", {"message": message})
+
+
+    def set_summary_values(self, heart_rate: float, mean_power: float, cadence: float, distance: float, totalDistance: float):
+        
+        self._summary_data = {
+            'heart_rate': heart_rate,
+            'mean_power': mean_power,
+            'cadence': cadence,
+            'distance': distance,
+            'totalDistance': totalDistance
+        }
+
+        Backend().publish("scope_summary", self._summary_data)
+
     
     def evaluateValue(self, measurement_value: np.ndarray):
-        """Process one new measurement value readout from the Motor controller using the HW interface
-
-        Args:
-            measurement_value (np.ndarray): Measurement values of one Readout iteration of the hardware controller with content [Position, Velocity, Torque, Power]
-        """
-        # print(measurement_value[1])
         self._speed_cache.append(measurement_value[1])
         if len(self._speed_cache) > HYSTERESIS_CNT:
-            self._speed_cache = self._speed_cache[-HYSTERESIS_CNT:] 
+            self._speed_cache = self._speed_cache[-HYSTERESIS_CNT:]
 
         if measurement_value[1] <= 0:
             self._last_cycle_measurements.append(measurement_value)
             self._processed = False
             return
-    
 
-        if not self._processed:
-            if  all([ v > 0 for v in self._speed_cache ]) :
-                # print("Processing")
-                if len(self._last_cycle_measurements) > 0:
-                    vals = np.stack(self._last_cycle_measurements).T
-                    interpolator = interp1d(vals[0,:], vals[1,:], kind='linear', fill_value="extrapolate")
-                    speed_interpolated = interpolator(self._x_vec)
+        if not self._processed and all(v > 0 for v in self._speed_cache):
+            if len(self._last_cycle_measurements) > 0:
+                vals = np.stack(self._last_cycle_measurements).T
+                speed_interpolated = interp1d(vals[0,:], vals[1,:], kind='linear', fill_value="extrapolate")(self._x_vec)
+                load_interpolated = interp1d(vals[0,:], vals[2,:], kind='linear', fill_value="extrapolate")(self._x_vec)
+                power_interpolated = interp1d(vals[0,:], vals[3,:], kind='linear', fill_value="extrapolate")(self._x_vec)
 
-                    interpolator = interp1d(vals[0,:], vals[2,:], kind='linear', fill_value="extrapolate")
-                    load_interpolated = interpolator(self._x_vec)
+                self._cycles.append(np.stack([speed_interpolated, load_interpolated, power_interpolated]))
+                if len(self._cycles) > ANALYSIS_AMOUNT:
+                    self._cycles = self._cycles[-ANALYSIS_AMOUNT:]
 
-                    interpolator = interp1d(vals[0,:], vals[3,:], kind='linear', fill_value="extrapolate")
-                    power_interpolated = interpolator(self._x_vec)
+                cycles = np.stack(self._cycles)
+                mean = np.mean(cycles, axis=0)
+                stddev = np.std(cycles, axis=0)
 
-
-
-                    self._cycles.append(np.stack([-1 * speed_interpolated, load_interpolated, -1 *power_interpolated]))
-                    if len(self._cycles) > ANALYSIS_AMOUNT:
-                        self._cycles = self._cycles[-ANALYSIS_AMOUNT:]
-
-                    cycles =  np.stack(self._cycles)
-                    mean = np.mean(cycles, axis=0)
-                    stddev = np.std(cycles, axis=0)
-
-                    self._data = {
-                        'x': self._x_vec.tolist(), 
-                        'speed': {'mean': mean[0,:].tolist(),    'stddev': stddev[0,:].tolist()},
-                        'load': {'mean': mean[1,:].tolist(),     'stddev': stddev[1,:].tolist()},
-                        'power': {'mean': mean[2,:].tolist(),    'stddev': stddev[2,:].tolist()}
-                        }
-                    self.publish()
-                # pass
-                self._last_cycle_measurements.clear()
-                self._processed = True
-
-
-
+                self._data = {
+                    'x': self._x_vec.tolist(),
+                    'speed': {'mean': mean[0,:].tolist(), 'stddev': stddev[0,:].tolist()},
+                    'load': {'mean': mean[1,:].tolist(), 'stddev': stddev[1,:].tolist()},
+                    'power': {'mean': mean[2,:].tolist(), 'stddev': stddev[2,:].tolist()}
+                }
+                self.publish()
+            self._last_cycle_measurements.clear()
+            self._processed = True

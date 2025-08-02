@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Interval Intensity Controller</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.0/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      padding: 0;
+      background-color: #f7f7f7;
+    }
+    h1 {
+      text-align: center;
+      font-size: 48px;
+    }
+    form, .list-container {
+      margin: 20px auto;
+      padding: 20px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      background-color: #fff;
+      width: 50%;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    label {
+      font-weight: bold;
+      font-size: 32px;
+    }
+    input[type="file"], button, select {
+      display: block;
+      margin: 10px 0;
+      padding: 15px;
+      font-size: 32px;
+    }
+    .list-container ul {
+      list-style-type: none;
+      padding: 0;
+      font-size: 28px;
+    }
+    .list-container li {
+      padding: 5px 0;
+      border-bottom: 1px solid #ddd;
+    }
+    .chart-container {
+      width: 90%;
+      height: 400px;
+      margin: 20px auto;
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 10px;
+    }
+    #stopButton {
+      background-color: #e53935;
+      color: white;
+      font-size: 32px;
+      padding: 25px 50px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      transition: background-color 0.3s;
+      display: block;
+      margin: 40px auto;
+    }
+    #stopButton:hover {
+      background-color: #d32f2f;
+    }
+  </style>
+</head>
+<body>
+  <h1>Interval Intensity Controller</h1>
+
+  <form id="uploadForm">
+    <label for="intervalFile">Upload Interval File:</label>
+    <input type="file" id="intervalFile" name="intervalFile" />
+    <button type="button" onclick="uploadFile()">Upload</button>
+  </form>
+
+  <div class="list-container" id="fileListContainer">
+    <h2>Available Interval Files</h2>
+    <button onclick="fetchFileList()">Refresh List</button>
+    <ul id="fileList"></ul>
+  </div>
+
+  <form id="loadForm">
+    <label for="fileSelect">Load Interval File:</label>
+    <select id="fileSelect">
+      <option value="">-- Select file --</option>
+    </select>
+    <button type="button" onclick="loadFile()">Load File</button>
+  </form>
+
+  <div class="chart-container">
+    <canvas id="intervalChart" width="400" height="200"></canvas>
+  </div>
+
+  <button id="stopButton" onclick="stopTraining()">⛔ STOP Training</button>
+
+  <script>
+    var socket = io();
+    socket.on('interval_intensity', function(msg) {
+      updateMarker(msg.time);
+    });
+
+    function uploadFile() {
+      const fileInput = document.getElementById('intervalFile');
+      if (!fileInput.files.length) {
+        alert("Please select a file to upload.");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('intervalFile', fileInput.files[0]);
+
+      fetch('/upload_interval_file', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(result => {
+        if (result.success) {
+          alert("File uploaded successfully!");
+          fetchFileList();
+        } else {
+          alert(Error uploading file: ${result.error});
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert("An error occurred while uploading the file.");
+      });
+    }
+
+    function fetchFileList() {
+      fetch('/get_interval_list', {
+        method: 'GET',
+      })
+      .then(response => response.json())
+      .then(result => {
+        if (result.success) {
+          const fileList = document.getElementById('fileList');
+          const fileSelect = document.getElementById('fileSelect');
+          fileList.innerHTML = '';
+          fileSelect.innerHTML = '<option value="">-- Select file --</option>';
+
+          result.files.forEach(file => {
+            const li = document.createElement('li');
+            li.textContent = file;
+            fileList.appendChild(li);
+
+            const option = document.createElement('option');
+            option.value = file;
+            option.text = file;
+            fileSelect.appendChild(option);
+          });
+        } else {
+          alert(Error fetching file list: ${result.error});
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert("An error occurred while fetching the file list.");
+      });
+    }
+
+    function loadFile() {
+      const fileName = document.getElementById('fileSelect').value;
+      if (!fileName) {
+        alert("Please select a file to load.");
+        return;
+      }
+
+      fetch('/load_interval_file', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ fileName })
+      })
+      .then(response => response.json())
+      .then(result => {
+        if (result.success) {
+          alert("File loaded successfully!");
+          const xValues = result.data.x;
+          const yValues = result.data.y;
+          plotChart(xValues, yValues);
+
+          // ⛔ Alle Eingabeformulare ausblenden
+          document.getElementById('uploadForm').style.display = 'none';
+          document.getElementById('loadForm').style.display = 'none';
+          document.getElementById('fileListContainer').style.display = 'none';
+        } else {
+          alert(Error loading file: ${result.error});
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert("An error occurred while loading the file.");
+      });
+    }
+
+    let chart = null;
+    let markerIndex = null;
+
+    function plotChart(xValues, yValues) {
+      const ctx = document.getElementById('intervalChart').getContext('2d');
+
+      if (chart) chart.destroy();
+
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: xValues,
+          datasets: [
+            {
+              label: 'Marker',
+              data: [],
+              backgroundColor: 'rgba(255, 0, 0, 1)',
+              borderColor: 'rgba(255, 0, 0, 1)',
+              radius: 6,
+              fill: false,
+              pointStyle: 'circle'
+            },
+            {
+              label: 'Intensity',
+              data: yValues,
+              borderColor: 'blue',
+              fill: false,
+              tension: 0.1,
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Time'
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Intensity'
+              },
+              min: 0,
+              max: 120,
+            }
+          }
+        }
+      });
+    }
+
+    function updateMarker(index) {
+      if (!chart) return;
+      markerIndex = index;
+      const x = chart.data.labels[markerIndex];
+      const y = chart.data.datasets[1].data[markerIndex];
+      chart.data.datasets[0].data = [{ x: x, y: y }];
+      chart.update();
+    }
+
+    function stopTraining() {
+      if (!confirm("Training wirklich stoppen?")) return;
+
+      fetch('/stop', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ active: false })
+      })
+      .then(response => {
+        if (response.ok) {
+          alert("Training wurde gestoppt.");
+          document.getElementById('stopButton').disabled = true;
+          document.getElementById('stopButton').innerText = "✅ Gestoppt";
+          document.getElementById('stopButton').style.backgroundColor = "#4CAF50";
+        } else {
+          alert("Fehler beim Stoppen des Trainings.");
+        }
+      })
+      .catch(error => {
+        console.error('Fehler:', error);
+        alert("Verbindungsfehler beim Stoppen.");
+      });
+    }
+
+    // Lade Dateiliste beim Start
+    window.onload = fetchFileList;
+  </script>
+</body>
+</html>
