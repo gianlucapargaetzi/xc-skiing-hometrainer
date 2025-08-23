@@ -1,0 +1,26 @@
+<div class="header">
+  <div class="header-left">
+    <img src="/static/Logo-x-ski.ch.png" alt="x-ski Logo" class="logo" />
+  </div>
+
+  <div class="header-right">
+    <div class="user-name">
+      {{ (user.firstname or '') ~ ' ' ~ (user.lastname or '') }}
+    </div>
+    {% if user.birthdate %}
+      <div class="user-meta">Geburtsdatum: {{ user.birthdate }}</div>
+    {% endif %}
+    {% if user.club %}
+      <div class="user-meta">Verein: {{ user.club }}</div>
+    {% endif %}
+  </div>
+
+  <div class="header-actions" title="Konfiguration">
+    <a href="/config" aria-label="Konfiguration öffnen">
+      <svg class="gear {% if active == 'config' %}gear-active{% endif %}"
+           viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#ffffff" d="M10.325 4.317a1 1 0 0 1 .973-.242l.24.074a7.97 7.97 0 0 1 1.924 0l.24-.074a1 1 0 0 1 .973.242l1.178 1.047c.285.253.377.651.23.997l-.1.232c.46.38.87.82 1.22 1.313l.247-.016a1 1 0 0 1 .923.54l.73 1.414a1 1 0 0 1-.15 1.12l-.173.196c.137.57.208 1.162.208 1.769s-.071 1.2-.208 1.77l.173.196a1 1 0 0 1 .15 1.121l-.73 1.414a1 1 0 0 1-.923.54l-.247-.016a6.96 6.96 0 0 1-1.22 1.313l.1.232a1 1 0 0 1-.23.997l-1.178 1.047a1 1 0 0 1-.973.242l-.24-.074a7.97 7.97 0 0 1-1.924 0l-.24.074a1 1 0 0 1-.973-.242l-1.178-1.047a1 1 0 0 1-.23-.997l.1-.232a6.96 6.96 0 0 1-1.22-1.313l-.247.016a1 1 0 0 1-.923-.54l-.73-1.414a1 1 0 0 1 .15-1.121l.173-.196A6.96 6.96 0 0 1 6 12c0-.607.071-1.199.208-1.769l-.173-.196a1 1 0 0 1-.15-1.12l.73-1.414a1 1 0 0 1 .923-.54l.247.016c.35-.493.76-.933 1.22-1.313l-.1-.232a1 1 0 0 1 .23-.997l1.178-1.047ZM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>
+      </svg>
+    </a>
+  </div>
+</div>

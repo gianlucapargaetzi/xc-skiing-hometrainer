@@ -59,6 +59,21 @@
       opacity: 0.95;
     }
 
+    /* Aktionen rechts (Zahnrad) */
+    .header-actions {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .gear {
+      width: 28px;
+      height: 28px;
+      display: inline-block;
+      cursor: pointer;
+    }
+    .gear:hover { opacity: .9; }
+
     /* Hauptbereich mit 2 iframes nebeneinander */
     .main {
       flex: 1 1 auto;
@@ -91,16 +106,26 @@
     <div class="header-left">
       <img src="/static/Logo-x-ski.ch.png" alt="x-ski Logo" class="logo" />
     </div>
+
     <div class="header-right">
       <div class="user-name" id="user-name"> </div>
       <div class="user-meta" id="user-birthdate"> </div>
       <div class="user-meta" id="user-club"> </div>
     </div>
+
+    <!-- Aktionen rechts: Zahnrad öffnet /config -->
+    <div class="header-actions" title="Konfiguration">
+      <a href="/config" aria-label="Konfiguration öffnen">
+        <svg class="gear" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path fill="#ffffff" d="M10.325 4.317a1 1 0 0 1 .973-.242l.24.074a7.97 7.97 0 0 1 1.924 0l.24-.074a1 1 0 0 1 .973.242l1.178 1.047c.285.253.377.651.23.997l-.1.232c.46.38.87.82 1.22 1.313l.247-.016a1 1 0 0 1 .923.54l.73 1.414a1 1 0 0 1-.15 1.12l-.173.196c.137.57.208 1.162.208 1.769s-.071 1.2-.208 1.77l.173.196a1 1 0 0 1 .15 1.121l-.73 1.414a1 1 0 0 1-.923.54l-.247-.016a6.96 6.96 0 0 1-1.22 1.313l.1.232a1 1 0 0 1-.23.997l-1.178 1.047a1 1 0 0 1-.973.242l-.24-.074a7.97 7.97 0 0 1-1.924 0l-.24.074a1 1 0 0 1-.973-.242l-1.178-1.047a1 1 0 0 1-.23-.997l.1-.232a6.96 6.96 0 0 1-1.22-1.313l-.247.016a1 1 0 0 1-.923-.54l-.73-1.414a1 1 0 0 1 .15-1.121l.173-.196A6.96 6.96 0 0 1 6 12c0-.607.071-1.199.208-1.769l-.173-.196a1 1 0 0 1-.15-1.12l.73-1.414a1 1 0 0 1 .923-.54l.247.016c.35-.493.76-.933 1.22-1.313l-.1-.232a1 1 0 0 1 .23-.997l1.178-1.047ZM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>
+        </svg>
+      </a>
+    </div>
   </div>
 
   <!-- Zwei Ansichten nebeneinander -->
   <div class="main">
-    <iframe src="http://localhost:5000/interval" title="Interval Controller"></iframe>
+    <iframe src="http://localhost:5000/interval" title="Intervall Intensity Controller"></iframe>
     <iframe src="http://localhost:5000" title="Dashboard"></iframe>
   </div>
 
@@ -124,6 +149,93 @@
       } catch (e) {
         console.error("Konnte /api/user nicht laden:", e);
         document.getElementById("user-name").textContent = "x-ski";
+      }
+    })();
+  </script>
+
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Dual View</title>
+  <style>
+    :root {
+      --brand-orange: #ff7b00; /* Orange aus dem x-ski Look */
+      --text-on-orange: #ffffff;
+    }
+
+    html, body { height: 100%; margin: 0; }
+
+    body {
+      display: flex;
+      flex-direction: column; /* Kopfzeile oben, Inhalt darunter */
+      background: #f5f5f5;
+    }
+
+    /* Kopfzeile */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 20px;
+      background-color: var(--brand-orange);
+      color: var(--text-on-orange);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .header-left { display: flex; align-items: center; flex: 0 0 auto; }
+    .logo { height: 56px; display: block; }
+    .header-right {
+      display: grid; grid-template-columns: auto; row-gap: 4px; line-height: 1.2;
+    }
+    .user-name { font-size: 22px; font-weight: 700; }
+    .user-meta { font-size: 16px; opacity: 0.95; }
+
+    /* Aktionen rechts (Zahnrad) */
+    .header-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+    .gear { width: 28px; height: 28px; display: inline-block; cursor: pointer; transition: transform .1s ease, opacity .15s ease; }
+    .gear:hover { opacity: .9; transform: rotate(-6deg); }
+    .gear-active { filter: drop-shadow(0 0 4px rgba(255,255,255,.9)); }
+
+    /* Hauptbereich mit 2 iframes nebeneinander */
+    .main { flex: 1 1 auto; display: flex; min-height: 0; }
+    iframe { flex: 1 1 50%; border: none; min-width: 0; }
+
+    /* Kleine Displays: iframes untereinander stapeln */
+    @media (max-width: 900px) {
+      .main { flex-direction: column; }
+      iframe { flex-basis: 50%; height: 50vh; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header wird dynamisch aus Flask geholt -->
+  <div id="header-mount"></div>
+
+  <!-- Zwei Ansichten nebeneinander -->
+  <div class="main">
+    <iframe src="http://localhost:5000/interval" title="Interval Intensity Controller"></iframe>
+    <iframe src="http://localhost:5000/Dashboard" title="Dashboard"></iframe>
+  </div>
+
+  <script>
+    // Seite ist bereit für dein Backend (dein bestehendes Verhalten)
+    fetch("/page_ready", { method: "POST" });
+
+    // Header-Fragment vom Server laden (serverseitig schon mit Userdaten gerendert)
+    (async () => {
+      try {
+        const res = await fetch("/header?active=dual", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const html = await res.text();
+        document.getElementById("header-mount").innerHTML = html;
+      } catch (e) {
+        console.error("Konnte /header nicht laden:", e);
+        // Fallback: minimaler Titel
+        document.getElementById("header-mount").innerHTML =
+          '<div class="header"><div class="header-left"><strong>x-ski</strong></div></div>';
       }
     })();
   </script>
