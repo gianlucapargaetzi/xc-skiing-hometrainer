@@ -54,9 +54,14 @@ DEFAULT_CONFIG = {
     "user": {
         "weight_kg": 75.0,
         "mu": 0.020,
-        "s_s": 1.10,               # Schwungweg-Faktor
-        "slope_percent": 0.0
-    },
+        "s_s": 1.10,
+        "slope_percent": 0.0,
+        "firstname": "x-ski",
+        "lastname": "Demo",
+        "birthdate": "2000-01-01",
+        "club": "x-ski.ch",
+        "email": "x-ski@schnaepsli.parmai.ch"
+        },
     "hr_sensor": {
         # Polar H10 Beispiel: "A0:9E:1A:45:11:09"
         # Polar Verity Sense Beispiel: "24:AC:AC:03:F5:B4"
@@ -142,6 +147,11 @@ weight_kg     = config["user"]["weight_kg"]
 mu            = config["user"]["mu"]
 s_s           = config["user"]["s_s"]
 slope_percent = config["user"]["slope_percent"]
+user_firstname = config["user"].get("firstname", "")
+user_lastname  = config["user"].get("lastname", "")
+user_birthdate = config["user"].get("birthdate", "")
+user_club      = config["user"].get("club", "")
+user_email     = config["user"].get("email", "")
 
 hr_sensor_address = config["hr_sensor"]["address"]
 
@@ -351,6 +361,17 @@ def calibrate_end_position():
 if __name__ == '__main__':
     app = Backend(__name__)
 
+
+    @app.route("/api/user", methods=["GET"])
+    def api_user():
+        u = config.get("user", {})
+        return jsonify({
+            "firstname": u.get("firstname", ""),
+            "lastname":  u.get("lastname", ""),
+            "birthdate": u.get("birthdate", ""),
+            "club":      u.get("club", "")
+        })
+
     @app.route("/page_ready", methods=["POST"])
     def page_ready():
         global page_loaded
@@ -559,14 +580,17 @@ if __name__ == '__main__':
                     attachments = [tcx_filename]
 
                     send_training_email(
-                        to_address="juerg.pargaetzi@parmail.ch",
-                        subject="X-Ski Training abgeschlossen",
+                        to_address=user_email or "fallback@example.com",
+                        subject=f"X-Ski Training abgeschlossen – {user_firstname} {user_lastname}",
                         body=(
-                            "Das Training wurde gestoppt.\n"
-                            + ("Anbei findest du die TCX-Datei." if attachments else "Es wurden keine Zyklen aufgezeichnet, daher keine TCX-Datei.")
+                            f"Hallo {user_firstname},\n\n"
+                            "anbei findest du die Dateien deines letzten Trainings.\n\n"
+                            f"Verein: {user_club}\n"
+                            f"Geburtsdatum: {user_birthdate}\n"
                         ),
-                        attachments=attachments
+                    attachments=attachments
                     )
+
                 else:
                     # Kein Cycle erkannt → Hinweis ins Log und keine Anlage
                     scope.log_message("ℹ️ Keine Trainingsdaten (keine Züge erkannt) – TCX wird nicht erzeugt.")

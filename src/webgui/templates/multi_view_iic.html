@@ -1,25 +1,132 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
-    <title>Dual View</title>
-    <style>
-        body {
-            margin: 0;
-            display: flex;
-            height: 100vh;
-        }
-        iframe {
-            flex: 1;
-            border: none;
-        }
-    </style>
+  <meta charset="utf-8" />
+  <title>Dual View</title>
+  <style>
+    :root {
+      --brand-orange: #ff7b00; /* Orange aus dem x-ski Look */
+      --text-on-orange: #ffffff;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column; /* Kopfzeile oben, Inhalt darunter */
+      background: #f5f5f5;
+    }
+
+    /* Kopfzeile */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 20px;
+      background-color: var(--brand-orange);
+      color: var(--text-on-orange);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      flex: 0 0 auto;
+    }
+
+    .logo {
+      height: 56px;           /* bei Bedarf anpassen */
+      display: block;
+    }
+
+    .header-right {
+      display: grid;
+      grid-template-columns: auto;
+      row-gap: 4px;
+      line-height: 1.2;
+    }
+
+    .user-name {
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .user-meta {
+      font-size: 16px;
+      opacity: 0.95;
+    }
+
+    /* Hauptbereich mit 2 iframes nebeneinander */
+    .main {
+      flex: 1 1 auto;
+      display: flex;
+      min-height: 0; /* wichtig, damit iframes richtig schrumpfen können */
+    }
+
+    iframe {
+      flex: 1 1 50%;
+      border: none;
+      min-width: 0; /* verhindert Überlauf */
+    }
+
+    /* Kleine Displays: iframes untereinander stapeln */
+    @media (max-width: 900px) {
+      .main {
+        flex-direction: column;
+      }
+      iframe {
+        flex-basis: 50%;
+        height: 50vh;
+      }
+    }
+  </style>
 </head>
 <body>
-    <iframe src="http://localhost:5000/interval"></iframe>
-    <iframe src="http://localhost:5000"></iframe>
-    <script>
-        fetch("/page_ready", { method: "POST" });
-    </script>
+
+  <!-- Kopfzeile (wird dynamisch befüllt) -->
+  <div class="header">
+    <div class="header-left">
+      <img src="/static/Logo-x-ski.ch.png" alt="x-ski Logo" class="logo" />
+    </div>
+    <div class="header-right">
+      <div class="user-name" id="user-name"> </div>
+      <div class="user-meta" id="user-birthdate"> </div>
+      <div class="user-meta" id="user-club"> </div>
+    </div>
+  </div>
+
+  <!-- Zwei Ansichten nebeneinander -->
+  <div class="main">
+    <iframe src="http://localhost:5000/interval" title="Interval Controller"></iframe>
+    <iframe src="http://localhost:5000" title="Dashboard"></iframe>
+  </div>
+
+  <script>
+    // Seite ist bereit für dein Backend
+    fetch("/page_ready", { method: "POST" });
+
+    // Userdaten aus Flask ziehen und Kopfzeile füllen
+    (async () => {
+      try {
+        const res = await fetch("/api/user", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const u = await res.json();
+
+        const name = [u.firstname, u.lastname].filter(Boolean).join(" ");
+        document.getElementById("user-name").textContent = name || "—";
+        document.getElementById("user-birthdate").textContent =
+          u.birthdate ? `Geburtsdatum: ${u.birthdate}` : "";
+        document.getElementById("user-club").textContent =
+          u.club ? `Verein: ${u.club}` : "";
+      } catch (e) {
+        console.error("Konnte /api/user nicht laden:", e);
+        document.getElementById("user-name").textContent = "x-ski";
+      }
+    })();
+  </script>
 
 </body>
 </html>
