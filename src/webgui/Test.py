@@ -40,41 +40,41 @@ ACTIVE_CONFIG_PATH = SCRIPT_DIR / "x-ski.json"
 
 DEFAULT_CONFIG = {
     "hardware": {
-        "pulli_diameter": 110.0,   # mm
-        "rope_diameter": 4.0,      # mm
-        "top_position": 1400.0,    # mm
-        "pole_length": 1250.0,     # mm
-        "swing_length": 800.0      # mm
+        "pulli_diameter": 50.0,   # mm
+        "rope_diameter": 3.0,      # mm
+        "top_position": 2000.0,    # mm
+        "pole_length": 1450.0,     # mm
+        "swing_length": 1100.0      # mm
     },
     "swing_torque": {
-        "swing_start_max_torque_pml": 180,
-        "swing_end_max_torque_pml": 420
+        "swing_start_max_torque_pml": 200,
+        "swing_end_max_torque_pml": 500
     },
     "control": {
-        "min_torque_calib_pct": 5,
-        "min_speed_calib": 20,     # 2.0 U/s = 20 (x10)
-        "min_torque_pct": 8,
-        "CurrentLimit": 6,         # A
-        "pull_speed": 50           # 5.0 U/s = 50 (x10)
+        "min_torque_calib_pct": 15,
+        "min_speed_calib": 100,     # 2.0 U/s = 20 (x10)
+        "min_torque_pct": 20,
+        "CurrentLimit": 80,         # A
+        "pull_speed": 1500           # 5.0 U/s = 50 (x10)
     },
     "user": {
         "weight_kg": 75.0,
         "mu": 0.020,
         "s_s": 1.10,
         "slope_percent": 0.0,
-        "firstname": "Max",
-        "lastname": "Mustermann",
-        "birthdate": "1990-01-01",
-        "club": "Skiclub Davos",
-        "email": "max.mustermann@example.com"
+        "firstname": "x-ski",
+        "lastname": "Demonstration",
+        "birthdate": "2000-01-01",
+        "club": "x-ski.ch",
+        "email": "info@x-ski.ch"
     },
     "hr_sensor": {
         "address": "24:AC:AC:03:F5:B4"  # Polar Verity Sense Beispiel
     },
     "drive": {
-        "host": "127.0.0.1",
+        "host": "192.168.200.199",
         "port": 502,
-        "unit_id": 1
+        "unit_id": 0
     }
 }
 
@@ -118,7 +118,7 @@ def load_config_from_candidates() -> tuple[dict, Path | None]:
                 print(f"⚠️ Konnte {p} nicht laden: {e}")
     if not found:
         # Beispiel schreiben
-        example = SCRIPT_DIR / "x-ski.example.json"
+        example = SCRIPT_DIR / "configs" / "x-ski.example.json"
         try:
             with open(example, "w", encoding="utf-8") as f:
                 json.dump(DEFAULT_CONFIG, f, indent=2, ensure_ascii=False)

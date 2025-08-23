@@ -1,10 +1,10 @@
 {
   "hardware": {
-    "pulli_diameter": 50,
-    "rope_diameter": 3,
-    "top_position": 2000,
-    "pole_length": 1450,
-    "swing_length": 1100
+    "pulli_diameter": 50.0,
+    "rope_diameter": 3.0,
+    "top_position": 2000.0,
+    "pole_length": 1450.0,
+    "swing_length": 1100.0
   },
   "swing_torque": {
     "swing_start_max_torque_pml": 200,
@@ -18,13 +18,18 @@
     "pull_speed": 1500
   },
   "user": {
-    "weight_kg": 75,
+    "weight_kg": 75.0,
     "mu": 0.02,
     "s_s": 1.1,
-    "slope_percent": 0.0
+    "slope_percent": 0.0,
+    "firstname": "x-ski",
+    "lastname": "Demonstration",
+    "birthdate": "2000-01-01",
+    "club": "x-ski.ch",
+    "email": "info@x-ski.ch"
   },
   "hr_sensor": {
-    "address": "A0:9E:1A:45:11:09"
+    "address": "24:AC:AC:03:F5:B4"
   },
   "drive": {
     "host": "192.168.200.199",
