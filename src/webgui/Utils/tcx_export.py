@@ -3,6 +3,10 @@
 import xml.etree.ElementTree as ET
 
 def write_tcx(records, filename="training_output.tcx", sport_note="SkiErg Training"):
+
+    if not records:
+        raise ValueError("write_tcx: 'records' ist leer – keine TCX-Erzeugung möglich.")
+
     NS = {
         'tcx': "http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2",
         'xsi': "http://www.w3.org/2001/XMLSchema-instance",

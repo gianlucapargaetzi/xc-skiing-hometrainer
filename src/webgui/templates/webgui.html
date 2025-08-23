@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Konfigurationseditor</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    textarea { width: 100%; height: 400px; font-family: monospace; }
+    select, button { font-size: 16px; margin: 5px; }
+  </style>
+</head>
+<body>
+  <h1>⚙️ Konfigurationseditor</h1>
+
+  <div>
+    <select id="configSelect"></select>
+    <button onclick="loadConfig()">Laden</button>
+    <button onclick="saveConfig()">Speichern unter...</button>
+  </div>
+
+  <textarea id="configEditor">{}</textarea>
+
+  <script>
+    async function refreshConfigList() {
+      const res = await fetch("/config/list");
+      const configs = await res.json();
+      const select = document.getElementById("configSelect");
+      select.innerHTML = "";
+      configs.forEach(name => {
+        const option = document.createElement("option");
+        option.value = name;
+        option.text = name;
+        select.appendChild(option);
+      });
+    }
+
+    async function loadConfig() {
+      const name = document.getElementById("configSelect").value;
+      const res = await fetch("/config/load/" + name);
+      const config = await res.json();
+      document.getElementById("configEditor").value = JSON.stringify(config, null, 4);
+    }
+
+    async function saveConfig() {
+      const name = prompt("Dateiname zum Speichern (inkl. .json):");
+      if (!name) return;
+      try {
+        const config = JSON.parse(document.getElementById("configEditor").value);
+        await fetch("/config/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: name, config: config })
+        });
+        alert("Gespeichert als " + name);
+        refreshConfigList();
+      } catch (e) {
+        alert("Ungültiges JSON: " + e);
+      }
+    }
+
+    window.onload = refreshConfigList;
+  </script>
+</body>
+</html>
