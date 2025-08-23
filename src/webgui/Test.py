@@ -1,10 +1,9 @@
-# Test.py – x-ski WebGUI + Training + Konfig-Management mit Live-Reload
+# Test.py – x-ski WebGUI + Training + Konfig-Management mit ConfigManager & BLEManager
 
 import os
 import sys
 import time
 import json
-import shutil
 import asyncio
 import numpy as np
 from pathlib import Path
@@ -17,7 +16,6 @@ import serial  # falls benötigt
 from flask import Flask, jsonify, render_template, request, abort, redirect, url_for
 from pyModbusTCP.client import ModbusClient
 from pyModbusTCP import utils
-from bleak import BleakClient
 
 from BasicWebGUI import Backend
 from IntensityController.IntervallIntensityController import IntervallIntensityController
@@ -27,109 +25,32 @@ from Utils.CustomLogger import Logger
 from Utils.double_poling_distance import distance_per_cycle_dynamic, distance_per_cycle
 from Utils.tcx_export import write_tcx
 from Utils.email_utils import send_training_email
-from Utils.ble_power_meter_module import BLEPowerServer
+
+# Konfigurations- & BLE-Manager
+from Utils.config_manager import ConfigManager, DEFAULT_CONFIG
+from Utils.ble_manager import BLEManager
 
 # --------------------------- Pfade & Globals ---------------------------
-
 SCRIPT_DIR = Path(__file__).resolve().parent
-CONFIG_DIR = (SCRIPT_DIR / "configs")
-CONFIG_DIR.mkdir(exist_ok=True)
-ACTIVE_CONFIG_PATH = SCRIPT_DIR / "x-ski.json"
 
-# --------------------------- Defaults & Config -------------------------
-
-DEFAULT_CONFIG = {
-    "hardware": {
-        "pulli_diameter": 50.0,   # mm
-        "rope_diameter": 3.0,      # mm
-        "top_position": 2000.0,    # mm
-        "pole_length": 1450.0,     # mm
-        "swing_length": 1100.0      # mm
-    },
-    "swing_torque": {
-        "swing_start_max_torque_pml": 200,
-        "swing_end_max_torque_pml": 500
-    },
-    "control": {
-        "min_torque_calib_pct": 15,
-        "min_speed_calib": 100,     # 2.0 U/s = 20 (x10)
-        "min_torque_pct": 20,
-        "CurrentLimit": 80,         # A
-        "pull_speed": 1500           # 5.0 U/s = 50 (x10)
-    },
-    "user": {
-        "weight_kg": 75.0,
-        "mu": 0.020,
-        "s_s": 1.10,
-        "slope_percent": 0.0,
-        "firstname": "x-ski",
-        "lastname": "Demonstration",
-        "birthdate": "2000-01-01",
-        "club": "x-ski.ch",
-        "email": "info@x-ski.ch"
-    },
-    "hr_sensor": {
-        "address": "24:AC:AC:03:F5:B4"  # Polar Verity Sense Beispiel
-    },
-    "drive": {
-        "host": "192.168.200.199",
-        "port": 502,
-        "unit_id": 0
-    }
-}
-
-def deep_update(base: dict, override: dict) -> dict:
-    for k, v in override.items():
-        if isinstance(v, dict) and isinstance(base.get(k), dict):
-            deep_update(base[k], v)
-        else:
-            base[k] = v
-    return base
-
-# CLI: --config optional
+# --------------------------- CLI: --config optional --------------------
 import argparse
 parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument("--config", dest="config_path", default=None)
 known_args, remaining = parser.parse_known_args()
 sys.argv = [sys.argv[0], *remaining]
 
-env_cfg = os.getenv("X_SKI_CONFIG")
+# --------------------------- Config laden ------------------------------
+cfg_manager = ConfigManager(
+    script_dir=SCRIPT_DIR,
+    active_filename="x-ski.json",
+    config_dirname="configs",
+    default_config=DEFAULT_CONFIG,
+    env_var="X_SKI_CONFIG",
+)
+config, config_path = cfg_manager.load_from_candidates(cli_path=known_args.config_path)
 
-def load_config_from_candidates() -> tuple[dict, Path | None]:
-    candidates = [
-        Path(known_args.config_path) if known_args.config_path else None,
-        Path(env_cfg) if env_cfg else None,
-        ACTIVE_CONFIG_PATH,
-        SCRIPT_DIR / "configs" / "x-ski.json",
-        Path.cwd() / "x-ski.json",
-    ]
-    cfg = json.loads(json.dumps(DEFAULT_CONFIG))  # tiefe Kopie
-    found = None
-    for p in candidates:
-        if p and p.is_file():
-            try:
-                with open(p, "r", encoding="utf-8") as f:
-                    user_cfg = json.load(f)
-                deep_update(cfg, user_cfg)
-                found = p
-                print(f"✅ Konfiguration geladen aus: {p}")
-                break
-            except Exception as e:
-                print(f"⚠️ Konnte {p} nicht laden: {e}")
-    if not found:
-        # Beispiel schreiben
-        example = SCRIPT_DIR / "configs" / "x-ski.example.json"
-        try:
-            with open(example, "w", encoding="utf-8") as f:
-                json.dump(DEFAULT_CONFIG, f, indent=2, ensure_ascii=False)
-            print(f"ℹ️ Keine x-ski.json gefunden. Beispiel geschrieben nach: {example}")
-        except Exception as e:
-            print(f"⚠️ Konnte Beispiel-Config nicht schreiben: {e}")
-    return cfg, found
-
-config, config_path = load_config_from_candidates()
-
-# --------------------------- Globals aus Config -------------------------
+# --------------------------- Globals aus Config ------------------------
 
 def apply_config_globals():
     global pulli_diameter, rope_diameter, top_position, pole_length, swing_length
@@ -176,67 +97,15 @@ def apply_config_globals():
 
 apply_config_globals()
 
-# --------------------------- BLE Setup ---------------------------
-
-HR_SERVICE_UUID = "0000180d-0000-1000-8000-00805f9b34fb"
-HR_MEASUREMENT_CHAR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"
-MODEL_NUMBER_UUID = "00002a24-0000-1000-8000-00805f9b34fb"
-
+# --------------------------- State (Page Ready) ------------------------
 page_loaded = False
 page_lock = Lock()
-heart_rate = 0
-hr_lock = Lock()
 
-ble_server = BLEPowerServer()
-t_ble = Thread(target=ble_server.start, daemon=True)
-t_ble.start()
+# --------------------------- BLE Manager -------------------------------
+# Startet BLE Power Server und HR-Listener in eigenen Threads
+ble_manager = BLEManager(hr_sensor_address)
 
-def hr_measurement_handler(sender, data: bytearray):
-    global heart_rate
-    if not data:
-        return
-    flags = data[0]
-    hr_16bit = flags & 0x01
-    if hr_16bit and len(data) >= 3:
-        value = int.from_bytes(data[1:3], byteorder="little")
-    elif len(data) >= 2:
-        value = data[1]
-    else:
-        return
-    with hr_lock:
-        heart_rate = int(value)
-
-async def connect_heart_rate_sensor():
-    KNOWN_MODELS = {"INW4J": "Polar Verity Sense", "H10": "Polar H10"}
-    address = hr_sensor_address
-    print(f"🔗 Versuche Verbindung mit Herzsensor unter {address}...")
-    try:
-        client = BleakClient(address)
-        await client.connect()
-        try:
-            model_number = await client.read_gatt_char(MODEL_NUMBER_UUID)
-            model_code = model_number.decode("utf-8", errors="ignore").strip()
-            friendly_name = KNOWN_MODELS.get(model_code, f"Unbekanntes Modell ({model_code})")
-            print(f"📦 Modell erkannt: {friendly_name}")
-        except Exception as e:
-            print(f"ℹ️ Modellnummer konnte nicht gelesen werden: {e}")
-        await client.start_notify(HR_MEASUREMENT_CHAR_UUID, hr_measurement_handler)
-        print("📡 Herzfrequenzübertragung aktiv")
-        while True:
-            await asyncio.sleep(1)
-    except Exception as e:
-        print(f"❌ Verbindung fehlgeschlagen: {e}")
-
-def start_hr_ble():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(connect_heart_rate_sensor())
-
-t_hr = Thread(target=start_hr_ble, daemon=True)
-t_hr.start()
-sleep(1)
-
-# --------------------------- Modbus Helpers ---------------------------
+# --------------------------- Modbus Helpers ----------------------------
 
 def uint16_to_int16(uint16):
     if uint16 >= 2**15:
@@ -359,8 +228,7 @@ def calibrate_end_position():
     EnableDisableForwardLimit(1)
     print("Kalibrierung abgeschlossen.")
 
-# --------------------------- Flask App & Routen ---------------------------
-
+# --------------------------- Flask App & Routen ------------------------
 app = Backend(__name__)
 
 # Header-Fragment (serverseitig gefüllt)
@@ -387,102 +255,56 @@ def api_user():
 def config_page():
     return render_template("config.html", user=config.get("user", {}), active="config")
 
-# Konfig-Management APIs
-def _is_safe_name(name: str) -> bool:
-    p = Path(name)
-    return (p.name == name) and p.suffix.lower() == ".json"
-
-def _config_file(name: str) -> Path:
-    return (CONFIG_DIR / name).resolve()
-
-def _assert_in_config_dir(p: Path):
-    if CONFIG_DIR.resolve() not in p.parents and p != CONFIG_DIR.resolve():
-        raise ValueError("Ungültiger Pfad außerhalb von configs/")
-
+# Konfig-Management APIs (per ConfigManager)
 @app.route("/api/config/list", methods=["GET"])
 def api_config_list():
-    files = sorted([f.name for f in CONFIG_DIR.glob("*.json")])
-
-    # aktive Quelle heuristisch bestimmen (Inhaltvergleich mit x-ski.json)
-    active_source = None
-    try:
-        if ACTIVE_CONFIG_PATH.exists():
-            active_data = json.loads(ACTIVE_CONFIG_PATH.read_text(encoding="utf-8"))
-            for f in files:
-                p = (CONFIG_DIR / f)
-                try:
-                    cand = json.loads(p.read_text(encoding="utf-8"))
-                    if cand == active_data:
-                        active_source = f
-                        break
-                except Exception:
-                    pass
-    except Exception:
-        pass
-
-    return jsonify({"files": files, "active": active_source})
+    return jsonify(cfg_manager.list_files())
 
 @app.route("/api/config/get", methods=["GET"])
 def api_config_get():
     name = request.args.get("name", "")
-    if not _is_safe_name(name):
-        abort(400, "Ungültiger Dateiname")
-    p = _config_file(name)
-    _assert_in_config_dir(p)
-    if not p.exists():
-        abort(404, "Datei nicht gefunden")
-    return jsonify({"name": name, "content": p.read_text(encoding="utf-8")})
+    try:
+        return jsonify(cfg_manager.get(name))
+    except ValueError as e:
+        return abort(400, str(e))
+    except FileNotFoundError as e:
+        return abort(404, str(e))
 
 @app.route("/api/config/save", methods=["POST"])
 def api_config_save():
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
     content = data.get("content")
-    if not _is_safe_name(name):
-        abort(400, "Ungültiger Dateiname (muss auf .json enden)")
     if not isinstance(content, str) or not content:
-        abort(400, "Kein Inhalt")
-
+        return abort(400, "Kein Inhalt")
     try:
-        json.loads(content)
-    except Exception as e:
-        abort(400, f"JSON ungültig: {e}")
-
-    p = _config_file(name)
-    _assert_in_config_dir(p)
-    p.write_text(content, encoding="utf-8")
-    return jsonify({"ok": True, "saved": name})
+        return jsonify(cfg_manager.save(name, content))
+    except ValueError as e:
+        return abort(400, str(e))
 
 @app.route("/api/config/activate", methods=["POST"])
 def api_config_activate():
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
-    if not _is_safe_name(name):
-        abort(400, "Ungültiger Dateiname")
-    src = _config_file(name)
-    _assert_in_config_dir(src)
-    if not src.exists():
-        abort(404, "Datei nicht gefunden")
-
-    shutil.copyfile(src, ACTIVE_CONFIG_PATH)
-    return jsonify({"ok": True, "active": ACTIVE_CONFIG_PATH.name, "source": name})
+    try:
+        return jsonify(cfg_manager.activate(name))
+    except ValueError as e:
+        return abort(400, str(e))
+    except FileNotFoundError as e:
+        return abort(404, str(e))
 
 @app.route("/api/config/reload", methods=["POST"])
 def api_config_reload():
-    """Lädt ACTIVE_CONFIG_PATH (x-ski.json) neu und aktualisiert alle globalen Variablen."""
-    if not ACTIVE_CONFIG_PATH.exists():
-        abort(404, "Aktive Konfiguration (x-ski.json) nicht gefunden")
     try:
-        with open(ACTIVE_CONFIG_PATH, "r", encoding="utf-8") as f:
-            new_cfg = json.load(f)
-        new_merged = json.loads(json.dumps(DEFAULT_CONFIG))
-        deep_update(new_merged, new_cfg)
+        resp = cfg_manager.reload_active()
         global config
-        config = new_merged
+        config = cfg_manager.config
         apply_config_globals()
-        return jsonify({"ok": True, "reloaded": str(ACTIVE_CONFIG_PATH)})
-    except Exception as e:
-        abort(400, f"Reload fehlgeschlagen: {e}")
+        return jsonify(resp)
+    except FileNotFoundError as e:
+        return abort(404, str(e))
+    except ValueError as e:
+        return abort(400, str(e))
 
 # Dashboard + Root
 @app.route("/dashboard")
@@ -554,8 +376,10 @@ def training_thread():
     calibrate_end_position()
 
     pole_offset = round((top_position - pole_length) / dist_par_rev * 65536)
+    zero_offset = round((50) / dist_par_rev * 65536) # Sicherheitssichtung wirk 50mm vom Top entfernt.
     abs_zero_position = readNormalisedPosition()
     pole_zero_position = abs_zero_position - pole_offset
+    soft_zero_position = abs_zero_position - zero_offset
     start_max_torque_position = pole_zero_position - round(swing_start_max_torque_pml / dist_par_rev * 65536)
     end_max_torque_position   = pole_zero_position - round(swing_end_max_torque_pml  / dist_par_rev * 65536)
     end_swing_position        = pole_zero_position - round(swing_length             / dist_par_rev * 65536)
@@ -595,6 +419,13 @@ def training_thread():
         toggleWatchDog()
         ic_torque = ic.getIntensity()
         actual_position = readNormalisedPosition()
+
+        # Software Sicherheitsschaltung / Drehmoment wird 50mm vom Top entfernt abgeschaltet
+        if actual_position <= soft_zero_position:
+            DriveEnable(1)
+        else:
+            DriveEnable(0)
+
         speed = readSpeed()
         power = readPower()
 
@@ -611,8 +442,7 @@ def training_thread():
             if zero_power_start_time is None:
                 zero_power_start_time = time.time()
 
-        with hr_lock:
-            current_hr = heart_rate
+        current_hr = ble_manager.get_heart_rate()
 
         denom1 = (end_swing_position - abs_zero_position)
         denom2 = (end_swing_position - pole_zero_position)
@@ -630,6 +460,7 @@ def training_thread():
         # Werte an Scope
         arr = np.array([pos_rel_zero, speed, act_torque_pct, act_power, current_hr, sequence_freq])
         scope.evaluateValue(arr)
+
 
         actual_dir = speed > 0
 
@@ -686,7 +517,7 @@ def training_thread():
                 scope.log_message("ℹ️ Keine Trainingsdaten – TCX wird nicht erzeugt.")
                 print("Hinweis: Keine records vorhanden – TCX-Erzeugung übersprungen.")
 
-            # Mail-Body sicher (ohne f-String-Backslash-Fehler) zusammensetzen
+            # Mail-Body sicher zusammensetzen
             lines = [
                 f"Hallo {user_firstname},",
                 "",
@@ -714,8 +545,7 @@ def training_thread():
     writeTorque(0)
     EnableDisableWatchDog(0)
 
-# --------------------------- main ---------------------------
-
+# --------------------------- main --------------------------------------
 if __name__ == '__main__':
     client1 = ModbusClient(host=drive_host, port=drive_port, unit_id=drive_unitid, auto_open=True)
     scope = Scope()
