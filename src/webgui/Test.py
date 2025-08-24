@@ -386,7 +386,6 @@ def training_thread():
 
     wait_for_sto_ON()
     scope.log_message("✅ Training gestartet")
-    print("Starte Training ...")
 
     EnableDisableForwardLimit(1)
     writeForwardDirection(1)
@@ -482,7 +481,6 @@ def training_thread():
             if sequence_freq > 0 and mean_power > 0:
                 # Distanz (einfache Variante)
                 distance = distance_per_cycle(mean_power, sequence_freq)
-                print(1/sequence_freq if sequence_freq else 0, zero_power_duration, s_s)
                 total_distance += distance
 
                 scope.set_summary_values(current_hr, mean_power, sequence_freq, distance, total_distance)

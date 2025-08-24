@@ -36,7 +36,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "lastname": "Demonstration",
         "birthdate": "2000-01-01",
         "club": "x-ski.ch",
-        "email": "info@x-ski.ch"
+        "email": "juerg.pargaetzi@parmail.ch"
     },
     "hr_sensor": {
         "address": "24:AC:AC:03:F5:B4"  # Polar Verity Sense Beispiel
