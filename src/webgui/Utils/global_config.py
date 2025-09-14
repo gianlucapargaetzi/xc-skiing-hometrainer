@@ -24,6 +24,7 @@ class GlobalConfig:
         self.mu = 0.02
         self.s_s = 0.5
         self.slope_percent = 0
+        self.max_hr = 175   # <--- Maximalpuls
 
         self.firstname = ""
         self.lastname = ""
@@ -65,6 +66,7 @@ class GlobalConfig:
             self.mu = user.get("mu", self.mu)
             self.s_s = user.get("s_s", self.s_s)
             self.slope_percent = user.get("slope_percent", self.slope_percent)
+            self.max_hr = user.get("max_hr", self.max_hr)   # <--- Laden aus JSON
 
             hr = config_data.get("hr_sensor", {})
             self.hr_sensor_address = hr.get("address", self.hr_sensor_address)
@@ -105,6 +107,7 @@ class GlobalConfig:
                 "mu": self.mu,
                 "s_s": self.s_s,
                 "slope_percent": self.slope_percent,
+                "max_hr": self.max_hr,   # <--- Speichern in JSON
             },
             "hr_sensor": {
                 "address": self.hr_sensor_address,

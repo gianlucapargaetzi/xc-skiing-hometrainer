@@ -414,7 +414,7 @@ def training_thread():
     total_distance = 0.0  # Gesamtdistanz
 
     running = True
-    while running:
+    while running and readHardwareEnabled() :
         toggleWatchDog()
         ic_torque = ic.getIntensity()
         actual_position = readNormalisedPosition()
@@ -537,6 +537,8 @@ def training_thread():
             break
         else:
             scope.log_message("✅ Training läuft")
+
+    print("Training gestoppt oder abgebrochen")
 
     DriveEnable(0)
     writeSpeed(0)

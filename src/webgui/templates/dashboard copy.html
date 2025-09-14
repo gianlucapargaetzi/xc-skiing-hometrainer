@@ -45,16 +45,16 @@
     }
 
     #chartContainer {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 20px;
-      margin: 40px auto;
-      width: 90%;
-      height: 60%;
-      background-color: #fff;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+        margin: 40px auto;
+        width: 90%;
+        height: 60%;
+        background-color: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
 
     canvas {
@@ -100,25 +100,6 @@
       background-color: #9E9E9E;
       cursor: default;
     }
-
-    /* Badge für Herzfrequenz-Zone */
-    .hr-badge {
-      display: inline-block;
-      padding: 4px 10px;
-      margin-left: 10px;
-      border-radius: 10px;
-      background: #bdbdbd; /* wird per JS überschrieben */
-      color: #fff;
-      font-weight: bold;
-      font-size: 0.8em;
-      vertical-align: middle;
-    }
-
-    .hr-meta {
-      font-size: 0.8em;
-      opacity: 0.8;
-      margin-left: 10px;
-    }
   </style>
 </head>
 <body>
@@ -127,11 +108,7 @@
   </div>
 
   <div id="infoContainer">
-    <div>
-      Heart Rate: <span id="heartRate">--</span> bpm
-      <span id="hrZoneBadge" class="hr-badge">Z-</span>
-      <span class="hr-meta">(<span id="hrPct">--</span>%)</span>
-    </div>
+    <div>Heart Rate: <span id="heartRate">--</span> bpm</div>
     <div>Cadence: <span id="cadence">--</span> rpm</div>
     <div>Power Ø: <span id="meanPower">--</span> W</div>
     <div>Distance / Cycle: <span id="distancePerCycle">--</span> m</div>
@@ -156,9 +133,6 @@
     }
 
     const heartRateEl = document.getElementById('heartRate');
-    const hrZoneBadgeEl = document.getElementById('hrZoneBadge');
-    const hrPctEl = document.getElementById('hrPct');
-
     const cadenceEl = document.getElementById('cadence');
     const meanPowerEl = document.getElementById('meanPower');
     const distancePerCycleEl = document.getElementById('distancePerCycle');
@@ -212,20 +186,44 @@
               }
             },
             tooltip: {
-              bodyFont: { size: 32 },
-              titleFont: { size: 24 }
+              bodyFont: {
+                size: 32
+              },
+              titleFont: {
+                size: 24
+              }
             }
           },
           scales: {
             x: {
-              title: { display: true, text: 'X-Axis', font: { size: 24 } },
-              ticks: { font: { size: 24 } },
+              title: {
+                display: true,
+                text: 'X-Axis',
+                font: {
+                  size: 24
+                }
+              },
+              ticks: {
+                font: {
+                  size: 24
+                }
+              },
               min: 0,
               max: 100,
             },
             y: {
-              title: { display: true, text: title, font: { size: 24 } },
-              ticks: { font: { size: 24 } },
+              title: {
+                display: true,
+                text: title,
+                font: {
+                  size: 24
+                }
+              },
+              ticks: {
+                font: {
+                  size: 24
+                }
+              },
               beginAtZero: true,
               suggestedMax: 10,
             },
@@ -262,39 +260,11 @@
     });
 
     socket.on('scope_summary', (data) => {
-      // numerische Werte
-      if ('heart_rate' in data && data.heart_rate != null) heartRateEl.textContent = data.heart_rate;
-      if ('mean_power' in data && data.mean_power != null) meanPowerEl.textContent = Number(data.mean_power).toFixed(1);
-      if ('cadence' in data && data.cadence != null) cadenceEl.textContent = Number(data.cadence).toFixed(1);
-      if ('distance' in data && data.distance != null) distancePerCycleEl.textContent = Number(data.distance).toFixed(2);
-      if ('totalDistance' in data && data.totalDistance != null) totalDistanceEl.textContent = Number(data.totalDistance).toFixed(2);
-
-      // Herzfrequenz-Färbung + Zusatzinfos
-      const color = data.heart_rate_color || null;
-      const zone = data.heart_rate_zone || null;
-      const pct = (typeof data.heart_rate_pct === 'number') ? Math.round(data.heart_rate_pct * 100) : null;
-
-      if (color) {
-        heartRateEl.style.color = color;                 // Zahl einfärben
-        hrZoneBadgeEl.style.backgroundColor = color;     // Badge-Hintergrund
-      } else {
-        heartRateEl.style.color = "";                    // zurücksetzen
-        hrZoneBadgeEl.style.backgroundColor = "#bdbdbd";
-      }
-
-      if (zone) {
-        hrZoneBadgeEl.textContent = `Z${zone}`;
-        hrZoneBadgeEl.title = `HF-Zone ${zone}`;
-      } else {
-        hrZoneBadgeEl.textContent = "Z-";
-        hrZoneBadgeEl.title = "";
-      }
-
-      if (pct !== null && !isNaN(pct)) {
-        hrPctEl.textContent = String(pct);
-      } else {
-        hrPctEl.textContent = "--";
-      }
+      if ('heart_rate' in data) heartRateEl.textContent = data.heart_rate;
+      if ('mean_power' in data) meanPowerEl.textContent = data.mean_power.toFixed(1);
+      if ('cadence' in data) cadenceEl.textContent = data.cadence.toFixed(1);
+      if ('distance' in data) distancePerCycleEl.textContent = data.distance.toFixed(2);
+      if ('totalDistance' in data) totalDistanceEl.textContent = data.totalDistance.toFixed(2);
     });
 
     socket.on('scope_values', (data) => {

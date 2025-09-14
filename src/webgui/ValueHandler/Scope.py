@@ -1,4 +1,3 @@
-
 from ValueHandler.ValueHandlerInterface import ValueHandler
 import sys
 import os
@@ -8,6 +7,9 @@ from BasicWebGUI import BackendNode, Backend
 from scipy.interpolate import interp1d
 import numpy as np
 from typing import List
+
+# Neu: global_config importieren
+from Utils.global_config import global_config
 
 HYSTERESIS_CNT = 3
 ANALYSIS_AMOUNT = 4
@@ -46,11 +48,39 @@ class Scope(ValueHandler, BackendNode):
     def log_message(self, message: str):
         Backend().publish("scope_log", {"message": message})
 
+    # ---- Neu: HR-Zonen-/Farb-Berechnung ----
+    @staticmethod
+    def _hr_zone_and_color(hr: float, max_hr: float):
+        """
+        Liefert (zone:int, color:str, pct:float) anhand von hr/max_hr.
+        Zonen-Definition:
+          Z1: <60%, Z2: 60-69%, Z3: 70-79%, Z4: 80-89%, Z5: >=90%
+        Farben:
+          Z1 #4CAF50, Z2 #8BC34A, Z3 #FFC107, Z4 #FF9800, Z5 #e53935
+        """
+        if hr is None or max_hr is None or max_hr <= 0:
+            return None, "#9E9E9E", None  # Grau bei unbekannt
+        pct = float(hr) / float(max_hr)
+        if pct < 0.60:
+            return 1, "#4CAF50", pct
+        elif pct < 0.70:
+            return 2, "#8BC34A", pct
+        elif pct < 0.80:
+            return 3, "#FFC107", pct
+        elif pct < 0.90:
+            return 4, "#FF9800", pct
+        else:
+            return 5, "#e53935", pct
 
     def set_summary_values(self, heart_rate: float, mean_power: float, cadence: float, distance: float, totalDistance: float):
-        
+        # Neu: Farbe/Zone/Prozent für Herzfrequenz bestimmen
+        zone, color, pct = self._hr_zone_and_color(heart_rate, getattr(global_config, "max_hr", None))
+
         self._summary_data = {
             'heart_rate': heart_rate,
+            'heart_rate_pct': pct,       # z.B. 0.83 für 83% von max_hr
+            'heart_rate_zone': zone,     # 1..5 oder None
+            'heart_rate_color': color,   # Hex-Farbe
             'mean_power': mean_power,
             'cadence': cadence,
             'distance': distance,
@@ -59,7 +89,6 @@ class Scope(ValueHandler, BackendNode):
 
         Backend().publish("scope_summary", self._summary_data)
 
-    
     def evaluateValue(self, measurement_value: np.ndarray):
         self._speed_cache.append(measurement_value[1])
         if len(self._speed_cache) > HYSTERESIS_CNT:
