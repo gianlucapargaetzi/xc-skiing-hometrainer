@@ -65,11 +65,11 @@ class Backend(Flask):
         if not hasattr(self, '_initialized') or not self._initialized:
             super().__init__(importName)
             self.add_url_rule("/dashboard", view_func=self._index)
-            self.add_url_rule("/control", view_func=self._control)
             self.add_url_rule("/simple", view_func=self._simple)
             self.add_url_rule("/interval", view_func=self._interval)
             self.add_url_rule("/sic", view_func=self._sic)
             self.add_url_rule("/iic", view_func=self._iic)
+            self.add_url_rule("/config", view_func=self._config)
 
             self._socket = SocketIO(self, async_mode=None)
 
@@ -104,12 +104,6 @@ class Backend(Flask):
     def _index(self):
         return render_template('dashboard.html', async_mode=self._socket.async_mode)
 
-    def _control(self):
-        return render_template('control.html', async_mode=self._socket.async_mode)
-
-    def _settings(self):
-        return render_template('settings.html', async_mode=self._socket.async_mode)
-
     def _interval(self):
         return render_template('interval.html', async_mode=self._socket.async_mode)
 
@@ -121,6 +115,10 @@ class Backend(Flask):
 
     def _simple(self):
         return render_template('simple.html', async_mode=self._socket.async_mode)
+
+    def _config(self):
+        return render_template('config.html', async_mode=self._socket.async_mode)
+
 
     def _callback_connect(self):
         print("Connection to frontend established")
