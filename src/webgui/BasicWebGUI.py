@@ -69,7 +69,6 @@ class Backend(Flask):
             self.add_url_rule("/interval", view_func=self._interval)
             self.add_url_rule("/sic", view_func=self._sic)
             self.add_url_rule("/iic", view_func=self._iic)
-            self.add_url_rule("/config", view_func=self._config)
 
             self._socket = SocketIO(self, async_mode=None)
 
@@ -115,10 +114,6 @@ class Backend(Flask):
 
     def _simple(self):
         return render_template('simple.html', async_mode=self._socket.async_mode)
-
-    def _config(self):
-        return render_template('config.html', async_mode=self._socket.async_mode)
-
 
     def _callback_connect(self):
         print("Connection to frontend established")
