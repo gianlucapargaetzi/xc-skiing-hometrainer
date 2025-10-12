@@ -1,4 +1,4 @@
-# Test.py – x-ski WebGUI + Training + Konfig-Management mit ConfigManager & BLEManager
+# x-ski.py – x-ski WebGUI + Training + Konfig-Management mit ConfigManager & BLEManager
 
 import os
 import sys

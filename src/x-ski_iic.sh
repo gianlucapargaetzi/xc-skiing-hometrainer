@@ -10,7 +10,7 @@ VENV_DIR="$PROJECT_DIR/.venv"
 PYTHON="python3"
 
 # Python-Skript, das gestartet werden soll
-PYTHON_SCRIPT="$PROJECT_DIR/src/webgui/Test.py"
+PYTHON_SCRIPT="$PROJECT_DIR/src/webgui/x-ski.py"
 
 # Wechsel in das Projektverzeichnis
 echo "Wechsel in das Projektverzeichnis: $PROJECT_DIR"
