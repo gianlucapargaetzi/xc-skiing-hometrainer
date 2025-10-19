@@ -19,7 +19,7 @@ from Utils.FileSystem import list_files
 from BasicWebGUI import BackendNode, Backend
 from IntensityController.IntensityControllerInterface import IntensityControllerInterface
 
-INTERVAL_PATH = "~/xc/intervals/"
+INTERVAL_PATH = "intervals"
 INTERVAL_FILENAME_ENDING = ".xciv"
 
 class IntervallParser():

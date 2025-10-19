@@ -1,0 +1,99 @@
+static_block1:       # This block defines the intensity based on start and end intensity over duration
+  type: duration_block
+  duration: 540
+  intensity_start: 40
+  intensity_end: 40
+
+transition1:
+  type: transition         # How to transition between two blocks (If no transition param is in between blocks, transition should be = step) The intensity value should increase from last nodes end value to next nodes begin value based on transition type
+  curve: ease
+  duration: 60
+
+static_block2:
+  type: duration_block
+  duration: 540
+  intensity_start: 60
+  intensity_end: 60
+
+transition2:
+  type: transition
+  curve: ease
+  duration: 60
+
+static_block3:
+  type: duration_block
+  duration: 540
+  intensity_start: 80
+  intensity_end: 80
+
+transition3:
+  type: transition
+  curve: ease
+  duration: 60
+
+static_block4:
+  type: duration_block
+  duration: 540
+  intensity_start: 100
+  intensity_end: 100
+
+transition4:
+  type: transition
+  curve: ease
+  duration: 60
+
+static_block5:
+  type: duration_block
+  duration: 540
+  intensity_start: 60
+  intensity_end: 60
+
+transition5:
+  type: transition
+  curve: ease
+  duration: 30
+
+static_block6:
+  type: duration_block
+  duration: 150
+  intensity_start: 80
+  intensity_end: 80
+
+transition6:
+  type: transition
+  curve: ease
+  duration: 30
+
+static_block7:
+  type: duration_block
+  duration: 150
+  intensity_start: 100
+  intensity_end: 100
+
+transition7:
+  type: transition
+  curve: ease
+  duration: 30
+
+static_block8:
+  type: duration_block
+  duration: 150
+  intensity_start: 120
+  intensity_end: 120
+
+static_block9:
+  type: duration_block
+  duration: 150
+  intensity_start: 120
+  intensity_end: 20
+
+
+
+
+
+
+
+
+
+
+
