@@ -166,3 +166,71 @@ color: #daa520;
   overflow-x: scroll;
   height: 100vh;
 }
+
+/* x-ski header */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 20px;
+  background-color: #ff7b00;
+  color: white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  width: 100%;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.logo {
+  height: 56px;
+  display: block;
+}
+
+.header-right {
+  display: grid;
+  row-gap: 4px;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.user-name {
+  font-size: 22px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.user-meta {
+  font-size: 16px;
+  opacity: 0.95;
+  white-space: nowrap;
+}
+
+.header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.gear {
+  width: 30px;
+  height: 30px;
+  display: inline-block;
+  cursor: pointer;
+  transition: transform 0.1s ease, opacity 0.2s ease;
+  color: white;
+}
+
+.gear:hover {
+  transform: rotate(-10deg);
+  opacity: 0.9;
+}
+
+.gear-active {
+  filter: drop-shadow(0 0 6px rgba(255,255,255,0.9));
+}

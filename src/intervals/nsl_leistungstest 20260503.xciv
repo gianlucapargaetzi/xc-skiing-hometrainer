@@ -1,0 +1,190 @@
+global_training_recommendation: "Ziel SPM 47 halten"
+
+warmup:
+  type: duration_block
+  duration: 300
+  intensity_start: 40
+  intensity_end: 50
+  training_recommendation: "Locker einziehen, SPM 45–47, technisch ruhig bleiben."
+
+transition_to_stufe1:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Sanft auf die erste Stufe vorbereiten, SPM 47 stabilisieren."
+
+stufe1:
+  type: duration_block
+  duration: 170
+  intensity_start: 60
+  intensity_end: 60
+  training_recommendation: "Sehr locker, Fokus auf saubere Zuglänge und stabile SPM 47."
+
+transition_to_stufe2:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Leicht erhöhen, Rhythmus beibehalten."
+
+stufe2:
+  type: duration_block
+  duration: 170
+  intensity_start: 70
+  intensity_end: 70
+  training_recommendation: "Locker-grundlagig, nicht drücken, SPM 47 halten."
+
+transition_to_stufe3:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Ruhig auf die nächste Stufe wechseln."
+
+stufe3:
+  type: duration_block
+  duration: 170
+  intensity_start: 80
+  intensity_end: 80
+  training_recommendation: "Kontrollierter Grundlagenbereich, gleichmäßiger Druck pro Zug."
+
+transition_to_stufe4:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Druck leicht erhöhen, Frequenz nicht beschleunigen."
+
+stufe4:
+  type: duration_block
+  duration: 170
+  intensity_start: 90
+  intensity_end: 90
+  training_recommendation: "Sauberer Rhythmus, SPM 47, Zugphase aktiv aber nicht hart."
+
+transition_to_stufe5:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Auf 100% gehen, Technik bewusst stabil halten."
+
+stufe5:
+  type: duration_block
+  duration: 170
+  intensity_start: 100
+  intensity_end: 100
+  training_recommendation: "Referenzstufe: SPM 47 halten, Druck gleichmäßig, nicht forcieren."
+
+transition_to_stufe6:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Leicht mehr Druck, keine hektische Frequenzsteigerung."
+
+stufe6:
+  type: duration_block
+  duration: 170
+  intensity_start: 110
+  intensity_end: 110
+  training_recommendation: "Moderater Druck, Atmung kontrollieren, SPM 47 stabil."
+
+transition_to_stufe7:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "In den Arbeitsbereich wechseln, Schultern locker lassen."
+
+stufe7:
+  type: duration_block
+  duration: 170
+  intensity_start: 120
+  intensity_end: 120
+  training_recommendation: "Tempo-/Kraftausdauerbereich, sauberer Abdruck, kein Reißen."
+
+transition_to_stufe8:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Druck erhöhen, Zugqualität kontrollieren."
+
+stufe8:
+  type: duration_block
+  duration: 170
+  intensity_start: 130
+  intensity_end: 130
+  training_recommendation: "Schwellennahe Belastung, SPM 47 halten, Technik darf nicht kippen."
+
+transition_to_stufe9:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Bewusst ruhig bleiben, nicht über die Frequenz lösen."
+
+stufe9:
+  type: duration_block
+  duration: 170
+  intensity_start: 140
+  intensity_end: 140
+  training_recommendation: "Hart, aber kontrolliert. Druck pro Zug erhöhen, SPM 47 möglichst konstant."
+
+transition_to_stufe10:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Auf harte Stufe vorbereiten, Atmung aktiv führen."
+
+stufe10:
+  type: duration_block
+  duration: 170
+  intensity_start: 150
+  intensity_end: 150
+  training_recommendation: "Harter Bereich. Ziel: 47 SPM halten und Leistung ohne Technikbruch stabilisieren."
+
+transition_to_stufe11:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Nur weitergehen, wenn Stufe 10 technisch sauber war."
+
+stufe11:
+  type: duration_block
+  duration: 170
+  intensity_start: 160
+  intensity_end: 160
+  training_recommendation: "Sehr hart. SPM 47 als Ziel, maximal kleine Abweichung 46–49 akzeptieren."
+
+transition_to_stufe12:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Nur starten, wenn Leistung, Puls und Technik noch kontrollierbar sind."
+
+stufe12:
+  type: duration_block
+  duration: 170
+  intensity_start: 170
+  intensity_end: 170
+  training_recommendation: "Maximal kontrollierte Stufe. Abbrechen, wenn SPM deutlich fällt, Technik bricht oder Zielintensität nicht haltbar ist."
+
+transition_to_stufe13:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Nur starten, wenn 170% noch sauber und ohne deutlichen Technikbruch möglich war."
+
+stufe13:
+  type: duration_block
+  duration: 170
+  intensity_start: 180
+  intensity_end: 180
+  training_recommendation: "Maximalstufe. SPM 47 nur halten, solange die Technik sauber bleibt. Abbrechen bei starkem Frequenzabfall, unsauberem Zug oder wenn die Zielintensität nicht mehr haltbar ist."
+
+transition_to_cooldown:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Belastung aktiv lösen, Frequenz und Druck deutlich reduzieren."
+
+cooldown:
+  type: duration_block
+  duration: 300
+  intensity_start: 50
+  intensity_end: 30
+  training_recommendation: "Locker ausfahren, SPM frei, Puls beruhigen lassen."

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Scope Values Visualization</title>
+  <title>x-ski Dashboard</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.0/socket.io.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
@@ -13,48 +13,200 @@
       height: 100%;
       display: flex;
       flex-direction: column;
-    }
-
-    #controllerButtons {
-      text-align: center;
-      padding: 10px;
-    }
-
-    #infoContainer {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      flex-direction: row;
-      gap: 40px;
-      padding: 10px;
-      background-color: #f0f0f0;
+      overflow: hidden;
       font-family: Arial, sans-serif;
-      font-size: 28px;
+      background-color: #f7f7f7;
     }
 
     #logMessage {
       display: flex;
       justify-content: center;
       align-items: center;
-      flex-direction: row;
       gap: 40px;
       padding: 10px;
       background-color: #f0f0f0;
-      font-family: Arial, sans-serif;
       font-size: 28px;
+      flex: 0 0 auto;
     }
 
-    #chartContainer {
+    #topActions {
       display: flex;
       justify-content: center;
       align-items: center;
-      padding: 20px;
-      margin: 40px auto;
-      width: 90%;
-      height: 60%;
+      gap: 14px;
+      padding: 10px 16px;
+      background: #fafafa;
+      border-bottom: 1px solid #ddd;
+      flex-wrap: wrap;
+      flex: 0 0 auto;
+    }
+
+    #reloadConfigButton,
+    #toggleZonesButton {
+      font-size: 18px;
+      padding: 10px 18px;
+      border: none;
+      border-radius: 10px;
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(0, 0, 0, 0.15);
+    }
+
+    #reloadConfigButton {
+      background-color: #1976d2;
+    }
+
+    #toggleZonesButton {
+      background-color: #455a64;
+    }
+
+    #reloadConfigButton:disabled {
+      background-color: #9E9E9E;
+      cursor: default;
+    }
+
+    #reloadStatus {
+      font-size: 16px;
+      color: #444;
+      min-width: 260px;
+    }
+
+    #controllerStatus {
+      font-size: 16px;
+      color: #444;
+      min-width: 360px;
+      text-align: center;
+    }
+
+    #liveBoxesContainer {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(210px, 1fr));
+      gap: 14px;
+      padding: 14px 20px 10px 20px;
+      background-color: #f0f0f0;
+      flex: 0 0 auto;
+    }
+
+    .liveBox {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+      padding: 12px 14px;
+      border-top: 6px solid #cfd8dc;
+      min-width: 0;
+      transition: background-color 0.2s ease, border-top-color 0.2s ease;
+    }
+
+    .liveBoxHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .liveBoxTitle {
+      font-size: 18px;
+      font-weight: bold;
+      color: #37474f;
+    }
+
+    .zoneBadge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 48px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: bold;
+      color: #fff;
+      background: #9E9E9E;
+    }
+
+    .liveBoxValue {
+      font-size: 36px;
+      font-weight: bold;
+      line-height: 1.1;
+      color: #263238;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .liveBoxSub {
+      font-size: 14px;
+      color: #546e7a;
+      margin-top: 2px;
+      min-height: 18px;
+    }
+
+    .liveBoxTrend {
+      margin-top: 10px;
+      font-size: 16px;
+      color: #455a64;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 22px;
+    }
+
+    .trendArrow {
+      font-size: 20px;
+      font-weight: bold;
+      min-width: 22px;
+      text-align: center;
+    }
+
+    #infoContainer {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 32px;
+      padding: 10px 20px 12px 20px;
+      background-color: #f0f0f0;
+      font-size: 22px;
+      flex-wrap: wrap;
+      flex: 0 0 auto;
+      border-top: 1px solid rgba(0, 0, 0, 0.04);
+    }
+
+    .infoCard {
+      background: rgba(255,255,255,0.75);
+      border-radius: 12px;
+      padding: 8px 14px;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.05);
+    }
+
+    #chartsWrapper {
+      flex: 1 1 auto;
+      width: 94%;
+      margin: 14px auto 150px auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-height: 0;
+    }
+
+    .chartContainer {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 14px 18px;
+      width: 100%;
       background-color: #fff;
       border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      min-height: 0;
+      box-sizing: border-box;
+    }
+
+    #chartContainerTop {
+      flex: 1 1 0;
+    }
+
+    #chartContainerLive {
+      flex: 1 1 0;
     }
 
     canvas {
@@ -73,16 +225,15 @@
       justify-content: center;
       align-items: center;
       gap: 30px;
-      font-family: Arial, sans-serif;
       z-index: 1000;
     }
 
     #durationDisplay {
       font-size: 72px;
-      background-color: rgba(240, 240, 240, 0.9);
+      background-color: rgba(240, 240, 240, 0.95);
       padding: 16px 32px;
       border-radius: 12px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
     }
 
     #startButton {
@@ -93,7 +244,7 @@
       background-color: #4CAF50;
       color: white;
       cursor: pointer;
-      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
     }
 
     #startButton:disabled {
@@ -101,23 +252,143 @@
       cursor: default;
     }
 
-    /* Badge für Herzfrequenz-Zone */
-    .hr-badge {
-      display: inline-block;
-      padding: 4px 10px;
-      margin-left: 10px;
-      border-radius: 10px;
-      background: #bdbdbd; /* wird per JS überschrieben */
-      color: #fff;
-      font-weight: bold;
-      font-size: 0.8em;
-      vertical-align: middle;
+    .zone-z1 { background-color: #4CAF50; }
+    .zone-z2 { background-color: #2196F3; }
+    .zone-z3 { background-color: #FFC107; color: #222; }
+    .zone-z4 { background-color: #FF9800; }
+    .zone-z5 { background-color: #E53935; }
+    .zone-unknown { background-color: #9E9E9E; }
+
+    .modalOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.42);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      padding: 24px;
     }
 
-    .hr-meta {
-      font-size: 0.8em;
-      opacity: 0.8;
-      margin-left: 10px;
+    .modalOverlay.hidden {
+      display: none;
+    }
+
+    .modalCard {
+      background: #fff;
+      width: min(1200px, 96vw);
+      max-height: 85vh;
+      overflow: auto;
+      border-radius: 16px;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
+      padding: 16px 18px 20px 18px;
+    }
+
+    .modalHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 14px;
+      position: sticky;
+      top: 0;
+      background: #fff;
+      padding-bottom: 8px;
+      z-index: 5;
+    }
+
+    .modalHeader h3 {
+      margin: 0;
+      font-size: 24px;
+    }
+
+    #closeZonesButton {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 16px;
+      cursor: pointer;
+      background: #eceff1;
+      color: #263238;
+    }
+
+    .zoneTable {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 15px;
+    }
+
+    .zoneTable th,
+    .zoneTable td {
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+      white-space: nowrap;
+    }
+
+    .zoneTable th {
+      background-color: #f7f7f7;
+      font-weight: bold;
+      position: sticky;
+      top: 56px;
+      z-index: 3;
+    }
+
+    .zoneNameBadge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 8px;
+      color: white;
+      font-weight: bold;
+      font-size: 0.85em;
+    }
+
+    .metricCell {
+      transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+      border-radius: 8px;
+      font-weight: normal;
+    }
+
+    .active-zone-cell {
+      font-weight: bold;
+      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.75);
+    }
+
+    .active-zone-cell.zone-z1 { background-color: #4CAF50; color: #fff; }
+    .active-zone-cell.zone-z2 { background-color: #2196F3; color: #fff; }
+    .active-zone-cell.zone-z3 { background-color: #FFC107; color: #222; }
+    .active-zone-cell.zone-z4 { background-color: #FF9800; color: #fff; }
+    .active-zone-cell.zone-z5 { background-color: #E53935; color: #fff; }
+
+    @media (max-width: 1200px) {
+      #liveBoxesContainer {
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
+      }
+    }
+
+    @media (max-width: 700px) {
+      #liveBoxesContainer {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-height: 900px) {
+      #durationDisplay {
+        font-size: 54px;
+      }
+
+      #startButton {
+        font-size: 28px;
+        padding: 12px 28px;
+      }
+
+      #logMessage {
+        font-size: 22px;
+      }
+
+      .liveBoxValue {
+        font-size: 30px;
+      }
     }
   </style>
 </head>
@@ -126,20 +397,81 @@
     Status: <span id="logText">---</span>
   </div>
 
-  <div id="infoContainer">
-    <div>
-      Heart Rate: <span id="heartRate">--</span> bpm
-      <span id="hrZoneBadge" class="hr-badge">Z-</span>
-      <span class="hr-meta">(<span id="hrPct">--</span>%)</span>
-    </div>
-    <div>Cadence: <span id="cadence">--</span> rpm</div>
-    <div>Power Ø: <span id="meanPower">--</span> W</div>
-    <div>Distance / Cycle: <span id="distancePerCycle">--</span> m</div>
-    <div>Total Distance: <span id="totalDistance">--</span> m</div>
+  <div id="topActions">
+    <button id="reloadConfigButton">Konfiguration neu laden</button>
+    <button id="toggleZonesButton">Trainingszonen</button>
+    <div id="reloadStatus">Bereit</div>
+    <div id="controllerStatus">Modus: -- | Phase: -- | Intervall: --</div>
   </div>
 
-  <div id="chartContainer">
-    <canvas id="powerChart"></canvas>
+  <div id="liveBoxesContainer">
+    <div class="liveBox" id="boxHr">
+      <div class="liveBoxHeader">
+        <span class="liveBoxTitle">Puls</span>
+        <span class="zoneBadge zone-unknown" id="boxHrZone">—</span>
+      </div>
+      <div class="liveBoxValue" id="boxHrValue">--</div>
+      <div class="liveBoxSub" id="boxHrSub">--</div>
+      <div class="liveBoxTrend">
+        <span class="trendArrow" id="boxHrTrendArrow">•</span>
+        <span id="boxHrTrendText">warte auf Daten</span>
+      </div>
+    </div>
+
+    <div class="liveBox" id="boxSpm">
+      <div class="liveBoxHeader">
+        <span class="liveBoxTitle">SPM</span>
+        <span class="zoneBadge zone-unknown" id="boxSpmZone">—</span>
+      </div>
+      <div class="liveBoxValue" id="boxSpmValue">--</div>
+      <div class="liveBoxSub" id="boxSpmSub">spm</div>
+      <div class="liveBoxTrend">
+        <span class="trendArrow" id="boxSpmTrendArrow">•</span>
+        <span id="boxSpmTrendText">warte auf Daten</span>
+      </div>
+    </div>
+
+    <div class="liveBox" id="boxPower">
+      <div class="liveBoxHeader">
+        <span class="liveBoxTitle">Leistung</span>
+        <span class="zoneBadge zone-unknown" id="boxPowerZone">—</span>
+      </div>
+      <div class="liveBoxValue" id="boxPowerValue">--</div>
+      <div class="liveBoxSub" id="boxPowerSub">Watt</div>
+      <div class="liveBoxTrend">
+        <span class="trendArrow" id="boxPowerTrendArrow">•</span>
+        <span id="boxPowerTrendText">warte auf Daten</span>
+      </div>
+    </div>
+
+    <div class="liveBox" id="boxPace">
+      <div class="liveBoxHeader">
+        <span class="liveBoxTitle">Pace</span>
+        <span class="zoneBadge zone-unknown" id="boxPaceZone">—</span>
+      </div>
+      <div class="liveBoxValue" id="boxPaceValue">--:--</div>
+      <div class="liveBoxSub" id="boxPaceSub">min/500m · 30s geglättet</div>
+      <div class="liveBoxTrend">
+        <span class="trendArrow" id="boxPaceTrendArrow">•</span>
+        <span id="boxPaceTrendText">warte auf Daten</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="infoContainer">
+    <div class="infoCard">Schubnutzung: <span id="pushPhaseUtilization">--</span> %</div>
+    <div class="infoCard">Distance / Cycle: <span id="distancePerCycle">--</span> m</div>
+    <div class="infoCard">Total Distance: <span id="totalDistance">--</span> m</div>
+  </div>
+
+  <div id="chartsWrapper">
+    <div id="chartContainerTop" class="chartContainer">
+      <canvas id="powerChart"></canvas>
+    </div>
+
+    <div id="chartContainerLive" class="chartContainer">
+      <canvas id="liveMetricsChart"></canvas>
+    </div>
   </div>
 
   <div id="durationContainer">
@@ -147,29 +479,1196 @@
     <button id="startButton">Start Uhr</button>
   </div>
 
+  <div id="zonesModal" class="modalOverlay hidden">
+    <div class="modalCard">
+      <div class="modalHeader">
+        <h3>Kombinierte Trainingszonen</h3>
+        <button id="closeZonesButton">Schliessen</button>
+      </div>
+
+      <table class="zoneTable" id="combinedZonesTable">
+        <thead>
+          <tr>
+            <th>Zone</th>
+            <th>Intensität</th>
+            <th>Puls</th>
+            <th>% HFmax</th>
+            <th>Rad (Watt)</th>
+            <th>Pace (/500m)</th>
+            <th>x-ski (W)</th>
+            <th>SPM</th>
+            <th>Ziel-SPM</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="display:none;">
+    <span id="swingEfficiency">--</span>
+    <span id="meanTargetTorque">--</span>
+    <span id="torquePowerIndex">--</span>
+    <span id="pushPhaseEnergy">--</span>
+    <span id="referencePushEnergy">--</span>
+  </div>
+
   <script>
     const socket = io();
 
-    function selectController(type) {
-      socket.emit('controller_select', { type });
-      logTextEl.textContent = `⚙️ ${type === 'simple' ? 'Simple' : 'Intervall'} Controller gewählt`;
+    let maxTravelMm = 2500;
+    let maxTorquePct = 200;
+    let markers = {
+      swing_start_mm: null,
+      max_torque_start_mm: null,
+      max_torque_end_mm: null,
+      swing_end_mm: null
+    };
+    let targetTorque = { x: [], y: [] };
+
+    const LIVE_WINDOW_MS = 2 * 60 * 60 * 1000;
+    const LIVE_SAMPLE_INTERVAL_MS = 1000;
+    const PACE_SMOOTHING_WINDOW_MS = 30 * 1000;
+    const MIN_PACE_WINDOW_MS = 10 * 1000;
+    const TREND_WINDOW_MS = 60 * 1000;
+
+    const POWER_AXIS_MIN = 0;
+    const POWER_AXIS_MAX = 200;
+    const PACE_AXIS_MIN = 1.5;
+    const PACE_AXIS_MAX = 5.0;
+
+    const RPM_COLOR = "#2e7d32";
+    const POWER_COLOR = "#c62828";
+    const HR_COLOR = "#1565c0";
+    const PACE_COLOR = "#6a1b9a";
+
+    const EMPTY_TRAINING_TARGETS = {
+      hr_zones: null,
+      bike_power_zones: null,
+      xski_power_zones: null,
+      pace_zones: null,
+      skierg_spm_zones: null,
+      combined_zones: null
+    };
+
+    let clockRunning = false;
+    let liveMetrics = [];
+    let liveSampleTimer = null;
+    let startTime = null;
+    let timer = null;
+
+    let trainingTargets = structuredClone(EMPTY_TRAINING_TARGETS);
+
+    let controllerStatus = {
+      controller_mode: null,
+      interval_active: false,
+      interval_phase: null,
+      current_interval: null,
+      total_intervals: null
+    };
+
+    let latestSummary = {
+      heart_rate: null,
+      heart_rate_pct: null,
+      heart_rate_zone: null,
+      heart_rate_color: null,
+      mean_power: null,
+      cadence: null,
+      totalDistance: null,
+      swing_efficiency_pct: null,
+      mean_target_torque_pct: null,
+      torque_power_index: null,
+      push_phase_energy_j: null,
+      reference_push_energy_j: null,
+      push_phase_utilization_pct: null
+    };
+
+    function getTorqueTickStep(maxValue) {
+      if (!isFinite(maxValue) || maxValue <= 100) return 10;
+      if (maxValue <= 200) return 20;
+      if (maxValue <= 300) return 25;
+      return 50;
     }
 
-    const heartRateEl = document.getElementById('heartRate');
-    const hrZoneBadgeEl = document.getElementById('hrZoneBadge');
-    const hrPctEl = document.getElementById('hrPct');
+    function roundUpNice(value) {
+      if (!isFinite(value) || value <= 0) return 10;
+      if (value <= 50) return Math.ceil(value / 5) * 5;
+      if (value <= 100) return Math.ceil(value / 10) * 10;
+      if (value <= 200) return Math.ceil(value / 10) * 10;
+      return Math.ceil(value / 20) * 20;
+    }
 
-    const cadenceEl = document.getElementById('cadence');
-    const meanPowerEl = document.getElementById('meanPower');
-    const distancePerCycleEl = document.getElementById('distancePerCycle');
-    const totalDistanceEl = document.getElementById('totalDistance');
+    function roundDownNice(value) {
+      if (!isFinite(value) || value <= 0) return 0;
+      if (value <= 50) return Math.floor(value / 5) * 5;
+      if (value <= 100) return Math.floor(value / 10) * 10;
+      if (value <= 200) return Math.floor(value / 10) * 10;
+      return Math.floor(value / 20) * 20;
+    }
+
+    function getZoneDisplayName(zoneKey) {
+      const map = {
+        z1: "Z1 (Easy)",
+        z2: "Z2 (Z2)",
+        z3: "Z3 (Tempo)",
+        z4: "Z4 (Intervall)",
+        z5: "Z5 (High)"
+      };
+      return map[zoneKey] || zoneKey || "Unknown";
+    }
+
+    function getZoneShortLabel(zoneKey) {
+      const map = {
+        z1: "Z1",
+        z2: "Z2",
+        z3: "Z3",
+        z4: "Z4",
+        z5: "Z5"
+      };
+      return map[zoneKey] || "—";
+    }
+
+    function getZoneCssClass(zoneKey) {
+      switch (zoneKey) {
+        case "z1": return "zone-z1";
+        case "z2": return "zone-z2";
+        case "z3": return "zone-z3";
+        case "z4": return "zone-z4";
+        case "z5": return "zone-z5";
+        default: return "zone-unknown";
+      }
+    }
+
+    function getZoneColorByKey(zoneKey) {
+      switch (zoneKey) {
+        case "z1": return "#4CAF50";
+        case "z2": return "#2196F3";
+        case "z3": return "#FFC107";
+        case "z4": return "#FF9800";
+        case "z5": return "#E53935";
+        default: return "#607d8b";
+      }
+    }
+
+    function getZoneBackgroundByKey(zoneKey) {
+      switch (zoneKey) {
+        case "z1": return "rgba(76, 175, 80, 0.12)";
+        case "z2": return "rgba(33, 150, 243, 0.12)";
+        case "z3": return "rgba(255, 193, 7, 0.16)";
+        case "z4": return "rgba(255, 152, 0, 0.14)";
+        case "z5": return "rgba(229, 57, 53, 0.12)";
+        default: return "#ffffff";
+      }
+    }
+
+    function formatControllerMode(mode) {
+      if (mode === "iic") return "Intervall";
+      if (mode === "sic") return "Einfach";
+      return "--";
+    }
+
+    function formatControllerPhase(phase, mode) {
+      if (mode === "sic") return "kontinuierlich";
+
+      switch (phase) {
+        case "work": return "Belastung";
+        case "rest": return "Pause";
+        case "idle": return "bereit";
+        case "active": return "aktiv";
+        default: return phase ? String(phase) : "--";
+      }
+    }
+
+    function formatControllerIntervalText(status) {
+      if (status.controller_mode !== "iic") return "—";
+      if (status.current_interval != null && status.total_intervals != null) {
+        return `${status.current_interval}/${status.total_intervals}`;
+      }
+      if (status.current_interval != null) {
+        return `${status.current_interval}`;
+      }
+      return "—";
+    }
+
+    function renderControllerStatus() {
+      const el = document.getElementById("controllerStatus");
+      if (!el) return;
+
+      const mode = formatControllerMode(controllerStatus.controller_mode);
+      const phase = formatControllerPhase(controllerStatus.interval_phase, controllerStatus.controller_mode);
+      const intervalText = formatControllerIntervalText(controllerStatus);
+
+      el.textContent = `Modus: ${mode} | Phase: ${phase} | Intervall: ${intervalText}`;
+    }
+
+    function getHrZones() {
+      return trainingTargets?.hr_zones ?? null;
+    }
+
+    function getSpmZones() {
+      return trainingTargets?.skierg_spm_zones ?? null;
+    }
+
+    function getCombinedZones() {
+      return trainingTargets?.combined_zones ?? null;
+    }
+
+    function getBikePowerZones() {
+      return trainingTargets?.bike_power_zones ?? null;
+    }
+
+    function getXskiPowerZones() {
+      return trainingTargets?.xski_power_zones ?? null;
+    }
+
+    function formatClosedRange(low, high, unit = "") {
+      const suffix = unit ? ` ${unit}` : "";
+      if (low == null && high == null) return "—";
+      if (low != null && high != null) return `${low}–${high}${suffix}`;
+      if (low != null) return `${low}${suffix}`;
+      if (high != null) return `${high}${suffix}`;
+      return "—";
+    }
+
+    function formatOpenPowerRange(zones, zoneKey, unit = "W") {
+      const suffix = unit ? ` ${unit}` : "";
+      const ordered = ["z1", "z2", "z3", "z4", "z5"];
+      const idx = ordered.indexOf(zoneKey);
+      if (idx < 0 || !zones) return "—";
+
+      const current = zones?.[zoneKey];
+      if (!current) return "—";
+
+      const prev = idx > 0 ? zones?.[ordered[idx - 1]] : null;
+      const next = idx < ordered.length - 1 ? zones?.[ordered[idx + 1]] : null;
+
+      if (zoneKey === "z1" && next?.low_w != null) {
+        return `<${next.low_w}${suffix}`;
+      }
+
+      if (zoneKey === "z5" && prev?.high_w != null) {
+        return `>${prev.high_w}${suffix}`;
+      }
+
+      if (current.low_w != null && current.high_w != null) {
+        return `${current.low_w}–${current.high_w}${suffix}`;
+      }
+
+      if (current.low_w != null && current.high_w == null) {
+        return `>${current.low_w - 1}${suffix}`;
+      }
+
+      return "—";
+    }
+
+    function formatPctRange(low, high) {
+      if (low == null && high == null) return "—";
+      if ((low === 0 || low == null) && high != null) return `<${high}%`;
+      if (low != null && high == null) return `>${low}%`;
+      return `${low}–${high}%`;
+    }
+
+    function formatPaceRange(paceObj) {
+      if (!paceObj) return "—";
+      return paceObj.display || "—";
+    }
+
+    function getConfiguredMaxHr() {
+      const hrZones = getHrZones();
+      return hrZones?.z5?.high_bpm || 176;
+    }
+
+    function getFixedHrAxisMin() {
+      const hrZones = getHrZones();
+      const lower = hrZones?.z1?.low_bpm ?? 90;
+      return Math.max(0, roundDownNice(lower * 0.90));
+    }
+
+    function getFixedHrAxisMax() {
+      const hrZones = getHrZones();
+      const upper = hrZones?.z5?.high_bpm ?? 176;
+      return roundUpNice(upper * 1.05);
+    }
+
+    function getRpmAxisMin() {
+      const spmZones = getSpmZones();
+      return Math.max(0, (spmZones?.z1?.low_spm ?? 36) - 3);
+    }
+
+    function getRpmAxisMax() {
+      const spmZones = getSpmZones();
+      return (spmZones?.z5?.high_spm ?? 56) + 4;
+    }
+
+    function classifyHrZone(value) {
+      const hrZones = getHrZones();
+      if (!isFinite(value) || !hrZones?.z1 || !hrZones?.z2 || !hrZones?.z3 || !hrZones?.z4 || !hrZones?.z5) {
+        return "unknown";
+      }
+
+      if (value >= hrZones.z5.low_bpm) return "z5";
+      if (value >= hrZones.z4.low_bpm) return "z4";
+      if (value >= hrZones.z3.low_bpm) return "z3";
+      if (value >= hrZones.z2.low_bpm) return "z2";
+      if (value >= hrZones.z1.low_bpm) return "z1";
+      return "unknown";
+    }
+
+    function classifySpmZone(value) {
+      const spmZones = getSpmZones();
+      if (!isFinite(value) || !spmZones?.z1 || !spmZones?.z2 || !spmZones?.z3 || !spmZones?.z4 || !spmZones?.z5) {
+        return "unknown";
+      }
+
+      if (value <= spmZones.z1.high_spm) return "z1";
+      if (value <= spmZones.z2.high_spm) return "z2";
+      if (value <= spmZones.z3.high_spm) return "z3";
+      if (value <= spmZones.z4.high_spm) return "z4";
+      return "z5";
+    }
+
+    function classifyXskiPowerZone(value) {
+      const combinedZones = getCombinedZones();
+      if (!isFinite(value) || !combinedZones?.z1 || !combinedZones?.z2 || !combinedZones?.z3 || !combinedZones?.z4 || !combinedZones?.z5) {
+        return "unknown";
+      }
+
+      if (value >= combinedZones.z5.xski_power.low_w) return "z5";
+      if (value >= combinedZones.z4.xski_power.low_w) return "z4";
+      if (value >= combinedZones.z3.xski_power.low_w) return "z3";
+      if (value >= combinedZones.z2.xski_power.low_w) return "z2";
+      if (value >= combinedZones.z1.xski_power.low_w) return "z1";
+      return "unknown";
+    }
+
+    function parsePaceToMinutes(paceStr) {
+      if (!paceStr || typeof paceStr !== "string") return null;
+
+      const clean = paceStr.trim().replace(",", ".");
+      const parts = clean.split(":");
+      if (parts.length !== 2) return null;
+
+      const minutes = Number(parts[0]);
+      const seconds = Number(parts[1]);
+
+      if (!isFinite(minutes) || !isFinite(seconds)) return null;
+      return minutes + (seconds / 60);
+    }
+
+    function paceMatchesZone(paceValue, zoneKey) {
+      if (!isFinite(paceValue)) return false;
+
+      const combinedZones = getCombinedZones();
+      const display = combinedZones?.[zoneKey]?.pace?.display;
+      if (!display || display === "—") return false;
+
+      const txt = String(display).replace(/\s/g, "");
+
+      if (txt.startsWith(">")) {
+        const threshold = parsePaceToMinutes(txt.slice(1));
+        return threshold != null && paceValue > threshold;
+      }
+
+      if (txt.startsWith("<")) {
+        const threshold = parsePaceToMinutes(txt.slice(1));
+        return threshold != null && paceValue < threshold;
+      }
+
+      const parts = txt.split(/[–-]/);
+      if (parts.length === 2) {
+        const a = parsePaceToMinutes(parts[0]);
+        const b = parsePaceToMinutes(parts[1]);
+        if (a == null || b == null) return false;
+
+        const low = Math.min(a, b);
+        const high = Math.max(a, b);
+        return paceValue >= low && paceValue <= high;
+      }
+
+      return false;
+    }
+
+    function classifyPaceZone(paceValue) {
+      if (!isFinite(paceValue)) return "unknown";
+
+      for (const zoneKey of ["z5", "z4", "z3", "z2", "z1"]) {
+        if (paceMatchesZone(paceValue, zoneKey)) {
+          return zoneKey;
+        }
+      }
+
+      return "unknown";
+    }
+
+    function clearActiveZoneHighlights() {
+      document.querySelectorAll("#combinedZonesTable .metricCell").forEach((cell) => {
+        cell.classList.remove(
+          "active-zone-cell",
+          "zone-z1",
+          "zone-z2",
+          "zone-z3",
+          "zone-z4",
+          "zone-z5"
+        );
+      });
+    }
+
+    function highlightMetricCell(metric, zoneKey) {
+      if (!zoneKey || zoneKey === "unknown") return;
+
+      const cell = document.querySelector(
+        `#combinedZonesTable .metricCell[data-metric="${metric}"][data-zone-key="${zoneKey}"]`
+      );
+
+      if (!cell) return;
+      cell.classList.add("active-zone-cell", getZoneCssClass(zoneKey));
+    }
+
+    function calculatePaceMinPer500m(totalDistanceMeters, elapsedSeconds) {
+      if (!totalDistanceMeters || totalDistanceMeters <= 0 || !elapsedSeconds || elapsedSeconds <= 0) {
+        return null;
+      }
+      return (elapsedSeconds / 60) / (totalDistanceMeters / 500);
+    }
+
+    function calculatePaceFromDistanceDelta(distanceDeltaMeters, elapsedSeconds) {
+      if (!isFinite(distanceDeltaMeters) || distanceDeltaMeters <= 0 || !isFinite(elapsedSeconds) || elapsedSeconds <= 0) {
+        return null;
+      }
+      return (elapsedSeconds / 60) / (distanceDeltaMeters / 500);
+    }
+
+    function getRollingPaceFromIndex(index, windowMs = PACE_SMOOTHING_WINDOW_MS) {
+      if (index < 0 || index >= liveMetrics.length) return null;
+
+      const current = liveMetrics[index];
+      if (!current || !isFinite(current.totalDistance)) return null;
+
+      const targetTime = current.t - windowMs;
+      let previousIndex = -1;
+
+      for (let i = index; i >= 0; i--) {
+        if (liveMetrics[i].t <= targetTime) {
+          previousIndex = i;
+          break;
+        }
+      }
+
+      if (previousIndex < 0) previousIndex = 0;
+
+      const previous = liveMetrics[previousIndex];
+      if (!previous || !isFinite(previous.totalDistance)) return null;
+
+      const elapsedMs = current.t - previous.t;
+      if (elapsedMs < MIN_PACE_WINDOW_MS) return null;
+
+      const distanceDelta = current.totalDistance - previous.totalDistance;
+      return calculatePaceFromDistanceDelta(distanceDelta, elapsedMs / 1000);
+    }
+
+    function getCurrentPaceValue() {
+      if (!liveMetrics.length) return null;
+      return getRollingPaceFromIndex(liveMetrics.length - 1);
+    }
+
+    function buildRollingPaceSeries() {
+      return liveMetrics.map((entry, index) => ({
+        x: entry.t,
+        y: getRollingPaceFromIndex(index)
+      }));
+    }
+
+    function mean(values) {
+      if (!values.length) return null;
+      return values.reduce((a, b) => a + b, 0) / values.length;
+    }
+
+    function stddev(values) {
+      if (values.length < 2) return 0;
+      const m = mean(values);
+      const variance = values.reduce((acc, value) => acc + Math.pow(value - m, 2), 0) / values.length;
+      return Math.sqrt(variance);
+    }
+
+    function getMetricValuesForWindow(metricKey, windowMs = TREND_WINDOW_MS) {
+      const cutoff = Date.now() - windowMs;
+      const values = [];
+
+      for (let i = 0; i < liveMetrics.length; i++) {
+        const entry = liveMetrics[i];
+        if (!entry || entry.t < cutoff) continue;
+
+        let value = null;
+        if (metricKey === "hr") value = entry.hr;
+        if (metricKey === "spm") value = entry.speed;
+        if (metricKey === "power") value = entry.power;
+        if (metricKey === "pace") value = getRollingPaceFromIndex(i);
+
+        if (isFinite(value)) values.push(value);
+      }
+
+      return values;
+    }
+
+    function getTrendInfo(metricKey) {
+      const values = getMetricValuesForWindow(metricKey, TREND_WINDOW_MS);
+
+      if (values.length < 5) {
+        return { arrow: "•", text: "sammelt Daten" };
+      }
+
+      const first = values[0];
+      const last = values[values.length - 1];
+      const delta = last - first;
+      const sd = stddev(values);
+
+      const thresholds = {
+        hr: { delta: 3.0, stableStd: 2.0 },
+        spm: { delta: 1.0, stableStd: 0.8 },
+        power: { delta: 4.0, stableStd: 3.5 },
+        pace: { delta: 0.04, stableStd: 0.03 }
+      };
+
+      const cfg = thresholds[metricKey] || thresholds.power;
+
+      if (Math.abs(delta) <= cfg.delta && sd <= cfg.stableStd) {
+        return { arrow: "↔", text: "konstant · 60s" };
+      }
+
+      if (metricKey === "pace") {
+        if (delta <= -cfg.delta) return { arrow: "↘", text: "schneller · 60s" };
+        if (delta >= cfg.delta) return { arrow: "↗", text: "langsamer · 60s" };
+        return { arrow: "≈", text: "variabel · 60s" };
+      }
+
+      if (delta >= cfg.delta) return { arrow: "↗", text: "steigend · 60s" };
+      if (delta <= -cfg.delta) return { arrow: "↘", text: "fallend · 60s" };
+      return { arrow: "≈", text: "variabel · 60s" };
+    }
+
+    function applyZoneBadge(badgeEl, boxEl, zoneKey) {
+      const cssClass = getZoneCssClass(zoneKey);
+      const color = getZoneColorByKey(zoneKey);
+      const bgColor = getZoneBackgroundByKey(zoneKey);
+
+      badgeEl.className = `zoneBadge ${cssClass}`;
+      badgeEl.textContent = getZoneShortLabel(zoneKey);
+
+      if (boxEl) {
+        boxEl.style.borderTopColor = color;
+        boxEl.style.backgroundColor = bgColor;
+      }
+    }
+
+    function setLiveBox(boxId, zoneKey, valueText, subText, trendInfo) {
+      const boxEl = document.getElementById(`box${boxId}`);
+      const zoneEl = document.getElementById(`box${boxId}Zone`);
+      const valueEl = document.getElementById(`box${boxId}Value`);
+      const subEl = document.getElementById(`box${boxId}Sub`);
+      const trendArrowEl = document.getElementById(`box${boxId}TrendArrow`);
+      const trendTextEl = document.getElementById(`box${boxId}TrendText`);
+
+      applyZoneBadge(zoneEl, boxEl, zoneKey);
+      valueEl.textContent = valueText;
+      subEl.textContent = subText || "";
+      trendArrowEl.textContent = trendInfo?.arrow || "•";
+      trendTextEl.textContent = trendInfo?.text || "warte auf Daten";
+    }
+
+    function renderLiveBoxes() {
+      const hr = Number(latestSummary.heart_rate);
+      const spm = Number(latestSummary.cadence);
+      const power = Number(latestSummary.mean_power);
+      const pace = getCurrentPaceValue();
+
+      const hrZone = classifyHrZone(hr);
+      const spmZone = classifySpmZone(spm);
+      const powerZone = classifyXskiPowerZone(power);
+      const paceZone = classifyPaceZone(pace);
+
+      const hrPct = getHrPctFromValue(hr);
+
+      setLiveBox(
+        "Hr",
+        hrZone,
+        isFinite(hr) && hr > 0 ? `${Math.round(hr)} bpm` : "--",
+        hrPct != null ? `${hrPct}% HFmax` : "--",
+        getTrendInfo("hr")
+      );
+
+      setLiveBox(
+        "Spm",
+        spmZone,
+        isFinite(spm) && spm > 0 ? `${spm.toFixed(1)}` : "--",
+        "spm",
+        getTrendInfo("spm")
+      );
+
+      setLiveBox(
+        "Power",
+        powerZone,
+        isFinite(power) && power > 0 ? `${power.toFixed(1)}` : "--",
+        "Watt",
+        getTrendInfo("power")
+      );
+
+      setLiveBox(
+        "Pace",
+        paceZone,
+        formatPaceValue(pace),
+        "min/500m · 30s geglättet",
+        getTrendInfo("pace")
+      );
+    }
+
+    function updateActiveZoneHighlights() {
+      clearActiveZoneHighlights();
+
+      const hrZoneKey = classifyHrZone(Number(latestSummary.heart_rate));
+      const spmZoneKey = classifySpmZone(Number(latestSummary.cadence));
+      const powerZoneKey = classifyXskiPowerZone(Number(latestSummary.mean_power));
+      const paceZoneKey = classifyPaceZone(getCurrentPaceValue());
+
+      highlightMetricCell("hr", hrZoneKey);
+      highlightMetricCell("spm", spmZoneKey);
+      highlightMetricCell("power", powerZoneKey);
+      highlightMetricCell("pace", paceZoneKey);
+    }
+
+    function renderTrainingTables() {
+      const combinedBody = document.querySelector("#combinedZonesTable tbody");
+      combinedBody.innerHTML = "";
+
+      const combinedZones = getCombinedZones();
+      const bikeZones = getBikePowerZones();
+      const xskiZones = getXskiPowerZones();
+
+      if (!combinedZones?.z1) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td colspan="9">Trainingszonen werden geladen ...</td>`;
+        combinedBody.appendChild(tr);
+        return;
+      }
+
+      ["z1", "z2", "z3", "z4", "z5"].forEach((zoneKey) => {
+        const zone = combinedZones[zoneKey];
+        if (!zone) return;
+
+        const hr = zone.hr || {};
+        const bike = zone.bike_power || bikeZones?.[zoneKey] || {};
+        const pace = zone.pace || {};
+        const xski = zone.xski_power || xskiZones?.[zoneKey] || {};
+        const spm = zone.spm || {};
+
+        const tr = document.createElement("tr");
+        tr.setAttribute("data-zone-key", zoneKey);
+
+        tr.innerHTML = `
+          <td><span class="zoneNameBadge ${getZoneCssClass(zoneKey)}">${zone.display || getZoneDisplayName(zoneKey)}</span></td>
+          <td>${zone.intensity || "—"}</td>
+          <td class="metricCell" data-zone-key="${zoneKey}" data-metric="hr">${formatClosedRange(hr.low_bpm, hr.high_bpm, "bpm")}</td>
+          <td>${formatPctRange(hr.low_pct, hr.high_pct)}</td>
+          <td>${formatOpenPowerRange(bikeZones, zoneKey, "W")}</td>
+          <td class="metricCell" data-zone-key="${zoneKey}" data-metric="pace">${formatPaceRange(pace)}</td>
+          <td class="metricCell" data-zone-key="${zoneKey}" data-metric="power">${formatOpenPowerRange(xskiZones, zoneKey, "W")}</td>
+          <td class="metricCell" data-zone-key="${zoneKey}" data-metric="spm">${formatClosedRange(spm.low_spm, spm.high_spm, "SPM")}</td>
+          <td>${spm.target_spm != null ? `${spm.target_spm} SPM` : "—"}</td>
+        `;
+        combinedBody.appendChild(tr);
+      });
+
+      updateActiveZoneHighlights();
+    }
+
+    const markerPlugin = {
+      id: "markerLines",
+      afterDraw(chart, args, pluginOptions) {
+        const markerValues = pluginOptions?.markers || {};
+        const xScale = chart.scales.x;
+        const yScale = chart.scales.y;
+        if (!xScale || !yScale) return;
+
+        const ctx = chart.ctx;
+        const entries = [
+          { key: "swing_start_mm", label: "Schwungbeginn" },
+          { key: "swing_end_mm", label: "Schwungende" }
+        ];
+
+        ctx.save();
+        ctx.strokeStyle = "#00c853";
+        ctx.fillStyle = "#1b5e20";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([6, 4]);
+        ctx.font = "16px Arial";
+
+        for (const entry of entries) {
+          const value = markerValues[entry.key];
+          if (typeof value !== "number") continue;
+          if (value < xScale.min || value > xScale.max) continue;
+
+          const x = xScale.getPixelForValue(value);
+
+          ctx.beginPath();
+          ctx.moveTo(x, yScale.top);
+          ctx.lineTo(x, yScale.bottom);
+          ctx.stroke();
+
+          ctx.setLineDash([]);
+          ctx.fillText(`${entry.label}: ${value} mm`, x + 6, yScale.top + 18);
+          ctx.setLineDash([6, 4]);
+        }
+
+        ctx.restore();
+      }
+    };
+
+    const liveBackgroundPlugin = {
+      id: "liveBackgroundZones",
+      beforeDraw(chart) {
+        const { ctx, chartArea, scales } = chart;
+        if (!chartArea || !scales?.yHr) return;
+
+        const hrZones = getHrZones();
+        if (!hrZones?.z1 || !hrZones?.z2 || !hrZones?.z3 || !hrZones?.z4 || !hrZones?.z5) return;
+
+        const yHr = scales.yHr;
+        const left = chartArea.left;
+        const right = chartArea.right;
+
+        const zones = [
+          { from: hrZones.z1.low_bpm, to: hrZones.z1.high_bpm, color: "rgba(76, 175, 80, 0.08)" },
+          { from: hrZones.z2.low_bpm, to: hrZones.z2.high_bpm, color: "rgba(33, 150, 243, 0.08)" },
+          { from: hrZones.z3.low_bpm, to: hrZones.z3.high_bpm, color: "rgba(255, 193, 7, 0.08)" },
+          { from: hrZones.z4.low_bpm, to: hrZones.z4.high_bpm, color: "rgba(255, 152, 0, 0.08)" },
+          { from: hrZones.z5.low_bpm, to: hrZones.z5.high_bpm, color: "rgba(229, 57, 53, 0.08)" }
+        ];
+
+        ctx.save();
+        zones.forEach(zone => {
+          const from = Math.max(zone.from, yHr.min);
+          const to = Math.min(zone.to, yHr.max);
+          if (to <= from) return;
+
+          const yTop = yHr.getPixelForValue(to);
+          const yBottom = yHr.getPixelForValue(from);
+
+          ctx.fillStyle = zone.color;
+          ctx.fillRect(left, yTop, right - left, yBottom - yTop);
+        });
+        ctx.restore();
+      }
+    };
+
+    const rpmZoneLinesPlugin = {
+      id: "rpmZoneLines",
+      afterDraw(chart) {
+        const { ctx, chartArea, scales } = chart;
+        const ySpeed = scales?.ySpeed;
+        if (!chartArea || !ySpeed) return;
+
+        const spmZones = getSpmZones();
+        if (!spmZones?.z1 || !spmZones?.z2 || !spmZones?.z3 || !spmZones?.z4) return;
+
+        const boundaries = [
+          { value: spmZones.z1.high_spm, label: "Z1", color: getZoneColorByKey("z1") },
+          { value: spmZones.z2.high_spm, label: "Z2", color: getZoneColorByKey("z2") },
+          { value: spmZones.z3.high_spm, label: "Z3", color: getZoneColorByKey("z3") },
+          { value: spmZones.z4.high_spm, label: "Z4", color: getZoneColorByKey("z4") }
+        ];
+
+        ctx.save();
+        ctx.font = "12px Arial";
+        ctx.textBaseline = "bottom";
+
+        boundaries.forEach((boundary) => {
+          if (boundary.value < ySpeed.min || boundary.value > ySpeed.max) return;
+
+          const y = ySpeed.getPixelForValue(boundary.value);
+          ctx.strokeStyle = boundary.color;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 4]);
+
+          ctx.beginPath();
+          ctx.moveTo(chartArea.left, y);
+          ctx.lineTo(chartArea.right, y);
+          ctx.stroke();
+
+          ctx.setLineDash([]);
+          ctx.fillStyle = boundary.color;
+          ctx.fillText(`${boundary.label} ${boundary.value}`, chartArea.left + 8, y - 4);
+        });
+
+        ctx.restore();
+      }
+    };
+
+    const rpmBelowMinPlugin = {
+      id: "rpmBelowMinIndicator",
+      afterDraw(chart) {
+        const { ctx, chartArea, scales } = chart;
+        const ySpeed = scales?.ySpeed;
+        if (!chartArea || !ySpeed) return;
+
+        const rpmDataset = chart.data?.datasets?.[0]?.data || [];
+        const belowMin = rpmDataset.filter(p => p && isFinite(p.y) && p.y < ySpeed.min);
+        if (!belowMin.length) return;
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(96, 125, 139, 0.55)";
+        ctx.fillStyle = "rgba(96, 125, 139, 0.85)";
+        ctx.lineWidth = 1.5;
+
+        belowMin.forEach(point => {
+          const x = chart.scales.x.getPixelForValue(point.x);
+          const y = ySpeed.getPixelForValue(ySpeed.min);
+
+          ctx.beginPath();
+          ctx.moveTo(x, y + 1);
+          ctx.lineTo(x, chartArea.bottom);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(x - 4, chartArea.bottom - 7);
+          ctx.lineTo(x + 4, chartArea.bottom - 7);
+          ctx.lineTo(x, chartArea.bottom - 1);
+          ctx.closePath();
+          ctx.fill();
+        });
+
+        ctx.restore();
+      }
+    };
+
+    const rpmAboveMaxPlugin = {
+      id: "rpmAboveMaxIndicator",
+      afterDraw(chart) {
+        const { ctx, chartArea, scales } = chart;
+        const ySpeed = scales?.ySpeed;
+        if (!chartArea || !ySpeed) return;
+
+        const rpmDataset = chart.data?.datasets?.[0]?.data || [];
+        const aboveMax = rpmDataset.filter(p => p && isFinite(p.y) && p.y > ySpeed.max);
+        if (!aboveMax.length) return;
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(229, 57, 53, 0.60)";
+        ctx.fillStyle = "rgba(229, 57, 53, 0.90)";
+        ctx.lineWidth = 1.5;
+
+        aboveMax.forEach(point => {
+          const x = chart.scales.x.getPixelForValue(point.x);
+          const y = ySpeed.getPixelForValue(ySpeed.max);
+
+          ctx.beginPath();
+          ctx.moveTo(x, chartArea.top);
+          ctx.lineTo(x, y - 1);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(x - 4, chartArea.top + 7);
+          ctx.lineTo(x + 4, chartArea.top + 7);
+          ctx.lineTo(x, chartArea.top + 1);
+          ctx.closePath();
+          ctx.fill();
+        });
+
+        ctx.restore();
+      }
+    };
+
+    const hrBelowMinPlugin = {
+      id: "hrBelowMinIndicator",
+      afterDraw(chart) {
+        const { ctx, chartArea, scales } = chart;
+        const yHr = scales?.yHr;
+        if (!chartArea || !yHr) return;
+
+        const hrDataset = chart.data?.datasets?.[2]?.data || [];
+        const belowMin = hrDataset.filter(p => p && isFinite(p.y) && p.y < yHr.min);
+        if (!belowMin.length) return;
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(21, 101, 192, 0.45)";
+        ctx.fillStyle = "rgba(21, 101, 192, 0.70)";
+        ctx.lineWidth = 1;
+
+        belowMin.forEach(point => {
+          const x = chart.scales.x.getPixelForValue(point.x);
+          const y = yHr.getPixelForValue(yHr.min);
+
+          ctx.beginPath();
+          ctx.moveTo(x, y + 1);
+          ctx.lineTo(x, chartArea.bottom);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(x - 3, chartArea.bottom - 6);
+          ctx.lineTo(x + 3, chartArea.bottom - 6);
+          ctx.lineTo(x, chartArea.bottom - 1);
+          ctx.closePath();
+          ctx.fill();
+        });
+
+        ctx.restore();
+      }
+    };
+
+    const paceBelowMinPlugin = {
+      id: "paceBelowMinIndicator",
+      afterDraw(chart) {
+        const { ctx, chartArea, scales } = chart;
+        const yPace = scales?.yPace;
+        if (!chartArea || !yPace) return;
+
+        const paceDataset = chart.data?.datasets?.[3]?.data || [];
+        const belowMin = paceDataset.filter(p => p && isFinite(p.y) && p.y < PACE_AXIS_MIN);
+        if (!belowMin.length) return;
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(106, 27, 154, 0.60)";
+        ctx.fillStyle = "rgba(106, 27, 154, 0.90)";
+        ctx.lineWidth = 1.5;
+
+        belowMin.forEach(point => {
+          const x = chart.scales.x.getPixelForValue(point.x);
+          const y = yPace.getPixelForValue(PACE_AXIS_MIN);
+
+          ctx.beginPath();
+          ctx.moveTo(x, chartArea.top);
+          ctx.lineTo(x, y - 1);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(x - 4, chartArea.top + 7);
+          ctx.lineTo(x + 4, chartArea.top + 7);
+          ctx.lineTo(x, chartArea.top + 1);
+          ctx.closePath();
+          ctx.fill();
+        });
+
+        ctx.restore();
+      }
+    };
+
+    const paceAboveMaxPlugin = {
+      id: "paceAboveMaxIndicator",
+      afterDraw(chart) {
+        const { ctx, chartArea, scales } = chart;
+        const yPace = scales?.yPace;
+        if (!chartArea || !yPace) return;
+
+        const paceDataset = chart.data?.datasets?.[3]?.data || [];
+        const aboveMax = paceDataset.filter(p => p && isFinite(p.y) && p.y > PACE_AXIS_MAX);
+        if (!aboveMax.length) return;
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(106, 27, 154, 0.55)";
+        ctx.fillStyle = "rgba(106, 27, 154, 0.85)";
+        ctx.lineWidth = 1.5;
+
+        aboveMax.forEach(point => {
+          const x = chart.scales.x.getPixelForValue(point.x);
+          const y = yPace.getPixelForValue(PACE_AXIS_MAX);
+
+          ctx.beginPath();
+          ctx.moveTo(x, y + 1);
+          ctx.lineTo(x, chartArea.bottom);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(x - 4, chartArea.bottom - 7);
+          ctx.lineTo(x + 4, chartArea.bottom - 7);
+          ctx.lineTo(x, chartArea.bottom - 1);
+          ctx.closePath();
+          ctx.fill();
+        });
+
+        ctx.restore();
+      }
+    };
+
+    const currentHrZoneBadgePlugin = {
+      id: "currentHrZoneBadge",
+      afterDraw(chart) {
+        const { ctx, chartArea } = chart;
+        if (!chartArea) return;
+
+        const zoneKey = classifyHrZone(Number(latestSummary.heart_rate));
+        if (zoneKey === "unknown") return;
+
+        const color = getZoneColorByKey(zoneKey);
+        const label = getZoneDisplayName(zoneKey);
+
+        const x = chartArea.right - 240;
+        const y = chartArea.top + 70;
+
+        ctx.save();
+        ctx.font = "bold 36px Arial";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = "rgba(255,255,255,0.95)";
+        ctx.strokeText(label, x, y);
+
+        ctx.fillStyle = color;
+        ctx.fillText(label, x, y);
+        ctx.restore();
+      }
+    };
+
+    async function loadDashboardConfig() {
+      try {
+        const res = await fetch("/api/dashboard_config");
+        if (!res.ok) return;
+
+        const cfg = await res.json();
+
+        if (typeof cfg.max_travel_mm === "number") {
+          maxTravelMm = cfg.max_travel_mm;
+        }
+        if (typeof cfg.max_torque_pct === "number") {
+          maxTorquePct = cfg.max_torque_pct;
+        }
+        if (cfg.markers) {
+          markers = cfg.markers;
+        }
+        if (cfg.target_torque) {
+          targetTorque = cfg.target_torque;
+        }
+        if (cfg.training_targets?.hr_zones) {
+          trainingTargets = cfg.training_targets;
+        }
+        if (cfg.controller_status) {
+          controllerStatus = cfg.controller_status;
+          renderControllerStatus();
+        }
+      } catch (err) {
+        console.warn("Dashboard-Config konnte nicht geladen werden.", err);
+      }
+    }
+
+    async function loadTrainingTargets() {
+      try {
+        const res = await fetch("/api/training_targets");
+        if (!res.ok) return;
+
+        const data = await res.json();
+        if (data?.hr_zones) {
+          trainingTargets = data;
+        } else if (data?.training_targets?.hr_zones) {
+          trainingTargets = data.training_targets;
+        }
+
+        renderTrainingTables();
+      } catch (err) {
+        console.warn("Training Targets konnten nicht geladen werden.", err);
+        renderTrainingTables();
+      }
+    }
+
+    async function reloadConfigFromServer() {
+      const btn = document.getElementById("reloadConfigButton");
+      const status = document.getElementById("reloadStatus");
+
+      btn.disabled = true;
+      status.textContent = "Lade Konfiguration neu ...";
+      status.style.color = "#444";
+
+      try {
+        const res = await fetch("/api/reload_config", { method: "POST" });
+        const data = await res.json();
+
+        if (!res.ok || !data.ok) {
+          throw new Error(data.message || "Reload fehlgeschlagen");
+        }
+
+        if (data.training_targets?.hr_zones) {
+          trainingTargets = data.training_targets;
+        }
+        if (data.controller_status) {
+          controllerStatus = data.controller_status;
+          renderControllerStatus();
+        }
+
+        await loadDashboardConfig();
+        renderTrainingTables();
+
+        if (liveMetricsChart) {
+          liveMetricsChart.options.scales.yHr.min = getFixedHrAxisMin();
+          liveMetricsChart.options.scales.yHr.max = getFixedHrAxisMax();
+          liveMetricsChart.options.scales.ySpeed.min = getRpmAxisMin();
+          liveMetricsChart.options.scales.ySpeed.max = getRpmAxisMax();
+          liveMetricsChart.update();
+        }
+
+        if (powerChart) {
+          powerChart.options.plugins.markerLines.markers = markers;
+          const targetTorquePoints = (targetTorque.x || []).map((x, i) => ({
+            x: Number(x),
+            y: Number((targetTorque.y || [])[i] ?? 0)
+          }));
+          powerChart.data.datasets[3].data = targetTorquePoints;
+          powerChart.options.scales.x.max = maxTravelMm;
+          powerChart.options.scales.yTorque.max = maxTorquePct;
+          powerChart.options.scales.yTorque.ticks.stepSize = getTorqueTickStep(maxTorquePct);
+          powerChart.update();
+        }
+
+        updateActiveZoneHighlights();
+        renderLiveBoxes();
+
+        status.textContent = `Konfiguration neu geladen (Max HR: ${data.max_hr_bpm}, FTP: ${data.ftp_w})`;
+        status.style.color = "green";
+      } catch (err) {
+        console.error(err);
+        status.textContent = `Fehler: ${err.message}`;
+        status.style.color = "red";
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function formatPaceValue(paceMinutes) {
+      if (paceMinutes == null || !isFinite(paceMinutes) || paceMinutes < 0) {
+        return "--:--";
+      }
+
+      const minutes = Math.floor(paceMinutes);
+      const seconds = Math.round((paceMinutes - minutes) * 60);
+
+      const correctedMinutes = seconds === 60 ? minutes + 1 : minutes;
+      const correctedSeconds = seconds === 60 ? 0 : seconds;
+
+      return `${String(correctedMinutes).padStart(2, "0")}:${String(correctedSeconds).padStart(2, "0")}`;
+    }
+
+    function getHrPctFromValue(hrValue) {
+      const maxHr = getConfiguredMaxHr();
+      if (!isFinite(hrValue) || !isFinite(maxHr) || maxHr <= 0) return null;
+      return Math.round((hrValue / maxHr) * 100);
+    }
+
+    const swingEfficiencyEl = document.getElementById("swingEfficiency");
+    const meanTargetTorqueEl = document.getElementById("meanTargetTorque");
+    const torquePowerIndexEl = document.getElementById("torquePowerIndex");
+    const pushPhaseEnergyEl = document.getElementById("pushPhaseEnergy");
+    const referencePushEnergyEl = document.getElementById("referencePushEnergy");
+    const pushPhaseUtilizationEl = document.getElementById("pushPhaseUtilization");
+    const distancePerCycleEl = document.getElementById("distancePerCycle");
+    const totalDistanceEl = document.getElementById("totalDistance");
     const logTextEl = document.getElementById("logText");
+    const durationEl = document.getElementById("durationDisplay");
+    const startButton = document.getElementById("startButton");
+    const reloadConfigButton = document.getElementById("reloadConfigButton");
+    const toggleZonesButton = document.getElementById("toggleZonesButton");
+    const zonesModal = document.getElementById("zonesModal");
+    const closeZonesButton = document.getElementById("closeZonesButton");
 
     const initChart = (ctx, title, color) => {
       return new Chart(ctx, {
-        type: 'line',
+        type: "line",
         data: {
-          labels: [],
           datasets: [
             {
               label: `${title} (Mean)`,
@@ -179,76 +1678,443 @@
               pointRadius: 0,
               fill: false,
               tension: 0.1,
+              yAxisID: "y",
             },
             {
               label: `${title} (+Stddev)`,
               data: [],
-              borderColor: 'black',
+              borderColor: "black",
               borderWidth: 1,
               pointRadius: 0,
               fill: false,
               tension: 0.1,
+              yAxisID: "y",
             },
             {
               label: `${title} (-Stddev)`,
               data: [],
-              borderColor: 'black',
+              borderColor: "black",
               borderWidth: 1,
               pointRadius: 0,
               fill: false,
               tension: 0.1,
+              yAxisID: "y",
             },
+            {
+              label: "Soll-Drehmoment [%]",
+              data: [],
+              borderColor: "#1565c0",
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: false,
+              tension: 0.05,
+              yAxisID: "yTorque",
+            }
           ],
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          animation: false,
+          parsing: false,
           plugins: {
+            markerLines: {
+              markers: markers
+            },
             legend: {
               labels: {
                 font: {
-                  size: 24
+                  size: 20
                 }
               }
             },
             tooltip: {
-              bodyFont: { size: 32 },
-              titleFont: { size: 24 }
+              bodyFont: { size: 24 },
+              titleFont: { size: 20 }
             }
           },
           scales: {
             x: {
-              title: { display: true, text: 'X-Axis', font: { size: 24 } },
-              ticks: { font: { size: 24 } },
+              type: "linear",
+              title: {
+                display: true,
+                text: "Absolute Position [mm]",
+                font: { size: 22 }
+              },
+              ticks: { font: { size: 20 } },
               min: 0,
-              max: 100,
+              max: maxTravelMm,
             },
             y: {
-              title: { display: true, text: title, font: { size: 24 } },
-              ticks: { font: { size: 24 } },
+              position: "left",
+              title: {
+                display: true,
+                text: title,
+                font: { size: 22 }
+              },
+              ticks: {
+                font: { size: 20 },
+                stepSize: 20
+              },
               beginAtZero: true,
-              suggestedMax: 10,
+              suggestedMax: 100,
             },
+            yTorque: {
+              position: "right",
+              min: 0,
+              max: maxTorquePct,
+              title: {
+                display: true,
+                text: "Soll-Drehmoment [%]",
+                font: { size: 22 }
+              },
+              ticks: {
+                font: { size: 20 },
+                stepSize: getTorqueTickStep(maxTorquePct)
+              },
+              grid: {
+                drawOnChartArea: false
+              }
+            }
           },
         },
+        plugins: [markerPlugin]
       });
     };
 
-    const powerChart = initChart(document.getElementById('powerChart').getContext('2d'), 'Power', 'red');
+    const initLiveChart = (ctx) => {
+      return new Chart(ctx, {
+        type: "line",
+        data: {
+          datasets: [
+            {
+              label: "SPM",
+              data: [],
+              borderColor: RPM_COLOR,
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.15,
+              clip: 0,
+              yAxisID: "ySpeed"
+            },
+            {
+              label: "Leistung [W]",
+              data: [],
+              borderColor: POWER_COLOR,
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.15,
+              clip: 0,
+              yAxisID: "yPower"
+            },
+            {
+              label: "Puls [bpm]",
+              data: [],
+              borderColor: HR_COLOR,
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.15,
+              clip: 0,
+              yAxisID: "yHr"
+            },
+            {
+              label: "Pace [min/500m]",
+              data: [],
+              borderColor: PACE_COLOR,
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.15,
+              clip: 0,
+              yAxisID: "yPace"
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          parsing: false,
+          plugins: {
+            legend: {
+              labels: {
+                font: {
+                  size: 18
+                }
+              }
+            },
+            tooltip: {
+              bodyFont: { size: 20 },
+              titleFont: { size: 18 },
+              callbacks: {
+                title(items) {
+                  if (!items || !items.length) return "";
+                  const date = new Date(items[0].parsed.x);
+                  return date.toLocaleTimeString("de-CH");
+                },
+                label(context) {
+                  const label = context.dataset.label || "";
+                  const value = context.parsed.y;
+
+                  if (context.dataset.yAxisID === "yPace") {
+                    return `${label}: ${formatPaceValue(value)}`;
+                  }
+
+                  const rounded = Number.isFinite(value) ? value.toFixed(1) : "--";
+                  return `${label}: ${rounded}`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: "linear",
+              title: {
+                display: true,
+                text: "Zeit [letzte 2h]",
+                font: { size: 20 }
+              },
+              ticks: {
+                font: { size: 16 },
+                callback: (value) => {
+                  const d = new Date(value);
+                  return d.toLocaleTimeString("de-CH", {
+                    hour: "2-digit",
+                    minute: "2-digit"
+                  });
+                }
+              }
+            },
+            ySpeed: {
+              type: "linear",
+              position: "left",
+              min: getRpmAxisMin(),
+              max: getRpmAxisMax(),
+              border: {
+                color: RPM_COLOR
+              },
+              title: {
+                display: true,
+                text: "SPM",
+                font: { size: 18 },
+                color: RPM_COLOR
+              },
+              ticks: {
+                font: { size: 16 },
+                color: RPM_COLOR
+              },
+              grid: {
+                color: "rgba(0,0,0,0.05)"
+              }
+            },
+            yPower: {
+              type: "linear",
+              position: "right",
+              min: POWER_AXIS_MIN,
+              max: POWER_AXIS_MAX,
+              border: {
+                color: POWER_COLOR
+              },
+              title: {
+                display: true,
+                text: "Leistung [W]",
+                font: { size: 18 },
+                color: POWER_COLOR
+              },
+              ticks: {
+                font: { size: 16 },
+                color: POWER_COLOR
+              },
+              grid: {
+                drawOnChartArea: false
+              }
+            },
+            yHr: {
+              type: "linear",
+              position: "right",
+              min: getFixedHrAxisMin(),
+              max: getFixedHrAxisMax(),
+              offset: true,
+              border: {
+                color: HR_COLOR
+              },
+              title: {
+                display: true,
+                text: "Puls [bpm]",
+                font: { size: 18 },
+                color: HR_COLOR
+              },
+              ticks: {
+                font: { size: 16 },
+                color: HR_COLOR
+              },
+              grid: {
+                drawOnChartArea: false
+              }
+            },
+            yPace: {
+              type: "linear",
+              position: "right",
+              min: PACE_AXIS_MIN,
+              max: PACE_AXIS_MAX,
+              offset: true,
+              reverse: true,
+              border: {
+                color: PACE_COLOR
+              },
+              title: {
+                display: true,
+                text: "Pace [min/500m]",
+                font: { size: 18 },
+                color: PACE_COLOR
+              },
+              ticks: {
+                font: { size: 16 },
+                color: PACE_COLOR,
+                callback: (value) => formatPaceValue(value)
+              },
+              grid: {
+                drawOnChartArea: false
+              }
+            }
+          }
+        },
+        plugins: [
+          liveBackgroundPlugin,
+          rpmZoneLinesPlugin,
+          rpmBelowMinPlugin,
+          rpmAboveMaxPlugin,
+          hrBelowMinPlugin,
+          paceBelowMinPlugin,
+          paceAboveMaxPlugin,
+          currentHrZoneBadgePlugin
+        ]
+      });
+    };
+
+    let powerChart = null;
+    let liveMetricsChart = null;
 
     const updateChart = (chart, xData, meanData, stddevData) => {
-      chart.data.labels = xData;
-      chart.data.datasets[0].data = meanData;
-      chart.data.datasets[1].data = meanData.map((mean, i) => mean + stddevData[i]);
-      chart.data.datasets[2].data = meanData.map((mean, i) => mean - stddevData[i]);
-      const maxY = Math.max(...meanData.map((mean, i) => mean + stddevData[i])) || 10;
+      if (!chart || !Array.isArray(xData) || !Array.isArray(meanData) || !Array.isArray(stddevData)) {
+        return;
+      }
+
+      const pointsMean = xData.map((x, i) => ({
+        x: Number(x),
+        y: Number(meanData[i] ?? 0)
+      }));
+
+      const pointsPlus = xData.map((x, i) => ({
+        x: Number(x),
+        y: Number(meanData[i] ?? 0) + Number(stddevData[i] ?? 0)
+      }));
+
+      const pointsMinus = xData.map((x, i) => ({
+        x: Number(x),
+        y: Number(meanData[i] ?? 0) - Number(stddevData[i] ?? 0)
+      }));
+
+      const targetTorquePoints = (targetTorque.x || []).map((x, i) => ({
+        x: Number(x),
+        y: Number((targetTorque.y || [])[i] ?? 0)
+      }));
+
+      chart.data.datasets[0].data = pointsMean;
+      chart.data.datasets[1].data = pointsPlus;
+      chart.data.datasets[2].data = pointsMinus;
+      chart.data.datasets[3].data = targetTorquePoints;
+
+      const maxY = pointsPlus.length ? Math.max(...pointsPlus.map(p => p.y), 10) : 100;
+
+      chart.options.plugins.markerLines.markers = markers;
+      chart.options.scales.x.min = 0;
+      chart.options.scales.x.max = maxTravelMm;
       chart.options.scales.y.min = 0;
-      chart.options.scales.y.max = Math.ceil(maxY);
+      chart.options.scales.y.max = Math.ceil(maxY / 100) * 100;
+      chart.options.scales.yTorque.min = 0;
+      chart.options.scales.yTorque.max = maxTorquePct;
+      chart.options.scales.yTorque.ticks.stepSize = getTorqueTickStep(maxTorquePct);
+
       chart.update();
     };
 
-    socket.on('scope_log', (data) => {
-      if ('message' in data) {
+    function trimLiveMetrics() {
+      const cutoff = Date.now() - LIVE_WINDOW_MS;
+      liveMetrics = liveMetrics.filter(entry => entry.t >= cutoff);
+    }
+
+    function pushLiveMetricSample() {
+      if (!clockRunning || !startTime) return;
+
+      const now = Date.now();
+
+      liveMetrics.push({
+        t: now,
+        speed: Number(latestSummary.cadence ?? 0),
+        power: Number(latestSummary.mean_power ?? 0),
+        hr: Number(latestSummary.heart_rate ?? 0),
+        totalDistance: Number(latestSummary.totalDistance ?? 0)
+      });
+
+      trimLiveMetrics();
+      updateLiveChart();
+      renderLiveBoxes();
+      updateActiveZoneHighlights();
+    }
+
+    function clearLiveMetrics() {
+      liveMetrics = [];
+      updateLiveChart();
+      renderLiveBoxes();
+    }
+
+    function updateLiveChart() {
+      if (!liveMetricsChart) return;
+
+      trimLiveMetrics();
+
+      const speedData = liveMetrics.map(entry => ({ x: entry.t, y: entry.speed }));
+      const powerData = liveMetrics.map(entry => ({ x: entry.t, y: entry.power }));
+      const hrData = liveMetrics.map(entry => ({ x: entry.t, y: entry.hr }));
+      const paceData = buildRollingPaceSeries();
+
+      liveMetricsChart.data.datasets[0].data = speedData;
+      liveMetricsChart.data.datasets[1].data = powerData;
+      liveMetricsChart.data.datasets[2].data = hrData;
+      liveMetricsChart.data.datasets[3].data = paceData;
+
+      const now = Date.now();
+      const minX = Math.max(now - LIVE_WINDOW_MS, liveMetrics.length ? liveMetrics[0].t : now - LIVE_WINDOW_MS);
+      const maxX = now;
+
+      liveMetricsChart.options.scales.x.min = minX;
+      liveMetricsChart.options.scales.x.max = maxX;
+      liveMetricsChart.options.scales.ySpeed.min = getRpmAxisMin();
+      liveMetricsChart.options.scales.ySpeed.max = getRpmAxisMax();
+      liveMetricsChart.options.scales.yPower.min = POWER_AXIS_MIN;
+      liveMetricsChart.options.scales.yPower.max = POWER_AXIS_MAX;
+      liveMetricsChart.options.scales.yHr.min = getFixedHrAxisMin();
+      liveMetricsChart.options.scales.yHr.max = getFixedHrAxisMax();
+      liveMetricsChart.options.scales.yPace.min = PACE_AXIS_MIN;
+      liveMetricsChart.options.scales.yPace.max = PACE_AXIS_MAX;
+
+      liveMetricsChart.update();
+    }
+
+    function startLiveSampling() {
+      stopLiveSampling();
+      liveSampleTimer = setInterval(pushLiveMetricSample, LIVE_SAMPLE_INTERVAL_MS);
+    }
+
+    function stopLiveSampling() {
+      if (liveSampleTimer) {
+        clearInterval(liveSampleTimer);
+        liveSampleTimer = null;
+      }
+    }
+
+    socket.on("scope_log", (data) => {
+      if ("message" in data) {
         logTextEl.textContent = data.message;
 
         if (data.message.includes("❌") || data.message.toLowerCase().includes("fehler")) {
@@ -258,71 +2124,218 @@
         } else {
           logTextEl.style.color = "#856404";
         }
+
+        if (data.message.includes("Uhr wurde automatisch gestartet")) {
+          startClock();
+        }
       }
     });
 
-    socket.on('scope_summary', (data) => {
-      // numerische Werte
-      if ('heart_rate' in data && data.heart_rate != null) heartRateEl.textContent = data.heart_rate;
-      if ('mean_power' in data && data.mean_power != null) meanPowerEl.textContent = Number(data.mean_power).toFixed(1);
-      if ('cadence' in data && data.cadence != null) cadenceEl.textContent = Number(data.cadence).toFixed(1);
-      if ('distance' in data && data.distance != null) distancePerCycleEl.textContent = Number(data.distance).toFixed(2);
-      if ('totalDistance' in data && data.totalDistance != null) totalDistanceEl.textContent = Number(data.totalDistance).toFixed(2);
-
-      // Herzfrequenz-Färbung + Zusatzinfos
-      const color = data.heart_rate_color || null;
-      const zone = data.heart_rate_zone || null;
-      const pct = (typeof data.heart_rate_pct === 'number') ? Math.round(data.heart_rate_pct * 100) : null;
-
-      if (color) {
-        heartRateEl.style.color = color;                 // Zahl einfärben
-        hrZoneBadgeEl.style.backgroundColor = color;     // Badge-Hintergrund
-      } else {
-        heartRateEl.style.color = "";                    // zurücksetzen
-        hrZoneBadgeEl.style.backgroundColor = "#bdbdbd";
+    socket.on("scope_summary", (data) => {
+      if ("heart_rate" in data && data.heart_rate != null) {
+        latestSummary.heart_rate = Number(data.heart_rate);
       }
 
-      if (zone) {
-        hrZoneBadgeEl.textContent = `Z${zone}`;
-        hrZoneBadgeEl.title = `HF-Zone ${zone}`;
-      } else {
-        hrZoneBadgeEl.textContent = "Z-";
-        hrZoneBadgeEl.title = "";
+      if ("heart_rate_pct" in data && data.heart_rate_pct != null) {
+        latestSummary.heart_rate_pct = Number(data.heart_rate_pct);
       }
 
-      if (pct !== null && !isNaN(pct)) {
-        hrPctEl.textContent = String(pct);
-      } else {
-        hrPctEl.textContent = "--";
+      if ("heart_rate_zone" in data && data.heart_rate_zone != null) {
+        latestSummary.heart_rate_zone = data.heart_rate_zone;
       }
+
+      if ("heart_rate_color" in data && data.heart_rate_color) {
+        latestSummary.heart_rate_color = data.heart_rate_color;
+      }
+
+      if ("mean_power" in data && data.mean_power != null) {
+        latestSummary.mean_power = Number(data.mean_power);
+      }
+
+      if ("swing_efficiency_pct" in data && data.swing_efficiency_pct != null) {
+        latestSummary.swing_efficiency_pct = Number(data.swing_efficiency_pct);
+        swingEfficiencyEl.textContent = Number(data.swing_efficiency_pct).toFixed(1);
+      } else {
+        swingEfficiencyEl.textContent = "--";
+      }
+
+      if ("mean_target_torque_pct" in data && data.mean_target_torque_pct != null) {
+        latestSummary.mean_target_torque_pct = Number(data.mean_target_torque_pct);
+        meanTargetTorqueEl.textContent = Number(data.mean_target_torque_pct).toFixed(1);
+      } else {
+        meanTargetTorqueEl.textContent = "--";
+      }
+
+      if ("torque_power_index" in data && data.torque_power_index != null) {
+        latestSummary.torque_power_index = Number(data.torque_power_index);
+        torquePowerIndexEl.textContent = Number(data.torque_power_index).toFixed(2);
+      } else {
+        torquePowerIndexEl.textContent = "--";
+      }
+
+      if ("push_phase_energy_j" in data && data.push_phase_energy_j != null) {
+        latestSummary.push_phase_energy_j = Number(data.push_phase_energy_j);
+        pushPhaseEnergyEl.textContent = Number(data.push_phase_energy_j).toFixed(1);
+      } else {
+        pushPhaseEnergyEl.textContent = "--";
+      }
+
+      if ("reference_push_energy_j" in data && data.reference_push_energy_j != null) {
+        latestSummary.reference_push_energy_j = Number(data.reference_push_energy_j);
+        referencePushEnergyEl.textContent = Number(data.reference_push_energy_j).toFixed(1);
+      } else {
+        referencePushEnergyEl.textContent = "--";
+      }
+
+      if ("push_phase_utilization_pct" in data && data.push_phase_utilization_pct != null) {
+        latestSummary.push_phase_utilization_pct = Number(data.push_phase_utilization_pct);
+        pushPhaseUtilizationEl.textContent = Number(data.push_phase_utilization_pct).toFixed(1);
+      } else {
+        pushPhaseUtilizationEl.textContent = "--";
+      }
+
+      if ("cadence" in data && data.cadence != null) {
+        latestSummary.cadence = Number(data.cadence);
+      }
+
+      if ("distance" in data && data.distance != null) {
+        distancePerCycleEl.textContent = Number(data.distance).toFixed(2);
+      }
+
+      if ("totalDistance" in data && data.totalDistance != null) {
+        totalDistanceEl.textContent = Number(data.totalDistance).toFixed(2);
+        latestSummary.totalDistance = Number(data.totalDistance);
+      }
+
+      if ("training_targets" in data && data.training_targets?.hr_zones) {
+        trainingTargets = data.training_targets;
+        renderTrainingTables();
+      }
+
+      if (!clockRunning) {
+        const cadenceNow = Number(data.cadence ?? 0);
+        const distanceNow = Number(data.totalDistance ?? 0);
+        if ((isFinite(cadenceNow) && cadenceNow > 0) || (isFinite(distanceNow) && distanceNow > 0)) {
+          startClock();
+        }
+      }
+
+      renderLiveBoxes();
+
+      if (liveMetricsChart) {
+        liveMetricsChart.options.scales.yHr.min = getFixedHrAxisMin();
+        liveMetricsChart.options.scales.yHr.max = getFixedHrAxisMax();
+        liveMetricsChart.options.scales.ySpeed.min = getRpmAxisMin();
+        liveMetricsChart.options.scales.ySpeed.max = getRpmAxisMax();
+        liveMetricsChart.update();
+      }
+
+      updateActiveZoneHighlights();
     });
 
-    socket.on('scope_values', (data) => {
-      const xData = data.x;
+    socket.on("scope_values", (data) => {
+      const xData = data.x || [];
       updateChart(powerChart, xData, data.power.mean, data.power.stddev);
     });
 
-    // Dauer-Anzeige mit Start-Button
-    const durationEl = document.getElementById('durationDisplay');
-    const startButton = document.getElementById('startButton');
-    let startTime = null;
-    let timer = null;
-
     function updateDuration() {
+      if (!startTime) return;
+
       const now = Date.now();
       const elapsedMs = now - startTime;
       const totalSeconds = Math.floor(elapsedMs / 1000);
-      const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
-      const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
-      const seconds = String(totalSeconds % 60).padStart(2, '0');
+      const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+      const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+      const seconds = String(totalSeconds % 60).padStart(2, "0");
       durationEl.textContent = `Dauer: ${hours}:${minutes}:${seconds}`;
+
+      renderLiveBoxes();
+      updateActiveZoneHighlights();
     }
 
-    startButton.addEventListener('click', () => {
+    function startClock() {
+      if (clockRunning) return;
+
       startTime = Date.now();
+      clockRunning = true;
+
+      if (timer) {
+        clearInterval(timer);
+      }
+
+      clearLiveMetrics();
       updateDuration();
       timer = setInterval(updateDuration, 1000);
+      startLiveSampling();
       startButton.disabled = true;
+      startButton.textContent = "Uhr läuft";
+    }
+
+    startButton.addEventListener("click", () => {
+      startClock();
+    });
+
+    reloadConfigButton.addEventListener("click", async () => {
+      await reloadConfigFromServer();
+    });
+
+    toggleZonesButton.addEventListener("click", () => {
+      zonesModal.classList.remove("hidden");
+    });
+
+    closeZonesButton.addEventListener("click", () => {
+      zonesModal.classList.add("hidden");
+    });
+
+    zonesModal.addEventListener("click", (event) => {
+      if (event.target === zonesModal) {
+        zonesModal.classList.add("hidden");
+      }
+    });
+
+    async function refreshTargetTorque() {
+      await loadDashboardConfig();
+      if (powerChart) {
+        powerChart.options.plugins.markerLines.markers = markers;
+        const targetTorquePoints = (targetTorque.x || []).map((x, i) => ({
+          x: Number(x),
+          y: Number((targetTorque.y || [])[i] ?? 0)
+        }));
+        powerChart.data.datasets[3].data = targetTorquePoints;
+        powerChart.options.scales.x.max = maxTravelMm;
+        powerChart.options.scales.yTorque.max = maxTorquePct;
+        powerChart.options.scales.yTorque.ticks.stepSize = getTorqueTickStep(maxTorquePct);
+        powerChart.update();
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      renderTrainingTables();
+      renderControllerStatus();
+      renderLiveBoxes();
+
+      await loadDashboardConfig();
+      await loadTrainingTargets();
+
+      powerChart = initChart(
+        document.getElementById("powerChart").getContext("2d"),
+        "Power",
+        "red"
+      );
+
+      liveMetricsChart = initLiveChart(
+        document.getElementById("liveMetricsChart").getContext("2d")
+      );
+
+      await refreshTargetTorque();
+      setInterval(refreshTargetTorque, 1000);
+      setInterval(updateLiveChart, 5000);
+
+      try {
+        await fetch("/page_ready", { method: "POST" });
+      } catch (err) {
+        console.warn("page_ready konnte nicht gesendet werden.", err);
+      }
     });
   </script>
 </body>

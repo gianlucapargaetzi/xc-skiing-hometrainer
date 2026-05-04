@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -56,31 +56,113 @@
 
     button#upload { background-color: #2196F3; }
     button#load { background-color: #4CAF50; }
+    button#startButton { background-color: #2e7d32; }
     button#stopButton { background-color: #e53935; }
     button#backButton { background-color: #ff7b00; }
+    button#previousBlockButton { background-color: #607D8B; }
+    button#nextBlockButton { background-color: #3F51B5; }
+    button#lastBlockButton { background-color: #6A1B9A; }
 
     button:hover {
       filter: brightness(1.15);
     }
 
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .recommendation-box {
+      width: 95%;
+      max-width: 1400px;
+      background: white;
+      border-radius: 12px;
+      padding: 18px 26px;
+      margin: 30px 0 0;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      box-sizing: border-box;
+      text-align: center;
+    }
+
+    .recommendation-line {
+      min-height: 44px;
+      font-size: 34px;
+      line-height: 1.25;
+      color: #222;
+    }
+
+    #blockTrainingRecommendation {
+      font-weight: bold;
+    }
+
     .chart-container {
-      width:95%;
+      width: 95%;
       max-width: 1400px;
       height: 600px;
       background-color: #fff;
-      padding: 0px;
-      margin: 40px 0;
+      padding: 0;
+      margin: 20px 0 20px;
       border-radius: 12px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
 
-    #stopButton, #backButton {
-      width: 600px;
+    .control-panel {
+      width: 95%;
+      max-width: 1400px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .control-row {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+    }
+
+    .control-row button {
+      width: 360px;
       height: 100px;
-      font-size: 48px;
-      margin-bottom: 40px;
+      font-size: 42px;
+      margin: 0;
       border: none;
       border-radius: 10px;
+    }
+
+    @media (max-width: 1100px) {
+      .control-row {
+        flex-direction: column;
+      }
+
+      .control-row button {
+        width: 600px;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .recommendation-line {
+        font-size: 28px;
+      }
+
+      .control-row button {
+        width: 90%;
+      }
+    }
+
+    #statusBox {
+      width: 90%;
+      max-width: 1000px;
+      background: white;
+      border-radius: 12px;
+      padding: 20px 30px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      font-size: 28px;
+      margin-bottom: 20px;
+      text-align: center;
     }
   </style>
 </head>
@@ -88,135 +170,391 @@
 
   <h1>Interval Intensity Controller</h1>
 
+  <div id="statusBox">Keine Intervall-Datei geladen.</div>
+
   <form id="uploadForm">
-    <label for="intervalFile">Upload Interval File:</label>
+    <label for="intervalFile">Intervall-Datei hochladen:</label>
     <input type="file" id="intervalFile" name="intervalFile" />
     <button type="button" id="upload" onclick="uploadFile()">Upload</button>
   </form>
 
   <form id="loadForm">
-    <label for="fileSelect">Select Interval File:</label>
+    <label for="fileSelect">Intervall-Datei auswählen:</label>
     <select id="fileSelect">
-      <option disabled selected>Loading files...</option>
+      <option disabled selected>Dateien werden geladen...</option>
     </select>
-    <button type="button" id="load" onclick="loadFile()">Load File</button>
+    <button type="button" id="load" onclick="loadFile()">Datei laden</button>
   </form>
+
+  <div class="recommendation-box" id="recommendationBox">
+    <div id="globalTrainingRecommendation" class="recommendation-line"></div>
+    <div id="blockTrainingRecommendation" class="recommendation-line"></div>
+  </div>
 
   <div class="chart-container">
     <canvas id="intervalChart"></canvas>
   </div>
 
-    <button id="stopButton" onclick="stopTraining()">STOP Training</button>
-    <button id="backButton" style="display:none;" onclick="showForms()">Zurück zur Auswahl</button>
+  <div class="control-panel">
+    <div class="control-row primary-controls">
+      <button id="startButton" onclick="startTraining()" disabled>START/RESTART</button>
+      <button id="stopButton" onclick="stopTraining()" disabled>STOP</button>
+      <button id="backButton" style="display:none;" onclick="showForms()">Auswahl</button>
+    </div>
+    <div class="control-row jump-controls" id="jumpControls">
+      <button type="button" id="previousBlockButton" onclick="jumpIntervalBlock('previous')" disabled>-1</button>
+      <button type="button" id="nextBlockButton" onclick="jumpIntervalBlock('next')" disabled>+1</button>
+      <button type="button" id="lastBlockButton" onclick="jumpIntervalBlock('last')" disabled>Last</button>
+    </div>
+  </div>
 
   <script>
     const socket = io();
-    socket.on('interval_intensity', msg => updateMarker(msg.time));
 
-    function uploadFile() {
+    let chart = null;
+    let currentXValues = [];
+    let currentYValues = [];
+    let intervalLoaded = false;
+    let currentBlockIndex = 0;
+    let blockCount = 0;
+    let currentBlockName = '';
+    let currentBlocks = [];
+    let globalTrainingRecommendation = '';
+    let currentTrainingRecommendation = '';
+
+    socket.on('interval_intensity', msg => {
+      if (typeof msg.time === 'number') {
+        updateMarker(msg.time);
+      }
+      updateBlockStateFromPayload(msg);
+    });
+
+    function setStatus(text) {
+      document.getElementById('statusBox').innerText = text;
+    }
+
+    function updateTrainingRecommendations() {
+      const globalEl = document.getElementById('globalTrainingRecommendation');
+      const blockEl = document.getElementById('blockTrainingRecommendation');
+
+      globalEl.innerText = globalTrainingRecommendation || '';
+      blockEl.innerText = currentTrainingRecommendation || '';
+    }
+
+    function getBlockRecommendationByIndex(index) {
+      if (!Array.isArray(currentBlocks) || !currentBlocks.length) {
+        return '';
+      }
+
+      const block = currentBlocks[index];
+      return block && typeof block.training_recommendation === 'string'
+        ? block.training_recommendation
+        : '';
+    }
+
+    function updateBlockControls() {
+      const previousButton = document.getElementById('previousBlockButton');
+      const nextButton = document.getElementById('nextBlockButton');
+      const lastButton = document.getElementById('lastBlockButton');
+      const hasBlocks = intervalLoaded && blockCount > 0;
+
+      previousButton.disabled = !hasBlocks || currentBlockIndex <= 0;
+      nextButton.disabled = !hasBlocks || currentBlockIndex >= blockCount - 1;
+      lastButton.disabled = !hasBlocks || currentBlockIndex >= blockCount - 1;
+    }
+
+    function updateBlockStateFromPayload(payload = {}) {
+      if (typeof payload.block_count === 'number') {
+        blockCount = payload.block_count;
+      }
+
+      if (typeof payload.block_index === 'number') {
+        currentBlockIndex = payload.block_index;
+      }
+
+      if (typeof payload.block_name === 'string') {
+        currentBlockName = payload.block_name;
+      }
+
+      if (typeof payload.global_training_recommendation === 'string') {
+        globalTrainingRecommendation = payload.global_training_recommendation;
+      }
+
+      if (typeof payload.training_recommendation === 'string') {
+        currentTrainingRecommendation = payload.training_recommendation;
+      } else {
+        currentTrainingRecommendation = getBlockRecommendationByIndex(currentBlockIndex);
+      }
+
+      updateTrainingRecommendations();
+      updateBlockControls();
+    }
+
+    function setJumpStatus(prefix = 'Block gewechselt') {
+      if (blockCount > 0) {
+        const blockLabel = currentBlockName ? ` (${currentBlockName})` : '';
+        setStatus(`${prefix}: Block ${currentBlockIndex + 1}/${blockCount}${blockLabel}.`);
+      }
+    }
+
+    async function fetchJson(url, options = {}) {
+      const response = await fetch(url, options);
+      const text = await response.text();
+
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (error) {
+        throw new Error(`Ungültige Server-Antwort: ${text}`);
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || `HTTP ${response.status}`);
+      }
+
+      return data;
+    }
+
+    async function uploadFile() {
       const fileInput = document.getElementById('intervalFile');
+
       if (!fileInput.files.length) {
-        alert("Please select a file to upload.");
+        alert("Bitte zuerst eine Datei auswählen.");
         return;
       }
 
       const formData = new FormData();
       formData.append('intervalFile', fileInput.files[0]);
 
-      fetch('/upload_interval_file', {
-        method: 'POST',
-        body: formData
-      })
-      .then(response => response.json())
-      .then(result => {
-        if (result.success) {
-          alert("File uploaded successfully!");
-          fetchFileList();
-        } else {
-          alert(`Error uploading file: ${result.error}`);
-        }
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        alert("An error occurred while uploading the file.");
-      });
-    }
-
-    function fetchFileList() {
-      fetch('/get_interval_list')
-        .then(response => response.json())
-        .then(result => {
-          const select = document.getElementById('fileSelect');
-          select.innerHTML = '';
-          if (result.success && result.files.length > 0) {
-            result.files.forEach(file => {
-              const option = document.createElement('option');
-              option.value = file;
-              option.textContent = file;
-              select.appendChild(option);
-            });
-          } else {
-            const option = document.createElement('option');
-            option.disabled = true;
-            option.textContent = 'No files found';
-            select.appendChild(option);
-          }
-        })
-        .catch(error => {
-          console.error('Error:', error);
-          alert("Error fetching file list.");
+      try {
+        const result = await fetchJson('/upload_interval_file', {
+          method: 'POST',
+          body: formData
         });
+
+        if (result.success) {
+          alert("Datei erfolgreich hochgeladen.");
+          setStatus("Datei hochgeladen. Bitte auswählen und laden.");
+          await fetchFileList();
+        } else {
+          alert(`Fehler beim Upload: ${result.error}`);
+        }
+      } catch (error) {
+        console.error('Upload-Fehler:', error);
+        alert(`Fehler beim Upload: ${error.message}`);
+      }
     }
 
-    function loadFile() {
+    async function fetchFileList() {
+      try {
+        const result = await fetchJson('/get_interval_list');
+        const select = document.getElementById('fileSelect');
+        select.innerHTML = '';
+
+        if (result.success && Array.isArray(result.files) && result.files.length > 0) {
+          result.files.forEach(file => {
+            const option = document.createElement('option');
+            option.value = file;
+            option.textContent = file;
+            select.appendChild(option);
+          });
+          setStatus('Intervall-Datei auswählen und laden.');
+        } else {
+          const option = document.createElement('option');
+          option.disabled = true;
+          option.selected = true;
+          option.textContent = result.error ? `Fehler: ${result.error}` : 'Keine Dateien gefunden';
+          select.appendChild(option);
+          setStatus(option.textContent);
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden der Dateiliste:', error);
+        setStatus(`Fehler beim Laden der Dateiliste: ${error.message}`);
+
+        const select = document.getElementById('fileSelect');
+        select.innerHTML = '';
+        const option = document.createElement('option');
+        option.disabled = true;
+        option.selected = true;
+        option.textContent = `Fehler: ${error.message}`;
+        select.appendChild(option);
+      }
+    }
+
+    async function loadFile() {
       const select = document.getElementById('fileSelect');
       const fileName = select.value;
+
       if (!fileName) {
-        alert("Please select a file to load.");
+        alert("Bitte zuerst eine Datei auswählen.");
         return;
       }
 
-      fetch('/load_interval_file', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName })
-      })
-      .then(response => response.json())
-      .then(result => {
-        if (result.success) {
-          alert("File loaded successfully!");
-          plotChart(result.data.x, result.data.y);
+      try {
+        const result = await fetchJson('/load_interval_file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName })
+        });
 
-          // Verstecke Formulare, zeige Zurück-Button
+        if (result.success) {
+          currentXValues = result.data.x || [];
+          currentYValues = result.data.y || [];
+          currentBlocks = Array.isArray(result.data.blocks) ? result.data.blocks : [];
+          blockCount = result.data.block_count || currentBlocks.length;
+          currentBlockIndex = 0;
+          currentBlockName = currentBlocks.length ? currentBlocks[0].name || '' : '';
+          globalTrainingRecommendation = result.data.global_training_recommendation || '';
+          currentTrainingRecommendation = getBlockRecommendationByIndex(0);
+          intervalLoaded = true;
+
+          plotChart(currentXValues, currentYValues);
+          updateTrainingRecommendations();
+          updateBlockControls();
+
+          document.getElementById('startButton').disabled = false;
+          document.getElementById('stopButton').disabled = false;
+          document.getElementById('stopButton').innerText = 'STOP';
+          document.getElementById('stopButton').style.backgroundColor = '#e53935';
+
           document.getElementById('uploadForm').style.display = 'none';
           document.getElementById('loadForm').style.display = 'none';
           document.getElementById('backButton').style.display = 'block';
+
+          setStatus(`Datei geladen: ${fileName}. Mit START beginnt das Training.`);
         } else {
-          alert(`Error loading file: ${result.error}`);
+          alert(`Fehler beim Laden: ${result.error}`);
         }
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        alert("An error occurred while loading the file.");
-      });
+      } catch (error) {
+        console.error('Fehler beim Laden der Datei:', error);
+        alert(`Fehler beim Laden der Datei: ${error.message}`);
+        setStatus(`Fehler beim Laden der Datei: ${error.message}`);
+      }
+    }
+
+    async function startTraining() {
+      if (!intervalLoaded) {
+        alert("Bitte zuerst ein Intervall laden.");
+        return;
+      }
+
+      try {
+        const result = await fetchJson('/start_interval', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (result.success) {
+          updateMarker(typeof result.time === 'number' ? result.time : 0);
+          updateBlockStateFromPayload(result);
+          document.getElementById('stopButton').disabled = false;
+          document.getElementById('stopButton').innerText = 'STOP';
+          document.getElementById('stopButton').style.backgroundColor = '#e53935';
+          setStatus('Training läuft. START startet jederzeit wieder von vorne.');
+        } else {
+          alert(`Fehler beim Starten: ${result.error}`);
+        }
+      } catch (error) {
+        console.error('Fehler beim Starten:', error);
+        alert(`Fehler beim Starten: ${error.message}`);
+      }
+    }
+
+    async function jumpIntervalBlock(direction) {
+      if (!intervalLoaded) {
+        alert("Bitte zuerst ein Intervall laden.");
+        return;
+      }
+
+      try {
+        const result = await fetchJson('/jump_interval_block', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ direction })
+        });
+
+        if (result.success) {
+          if (typeof result.time === 'number') {
+            updateMarker(result.time);
+          }
+          updateBlockStateFromPayload(result);
+          setJumpStatus('Gesprungen');
+        } else {
+          alert(`Fehler beim Springen: ${result.error}`);
+        }
+      } catch (error) {
+        console.error('Fehler beim Springen:', error);
+        alert(`Fehler beim Springen: ${error.message}`);
+      }
     }
 
     function showForms() {
       document.getElementById('uploadForm').style.display = 'flex';
       document.getElementById('loadForm').style.display = 'flex';
       document.getElementById('backButton').style.display = 'none';
+
+      if (intervalLoaded) {
+        setStatus('Intervall geladen.');
+      } else {
+        setStatus('Keine Intervall-Datei geladen.');
+      }
     }
 
-    let chart = null;
+    function computeYAxisRange(yValues) {
+      if (!yValues || yValues.length === 0) {
+        return { min: 0, max: 100, stepSize: 10 };
+      }
+
+      const minY = Math.min(...yValues);
+      const maxY = Math.max(...yValues);
+      const range = maxY - minY;
+
+      let padding = Math.max(5, range * 0.1);
+      let axisMin = Math.floor((minY - padding) / 5) * 5;
+      let axisMax = Math.ceil((maxY + padding) / 5) * 5;
+
+      if (axisMin < 0) {
+        axisMin = 0;
+      }
+
+      if (axisMax <= axisMin) {
+        axisMax = axisMin + 10;
+      }
+
+      const axisRange = axisMax - axisMin;
+
+      let stepSize = 5;
+      if (axisRange > 80) {
+        stepSize = 20;
+      } else if (axisRange > 40) {
+        stepSize = 10;
+      } else if (axisRange > 20) {
+        stepSize = 5;
+      } else {
+        stepSize = 2;
+      }
+
+      return {
+        min: axisMin,
+        max: axisMax,
+        stepSize: stepSize
+      };
+    }
 
     function plotChart(xValues, yValues) {
       const ctx = document.getElementById('intervalChart').getContext('2d');
-      if (chart) chart.destroy();
+
+      if (chart) {
+        chart.destroy();
+      }
+
+      const minuteValues = xValues.map(sec => sec / 60.0);
+      const maxMinutes = minuteValues.length ? minuteValues[minuteValues.length - 1] : 0;
+      const yAxis = computeYAxisRange(yValues);
 
       chart = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: xValues,
           datasets: [
             {
               label: 'Marker',
@@ -225,11 +563,12 @@
               borderColor: 'rgba(255, 0, 0, 1)',
               radius: 8,
               fill: false,
-              pointStyle: 'circle'
+              pointStyle: 'circle',
+              showLine: false
             },
             {
               label: 'Intensity',
-              data: yValues,
+              data: minuteValues.map((x, i) => ({ x: x, y: yValues[i] })),
               borderColor: 'blue',
               fill: false,
               tension: 0.1,
@@ -240,53 +579,102 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { legend: { display: true } },
+          animation: false,
+          plugins: {
+            legend: { display: true }
+          },
           scales: {
-            x: { title: { display: true, text: 'Time' } },
-            y: {
-              title: { display: true, text: 'Intensity' },
+            x: {
+              type: 'linear',
+              title: { display: true, text: 'Zeit [min]' },
               min: 0,
-              max: 120,
+              max: maxMinutes,
+              ticks: {
+                stepSize: 1,
+                callback: function(value) {
+                  return value.toFixed(0);
+                }
+              },
+              grid: {
+                display: true
+              }
+            },
+            y: {
+              title: { display: true, text: 'Intensität [%]' },
+              min: yAxis.min,
+              max: yAxis.max,
+              ticks: {
+                stepSize: yAxis.stepSize
+              },
+              grid: {
+                display: true
+              }
             }
           }
         }
       });
+
+      updateMarker(0);
     }
 
     function updateMarker(index) {
-      if (!chart) return;
-      const x = chart.data.labels[index];
-      const y = chart.data.datasets[1].data[index];
-      chart.data.datasets[0].data = [{ x: x, y: y }];
-      chart.update();
+      if (!chart || !currentXValues.length || !currentYValues.length) {
+        return;
+      }
+
+      if (index < 0) {
+        index = 0;
+      }
+      if (index >= currentYValues.length) {
+        index = currentYValues.length - 1;
+      }
+
+      const xMinutes = currentXValues[index] / 60.0;
+      const y = currentYValues[index];
+
+      chart.data.datasets[0].data = [{ x: xMinutes, y: y }];
+      chart.update('none');
+
+      if (index === currentYValues.length - 1) {
+        setStatus('Training fertig. Mit START kannst du das Intervall neu starten.');
+      }
     }
 
-    function stopTraining() {
-      if (!confirm("Training wirklich stoppen?")) return;
+    async function stopTraining() {
+      if (!confirm("Training wirklich stoppen?")) {
+        return;
+      }
 
-      fetch('/stop', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: false })
-      })
-      .then(response => {
-        if (response.ok) {
+      try {
+        const result = await fetchJson('/stop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (result.success || result.status === 'stopped') {
           alert("Training wurde gestoppt.");
+          if (typeof result.time === 'number') {
+            updateMarker(result.time);
+          }
+          updateBlockStateFromPayload(result);
           const btn = document.getElementById('stopButton');
           btn.disabled = true;
-          btn.innerText = "Gestoppt";
-          btn.style.backgroundColor = "#4CAF50";
+          btn.innerText = 'Gestoppt';
+          btn.style.backgroundColor = '#4CAF50';
+          setStatus('Training gestoppt. Mit START kannst du wieder von vorne beginnen.');
         } else {
           alert("Fehler beim Stoppen des Trainings.");
         }
-      })
-      .catch(error => {
-        console.error('Fehler:', error);
-        alert("Verbindungsfehler beim Stoppen.");
-      });
+      } catch (error) {
+        console.error('Fehler beim Stoppen:', error);
+        alert(`Verbindungsfehler beim Stoppen: ${error.message}`);
+      }
     }
 
-    window.onload = () => fetchFileList();
+    window.onload = () => {
+      updateBlockControls();
+      fetchFileList();
+    };
   </script>
 </body>
 </html>

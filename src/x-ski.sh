@@ -1,36 +1,21 @@
 #!/bin/bash
 
-# Pfad zum Projekt
 PROJECT_DIR=~/xc-skiing-hometrainer
-
-# Pfad zur virtuellen Umgebung
 VENV_DIR="$PROJECT_DIR/.venv"
-
-# Python-Version (anpassen, falls benötigt)
-PYTHON="python3"
-
-# Python-Skript, das gestartet werden soll
 PYTHON_SCRIPT="$PROJECT_DIR/src/webgui/x-ski.py"
 
-# Wechsel in das Projektverzeichnis
 echo "Wechsel in das Projektverzeichnis: $PROJECT_DIR"
-cd "$PROJECT_DIR/src/webgui" || { echo "Fehler: Verzeichnis $PROJECT_DIR nicht gefunden."; exit 1; }
+cd "$PROJECT_DIR/src/webgui" || { echo "Fehler: Verzeichnis $PROJECT_DIR/src/webgui nicht gefunden."; exit 1; }
 
-# Aktivieren der virtuellen Umgebung
 echo "Aktivieren der virtuellen Umgebung..."
-source "$VENV_DIR/bin/activate"
+source "$VENV_DIR/bin/activate" || { echo "Fehler: Virtuelle Umgebung nicht gefunden."; exit 1; }
 
-
-# Starten des Python-Programms
 if [ -f "$PYTHON_SCRIPT" ]; then
-  echo "Starte das Python-Programm: $PYTHON_SCRIPT"
-  python "$PYTHON_SCRIPT" sic
+  echo "Starte das Python-Programm im SIC-Modus: $PYTHON_SCRIPT"
+  python "$PYTHON_SCRIPT" --controller sic
 else
   echo "Fehler: Python-Skript $PYTHON_SCRIPT nicht gefunden."
 fi
 
-# Deaktivieren der virtuellen Umgebung
 echo "Beende die virtuelle Umgebung..."
 deactivate
-
-

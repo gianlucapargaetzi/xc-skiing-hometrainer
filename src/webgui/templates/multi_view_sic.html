@@ -2,85 +2,78 @@
 <html lang="de">
 <head>
   <meta charset="utf-8" />
-  <title>Dual View</title>
+  <title>Dual View SIC</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/static/css/style.css" />
   <style>
-    :root {
-      --brand-orange: #ff7b00; /* Orange aus dem x-ski Look */
-      --text-on-orange: #ffffff;
+    html, body {
+      height: 100%;
+      margin: 0;
     }
-
-    html, body { height: 100%; margin: 0; }
 
     body {
       display: flex;
-      flex-direction: column; /* Kopfzeile oben, Inhalt darunter */
+      flex-direction: column;
       background: #f5f5f5;
     }
 
-    /* Kopfzeile */
-    .header {
+    #header-mount {
+      flex: 0 0 auto;
+    }
+
+    .main {
+      flex: 1 1 auto;
       display: flex;
-      align-items: center;
-      gap: 16px;
-      padding: 10px 20px;
-      background-color: var(--brand-orange);
-      color: var(--text-on-orange);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      min-height: 0;
     }
-    .header-left { display: flex; align-items: center; flex: 0 0 auto; }
-    .logo { height: 56px; display: block; }
-    .header-right {
-      display: grid; grid-template-columns: auto; row-gap: 4px; line-height: 1.2;
+
+    iframe {
+      flex: 1 1 50%;
+      border: none;
+      min-width: 0;
+      background: #ffffff;
     }
-    .user-name { font-size: 22px; font-weight: 700; }
-    .user-meta { font-size: 16px; opacity: 0.95; }
 
-    /* Aktionen rechts (Zahnrad) */
-    .header-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; }
-    .gear { width: 28px; height: 28px; display: inline-block; cursor: pointer; transition: transform .1s ease, opacity .15s ease; }
-    .gear:hover { opacity: .9; transform: rotate(-6deg); }
-    .gear-active { filter: drop-shadow(0 0 4px rgba(255,255,255,.9)); }
-
-    /* Hauptbereich mit 2 iframes nebeneinander */
-    .main { flex: 1 1 auto; display: flex; min-height: 0; }
-    iframe { flex: 1 1 50%; border: none; min-width: 0; }
-
-    /* Kleine Displays: iframes untereinander stapeln */
     @media (max-width: 900px) {
-      .main { flex-direction: column; }
-      iframe { flex-basis: 50%; height: 50vh; }
+      .main {
+        flex-direction: column;
+      }
+
+      iframe {
+        flex-basis: 50%;
+        height: 50vh;
+      }
     }
   </style>
 </head>
 <body>
 
-  <!-- Header wird dynamisch aus Flask geholt -->
   <div id="header-mount"></div>
 
-  <!-- Zwei Ansichten nebeneinander -->
   <div class="main">
-    <iframe src="http://localhost:5000/simple" title="Simple Intensity Controller"></iframe>
-    <iframe src="http://localhost:5000/dashboard" title="Dashboard"></iframe>
+    <iframe src="/simple" title="Simple Intensity Controller"></iframe>
+    <iframe src="/dashboard" title="Dashboard"></iframe>
   </div>
 
   <script>
-    // Seite ist bereit für dein Backend (dein bestehendes Verhalten)
-    fetch("/page_ready", { method: "POST" });
+    fetch("/page_ready", { method: "POST" }).catch(() => {});
 
-    // Header-Fragment vom Server laden (serverseitig schon mit Userdaten gerendert)
-    (async () => {
+    async function loadHeader(activeName) {
       try {
-        const res = await fetch("/header?active=dual", { cache: "no-store" });
+        const res = await fetch(`/header?active=${encodeURIComponent(activeName)}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const html = await res.text();
         document.getElementById("header-mount").innerHTML = html;
       } catch (e) {
         console.error("Konnte /header nicht laden:", e);
-        // Fallback: minimaler Titel
         document.getElementById("header-mount").innerHTML =
-          '<div class="header"><div class="header-left"><strong>x-ski</strong></div></div>';
+          '<div style="padding:10px 20px;background:#ff7b00;color:#fff;font-weight:bold;">x-ski</div>';
       }
-    })();
+    }
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      await loadHeader("dual");
+    });
   </script>
 
 </body>

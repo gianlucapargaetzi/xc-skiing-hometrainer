@@ -1,72 +1,94 @@
 # Utils/ble_manager.py
 
-import asyncio
 from threading import Lock, Thread
-from bleak import BleakClient
-from Utils.ble_power_meter_module import BLEPowerServer
 
-HR_SERVICE_UUID = "0000180d-0000-1000-8000-00805f9b34fb"
-HR_MEASUREMENT_CHAR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"
-MODEL_NUMBER_UUID = "00002a24-0000-1000-8000-00805f9b34fb"
+from Utils.ble_power_meter_module import BLEPowerServer
 
 
 class BLEManager:
-    def __init__(self, hr_sensor_address: str):
-        self.hr_sensor_address = hr_sensor_address
-        self.heart_rate = 0
-        self.hr_lock = Lock()
-        self.page_loaded = False
-        self.page_lock = Lock()
+    """
+    Nur noch BLE-Ausgang für MyWhoosh / FTMS.
+    Kein eingehender HR-Sensor mehr in dieser Klasse.
+    """
 
-        # Power-Meter-Server starten
-        self.ble_server = BLEPowerServer()
-        self.t_ble = Thread(target=self.ble_server.start, daemon=True)
-        self.t_ble.start()
+    _server_lock = Lock()
+    _shared_ble_server = None
+    _shared_ble_thread = None
 
-        # Herzfrequenz-Thread starten
-        self.t_hr = Thread(target=self._start_hr_ble, daemon=True)
-        self.t_hr.start()
+    def __init__(
+        self,
+        enable_ftms: bool = True,
+        ftms_device_name: str = "x-ski FTMS",
+        ftms_adapter: str = "hci0",
+    ):
+        self.enable_ftms = bool(enable_ftms)
+        self.ftms_device_name = ftms_device_name
+        self.ftms_adapter = ftms_adapter
 
-    def hr_measurement_handler(self, sender, data: bytearray):
-        if not data:
+        if self.enable_ftms:
+            self._ensure_power_server(
+                local_name=self.ftms_device_name,
+                adapter=self.ftms_adapter,
+            )
+
+    @classmethod
+    def _ensure_power_server(cls, local_name="x-ski FTMS", adapter="hci0"):
+        with cls._server_lock:
+            if cls._shared_ble_server is not None:
+                return
+
+            cls._shared_ble_server = BLEPowerServer(
+                adapter=adapter,
+                local_name=local_name,
+            )
+            cls._shared_ble_thread = Thread(
+                target=cls._shared_ble_server.start,
+                daemon=True,
+                name="ble-ftms-server",
+            )
+            cls._shared_ble_thread.start()
+            print(f"✅ BLE FTMS Rower Server gestartet ({local_name} auf {adapter})")
+
+    def close(self):
+        # Shared FTMS-Server bleibt absichtlich bestehen.
+        pass
+
+    def reset_rower_session(self):
+        with self.__class__._server_lock:
+            server = self.__class__._shared_ble_server
+
+        if server is not None and hasattr(server, "reset"):
+            server.reset()
+
+    def update_rower_metrics(
+        self,
+        *,
+        stroke_rate_spm: float,
+        stroke_count: int,
+        total_distance_m: float,
+        pace_s_per_500: int,
+        avg_pace_s_per_500: int,
+        power_w: int,
+        avg_power_w: int,
+        hr_bpm: int,
+        elapsed_s: int,
+        running: bool,
+    ):
+        with self.__class__._server_lock:
+            server = self.__class__._shared_ble_server
+
+        if server is None:
             return
-        flags = data[0]
-        hr_16bit = flags & 0x01
-        if hr_16bit and len(data) >= 3:
-            value = int.from_bytes(data[1:3], byteorder="little")
-        elif len(data) >= 2:
-            value = data[1]
-        else:
-            return
-        with self.hr_lock:
-            self.heart_rate = int(value)
 
-    async def _connect_heart_rate_sensor(self):
-        KNOWN_MODELS = {"INW4J": "Polar Verity Sense", "H10": "Polar H10"}
-        address = self.hr_sensor_address
-        print(f"🔗 Versuche Verbindung mit Herzsensor unter {address}...")
-        try:
-            client = BleakClient(address)
-            await client.connect()
-            try:
-                model_number = await client.read_gatt_char(MODEL_NUMBER_UUID)
-                model_code = model_number.decode("utf-8", errors="ignore").strip()
-                friendly_name = KNOWN_MODELS.get(model_code, f"Unbekanntes Modell ({model_code})")
-                print(f"📦 Modell erkannt: {friendly_name}")
-            except Exception as e:
-                print(f"ℹ️ Modellnummer konnte nicht gelesen werden: {e}")
-            await client.start_notify(HR_MEASUREMENT_CHAR_UUID, self.hr_measurement_handler)
-            print("📡 Herzfrequenzübertragung aktiv")
-            while True:
-                await asyncio.sleep(1)
-        except Exception as e:
-            print(f"❌ Verbindung fehlgeschlagen: {e}")
-
-    def _start_hr_ble(self):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(self._connect_heart_rate_sensor())
-
-    def get_heart_rate(self) -> int:
-        with self.hr_lock:
-            return self.heart_rate
+        server.update_rower_metrics(
+            stroke_rate_spm=stroke_rate_spm,
+            stroke_count=stroke_count,
+            total_distance_m=total_distance_m,
+            pace_s_per_500=pace_s_per_500,
+            avg_pace_s_per_500=avg_pace_s_per_500,
+            power_w=power_w,
+            avg_power_w=avg_power_w,
+            hr_bpm=hr_bpm,
+            elapsed_s=elapsed_s,
+            running=running,
+        )

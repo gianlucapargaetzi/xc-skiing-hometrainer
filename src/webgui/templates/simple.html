@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -63,11 +63,18 @@
         button:hover {
             filter: brightness(1.2);
         }
+
+        .meta {
+            margin-top: 20px;
+            font-size: 28px;
+            color: #666;
+        }
     </style>
 </head>
 <body>
 
 <div id="display">50</div>
+<div class="meta">Bereich: 0–200</div>
 
 <div id="controls">
     <button id="decrement">-</button>
@@ -81,9 +88,26 @@
 
 <script>
     const display = document.getElementById('display');
+    const MAX_VALUE = 200;
+    const MIN_VALUE = 0;
+
+    function clampValue(value) {
+        const num = Number(value);
+        if (Number.isNaN(num)) return MIN_VALUE;
+        return Math.max(MIN_VALUE, Math.min(num, MAX_VALUE));
+    }
 
     function updateDisplay(value) {
-        display.innerText = value;
+        const clamped = clampValue(value);
+        display.innerText = clamped;
+
+        if (clamped >= MAX_VALUE) {
+            display.style.color = "#e53935";
+        } else if (clamped >= 150) {
+            display.style.color = "#ff7b00";
+        } else {
+            display.style.color = "#000";
+        }
     }
 
     function incrementValue() {
@@ -128,7 +152,6 @@
     document.getElementById('set_to_20').addEventListener('click', setTo20);
     document.getElementById('stop').addEventListener('click', stopAction);
 
-    // Initial load
     fetch('/get_value')
         .then(response => response.json())
         .then(data => updateDisplay(data.value))

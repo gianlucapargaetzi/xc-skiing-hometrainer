@@ -1,51 +1,82 @@
-
 import math
 
 
-def distance_per_cycle(P, sequence_freq, mass=75, mu=0.02)->float:
+def distance_per_stroke(power_w, cadence_spm, mass=75.0, mu=0.02) -> float:
+    """
+    Einfache Distanzabschätzung pro Zug auf Basis von:
+    - Leistung [W]
+    - Kadenz [spm]
+    - Masse [kg]
+    - Reibkoeffizient [-]
+    """
+    if power_w is None or power_w <= 0:
+        return 0.0
+
+    if cadence_spm is None or cadence_spm <= 0:
+        return 0.0
+
+    if mass <= 0 or mu <= 0:
+        return 0.0
+
     g = 9.81
-    
-    cadence_hz = sequence_freq / 60.0
-    T = 1/cadence_hz
+    cadence_hz = float(cadence_spm) / 60.0
+    stroke_time_s = 1.0 / cadence_hz
 
-    W = P*T
+    work_j = float(power_w) * stroke_time_s
+    friction_force_n = float(mu) * float(mass) * g
 
-    F = mu * mass * g
+    if friction_force_n <= 0:
+        return 0.0
 
-    ds = W/F
-    return ds
+    distance_m = work_j / friction_force_n
+    return max(distance_m, 0.0)
 
-def distance_per_cycle_dynamic(P, mass=75.0, mu=0.02, cadence_rpm=48.0,
-                                T_s=0.3, s_s=1.1, slope_percent=0.0, k=3.6):
+
+def distance_per_stroke_dynamic(
+    power_w,
+    mass=75.0,
+    mu=0.02,
+    cadence_spm=48.0,
+    T_s=0.3,
+    s_s=1.1,
+    slope_percent=0.0,
+    k=3.6
+) -> float:
     """
-    Realistisch kalibrierte Distanzberechnung pro Doppelstock-Zyklus.
+    Erweiterte Distanzabschätzung pro Zug.
+
+    Aktuell konservativ umgesetzt:
+    - Leistung
+    - Reibung
+    - Steigung
+
+    T_s, s_s und k bleiben vorerst als Platzhalter für spätere Verfeinerungen erhalten.
     """
-    # g = 9.81
-    # if cadence_rpm > 0:
-    #     cadence_hz = cadence_rpm / 60.0
-    #     T = 1.0 / cadence_hz
-    # else:
-    #     T = T_s
+    if power_w is None or power_w <= 0:
+        return 0.0
 
-    # if T == 0:
-    #     return 0
+    if cadence_spm is None or cadence_spm <= 0:
+        return 0.0
 
+    if mass <= 0 or mu < 0:
+        return 0.0
 
-    # T_g = T - T_s
-    # E = P * T
+    g = 9.81
+    cadence_hz = float(cadence_spm) / 60.0
+    cycle_time_s = 1.0 / cadence_hz
 
-    # F_reib = mu * mass * g
-    # theta_rad = math.atan(slope_percent / 100.0)
-    # F_slope = mass * g * math.sin(theta_rad)
-    # F_total = F_reib + F_slope
+    if cycle_time_s <= 0:
+        return 0.0
 
-    # E_s = E * (T_s / T)
-    # F_eff = k * E_s / s_s   # Skalierter Schub
+    work_j = float(power_w) * cycle_time_s
 
-    # a_s = (F_eff - F_total) / mass
-    # v_s = a_s * T_s
+    theta_rad = math.atan(float(slope_percent) / 100.0)
+    friction_force_n = float(mu) * float(mass) * g
+    slope_force_n = float(mass) * g * math.sin(theta_rad)
+    total_resisting_force_n = friction_force_n + slope_force_n
 
-    # a_g = -F_total / mass
-    # s_g = v_s * T_g + 0.5 * a_g * T_g**2
+    if total_resisting_force_n <= 0:
+        return 0.0
 
-    # return max(s_s + s_g, 0)
+    distance_m = work_j / total_resisting_force_n
+    return max(distance_m, 0.0)

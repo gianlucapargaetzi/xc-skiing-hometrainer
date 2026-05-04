@@ -1,0 +1,32 @@
+warmup:
+  type: duration_block
+  duration: 900
+  intensity_start: 60
+  intensity_end: 60
+
+transition_to_main:
+  type: transition
+  duration: 10
+  curve: ease
+
+main_set:
+  type: interval_block
+  block_amount: 5
+  on_duration: 300
+  on_intensity: 160
+  off_duration: 180
+  off_intensity: 60
+  transition:
+    type: ease
+    duration: 10
+
+cooldown_transition:
+  type: transition
+  duration: 10
+  curve: ease
+
+cooldown:
+  type: duration_block
+  duration: 900
+  intensity_start: 60
+  intensity_end: 60

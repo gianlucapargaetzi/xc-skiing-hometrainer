@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>x-ski Konfiguration</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #f5f5f5;
+      color: #222;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #header-mount {
+      flex: 0 0 auto;
+    }
+
+    .main {
+      flex: 1 1 auto;
+      display: flex;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .left-pane {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 14px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid #dddddd;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      padding: 14px;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 180px;
+    }
+
+    .field label {
+      font-size: 14px;
+      font-weight: 700;
+      color: #333;
+    }
+
+    select,
+    input[type="text"],
+    textarea,
+    button {
+      font-family: inherit;
+      font-size: 15px;
+    }
+
+    select,
+    input[type="text"] {
+      padding: 8px 10px;
+      border: 1px solid #bbbbbb;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #222;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      color: #ffffff;
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+      font-weight: 700;
+    }
+
+    button:disabled {
+      background: #9e9e9e !important;
+      cursor: default;
+    }
+
+    .btn-load { background: #546e7a; }
+    .btn-save { background: #1976d2; }
+    .btn-activate { background: #2e7d32; }
+    .btn-reload { background: #ef6c00; }
+    .btn-new { background: #6a1b9a; }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      font-size: 13px;
+      color: #666;
+      margin-top: 10px;
+    }
+
+    .editor-wrap {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .editor-wrap label {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    textarea {
+      flex: 1 1 auto;
+      width: 100%;
+      min-height: 0;
+      resize: none;
+      box-sizing: border-box;
+      padding: 12px;
+      border: 1px solid #bbbbbb;
+      border-radius: 10px;
+      background: #fcfcfc;
+      font-family: Consolas, Monaco, monospace;
+      font-size: 14px;
+      line-height: 1.45;
+      color: #222;
+    }
+
+    .status {
+      font-size: 14px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #f7f7f7;
+      border: 1px solid #e0e0e0;
+      min-height: 22px;
+      white-space: pre-wrap;
+    }
+
+    .status.ok {
+      color: #2e7d32;
+      border-color: rgba(46,125,50,0.25);
+      background: rgba(46,125,50,0.06);
+    }
+
+    .status.warn {
+      color: #ef6c00;
+      border-color: rgba(239,108,0,0.25);
+      background: rgba(239,108,0,0.06);
+    }
+
+    .status.err {
+      color: #c62828;
+      border-color: rgba(198,40,40,0.25);
+      background: rgba(198,40,40,0.06);
+    }
+
+    .small {
+      font-size: 13px;
+      color: #666;
+    }
+
+    @media (max-width: 1100px) {
+      .main {
+        flex-direction: column;
+      }
+
+      .left-pane {
+        flex: 1 1 auto;
+        padding: 12px;
+      }
+
+      textarea {
+        min-height: 320px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="header-mount"></div>
+
+  <div class="main">
+    <div class="left-pane">
+      <div class="card">
+        <div class="toolbar">
+          <div class="field">
+            <label for="configSelect">Konfigurationsdatei</label>
+            <select id="configSelect"></select>
+          </div>
+
+          <div class="field">
+            <label for="configFilename">Dateiname</label>
+            <input id="configFilename" type="text" value="x-ski.json" />
+          </div>
+
+          <div class="button-row">
+            <button id="newConfigButton" class="btn-new" type="button">Neu</button>
+            <button id="loadConfigButton" class="btn-load" type="button">Laden</button>
+            <button id="saveConfigButton" class="btn-save" type="button">Speichern</button>
+            <button id="activateConfigButton" class="btn-activate" type="button">Aktivieren</button>
+            <button id="reloadConfigButton" class="btn-reload" type="button">Reload Runtime</button>
+          </div>
+        </div>
+
+        <div class="meta-row">
+          <div>Aktiv: <span id="activeConfigName">--</span></div>
+          <div>Geladen: <span id="configSourceName">--</span></div>
+        </div>
+      </div>
+
+      <div class="card editor-wrap">
+        <label for="configEditor">JSON Editor</label>
+        <textarea id="configEditor" spellcheck="false"></textarea>
+      </div>
+
+      <div id="configStatus" class="status">Bereit</div>
+
+      <div class="small">
+        Speichern schreibt die Datei in <code>configs/</code>. Aktivieren kopiert sie nach <code>x-ski.json</code>.
+        Nach Speichern oder Aktivieren wird automatisch die Runtime-Konfiguration neu geladen.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const configSelect = document.getElementById("configSelect");
+    const configFilenameInput = document.getElementById("configFilename");
+    const configEditor = document.getElementById("configEditor");
+    const configStatus = document.getElementById("configStatus");
+    const activeConfigName = document.getElementById("activeConfigName");
+    const configSourceName = document.getElementById("configSourceName");
+
+    const loadButton = document.getElementById("loadConfigButton");
+    const saveButton = document.getElementById("saveConfigButton");
+    const activateButton = document.getElementById("activateConfigButton");
+    const reloadButton = document.getElementById("reloadConfigButton");
+    const newButton = document.getElementById("newConfigButton");
+
+    fetch("/page_ready", { method: "POST" }).catch(() => {});
+
+    async function loadHeader(activeName) {
+      try {
+        const res = await fetch(`/header?active=${encodeURIComponent(activeName)}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const html = await res.text();
+        document.getElementById("header-mount").innerHTML = html;
+      } catch (e) {
+        console.error("Konnte /header nicht laden:", e);
+        document.getElementById("header-mount").innerHTML =
+          '<div style="padding:10px 20px;background:#ff7b00;color:#fff;font-weight:bold;">x-ski</div>';
+      }
+    }
+
+    function setStatus(message, kind = "") {
+      configStatus.textContent = message;
+      configStatus.className = "status";
+      if (kind) configStatus.classList.add(kind);
+    }
+
+    function setBusy(isBusy) {
+      loadButton.disabled = isBusy;
+      saveButton.disabled = isBusy;
+      activateButton.disabled = isBusy;
+      reloadButton.disabled = isBusy;
+      newButton.disabled = isBusy;
+      configSelect.disabled = isBusy;
+      configFilenameInput.disabled = isBusy;
+    }
+
+    function defaultConfigTemplate() {
+      return `{
+  "hardware": {
+    "pulli_diameter": 50.0,
+    "rope_diameter": 3.0,
+    "top_position": 2000.0,
+    "pole_length": 1450.0,
+    "swing_length": 1100.0
+  },
+  "swing_torque": {
+    "swing_start_max_torque_pml": 200,
+    "swing_end_max_torque_pml": 500
+  },
+  "control": {
+    "min_torque_calib_pct": 15,
+    "min_speed_calib": 100,
+    "min_torque_pct": 20,
+    "CurrentLimit": 80,
+    "pull_speed": 1500,
+    "max_torque_pct": 200
+  },
+  "user": {
+    "weight_kg": 75.0,
+    "mu": 0.02,
+    "s_s": 1.1,
+    "slope_percent": 0.0,
+    "firstname": "x-ski",
+    "lastname": "Demonstration",
+    "birthdate": "2000-01-01",
+    "club": "x-ski.ch",
+    "email": "name@example.com",
+    "max_hr_bpm": 176,
+    "ftp_w": 140
+  },
+  "hr_sensor": {
+    "address": "24:AC:AC:03:F5:B4"
+  },
+  "drive": {
+    "host": "192.168.200.199",
+    "port": 502,
+    "unit_id": 0
+  }
+}`;
+    }
+
+    async function apiJson(url, options = {}) {
+      const res = await fetch(url, options);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || `HTTP ${res.status}`);
+      }
+      return data;
+    }
+
+    async function refreshFileList() {
+      const data = await apiJson("/api/config/list");
+      const files = data.files || [];
+      const active = data.active || "";
+
+      configSelect.innerHTML = "";
+
+      files.forEach(name => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        if (name === active) opt.selected = true;
+        configSelect.appendChild(opt);
+      });
+
+      activeConfigName.textContent = active || "--";
+
+      if (files.length && !configFilenameInput.value) {
+        configFilenameInput.value = files[0];
+      }
+
+      if (configSelect.value) {
+        configFilenameInput.value = configSelect.value;
+      }
+    }
+
+    async function loadSelectedConfig() {
+      const filename = (configSelect.value || configFilenameInput.value || "").trim();
+      if (!filename) {
+        throw new Error("Bitte zuerst eine Konfigurationsdatei auswählen.");
+      }
+
+      const data = await apiJson(`/api/config/get?name=${encodeURIComponent(filename)}`);
+      configEditor.value = data.content || "";
+      configFilenameInput.value = data.name || filename;
+      configSourceName.textContent = data.name || filename;
+      setStatus(`Datei geladen: ${filename}`, "ok");
+    }
+
+    async function saveConfig() {
+      const filename = (configFilenameInput.value || "").trim();
+      const content = configEditor.value;
+
+      if (!filename) {
+        throw new Error("Bitte einen Dateinamen angeben.");
+      }
+
+      JSON.parse(content);
+
+      const data = await apiJson("/api/config/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: filename, content })
+      });
+
+      await refreshFileList();
+      configSelect.value = filename;
+      configSourceName.textContent = filename;
+      return data;
+    }
+
+    async function activateConfig() {
+      const filename = (configFilenameInput.value || "").trim();
+      if (!filename) {
+        throw new Error("Bitte einen Dateinamen angeben.");
+      }
+
+      const data = await apiJson("/api/config/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: filename })
+      });
+
+      await refreshFileList();
+      activeConfigName.textContent = filename;
+      return data;
+    }
+
+    async function reloadRuntime() {
+      const data = await apiJson("/api/reload_config", {
+        method: "POST"
+      });
+
+      let msg = `Runtime neu geladen (Max HR: ${data.max_hr_bpm}, FTP: ${data.ftp_w})`;
+      const validationErrors = data?.reload_result?.validation_errors || [];
+
+      if (validationErrors.length) {
+        msg += `\nValidierung: ${validationErrors.join(" | ")}`;
+        setStatus(msg, "warn");
+      } else {
+        setStatus(msg, "ok");
+      }
+
+      return data;
+    }
+
+    async function saveAndReload() {
+      setBusy(true);
+      try {
+        setStatus("Speichere Konfiguration ...", "warn");
+        await saveConfig();
+        setStatus("Lade Runtime neu ...", "warn");
+        await reloadRuntime();
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function activateAndReload() {
+      setBusy(true);
+      try {
+        setStatus("Aktiviere Konfiguration ...", "warn");
+        await activateConfig();
+        setStatus("Lade Runtime neu ...", "warn");
+        await reloadRuntime();
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function reloadOnly() {
+      setBusy(true);
+      try {
+        setStatus("Lade Runtime neu ...", "warn");
+        await reloadRuntime();
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    loadButton.addEventListener("click", async () => {
+      setBusy(true);
+      try {
+        await loadSelectedConfig();
+      } catch (err) {
+        console.error(err);
+        setStatus(`Fehler beim Laden: ${err.message}`, "err");
+      } finally {
+        setBusy(false);
+      }
+    });
+
+    saveButton.addEventListener("click", async () => {
+      try {
+        await saveAndReload();
+      } catch (err) {
+        console.error(err);
+        setStatus(`Fehler beim Speichern: ${err.message}`, "err");
+      }
+    });
+
+    activateButton.addEventListener("click", async () => {
+      try {
+        await activateAndReload();
+      } catch (err) {
+        console.error(err);
+        setStatus(`Fehler beim Aktivieren: ${err.message}`, "err");
+      }
+    });
+
+    reloadButton.addEventListener("click", async () => {
+      try {
+        await reloadOnly();
+      } catch (err) {
+        console.error(err);
+        setStatus(`Fehler beim Reload: ${err.message}`, "err");
+      }
+    });
+
+    newButton.addEventListener("click", () => {
+      configEditor.value = defaultConfigTemplate();
+      configFilenameInput.value = "x-ski.new.json";
+      configSourceName.textContent = "neue Datei";
+      setStatus("Neue Vorlage eingefügt.", "ok");
+    });
+
+    configSelect.addEventListener("change", () => {
+      if (configSelect.value) {
+        configFilenameInput.value = configSelect.value;
+      }
+    });
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      setBusy(true);
+      try {
+        await loadHeader("config");
+        await refreshFileList();
+
+        if (configSelect.value) {
+          await loadSelectedConfig();
+        } else {
+          configEditor.value = defaultConfigTemplate();
+          setStatus("Keine Datei gefunden – Vorlage geladen.", "warn");
+        }
+      } catch (err) {
+        console.error(err);
+        configEditor.value = defaultConfigTemplate();
+        setStatus(`Initialisierung mit Vorlage: ${err.message}`, "warn");
+      } finally {
+        setBusy(false);
+      }
+    });
+  </script>
+</body>
+</html>

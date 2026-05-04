@@ -7,11 +7,36 @@
     <div class="user-name">
       {{ (user.firstname or '') ~ ' ' ~ (user.lastname or '') }}
     </div>
+
     {% if user.birthdate %}
       <div class="user-meta">Geburtsdatum: {{ user.birthdate }}</div>
     {% endif %}
+
     {% if user.club %}
       <div class="user-meta">Verein: {{ user.club }}</div>
     {% endif %}
+
+    {% if user.max_hr_bpm %}
+      <div class="user-meta">HFmax: {{ user.max_hr_bpm }} bpm</div>
+    {% endif %}
+
+    {% if user.ftp_w %}
+      <div class="user-meta">FTP: {{ user.ftp_w }} W</div>
+    {% endif %}
+  </div>
+
+  <div class="header-actions">
+    <a href="/config" title="Konfiguration" target="_blank" rel="noopener noreferrer">
+      <svg class="gear {% if active == 'config' %}gear-active{% endif %}"
+           xmlns="http://www.w3.org/2000/svg"
+           fill="none"
+           viewBox="0 0 24 24"
+           stroke="currentColor">
+        <path stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M11.983 5.5c.321-1.4 2.013-1.4 2.334 0l.273 1.19a1.5 1.5 0 001.09 1.09l1.19.273c1.4.321 1.4 2.013 0 2.334l-1.19.273a1.5 1.5 0 00-1.09 1.09l-.273 1.19c-.321 1.4-2.013 1.4-2.334 0l-.273-1.19a1.5 1.5 0 00-1.09-1.09l-1.19-.273c-1.4-.321-1.4-2.013 0-2.334l1.19-.273a1.5 1.5 0 001.09-1.09l.273-1.19z"/>
+      </svg>
+    </a>
   </div>
 </div>
