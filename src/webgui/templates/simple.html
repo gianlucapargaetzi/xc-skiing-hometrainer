@@ -59,6 +59,8 @@
         button#decrement { background-color: #ff7b00; color: white; }
         button#set_to_20 { background-color: #2196F3; color: white; }
         button#stop { background-color: #e53935; color: white; }
+        button#pause { background-color: #607D8B; color: white; margin-right: 40px; }
+        button:disabled { opacity: .45; cursor: default; }
 
         button:hover {
             filter: brightness(1.2);
@@ -83,6 +85,7 @@
 </div>
 
 <div id="stop-button-container">
+    <button id="pause" data-xski-pause disabled>Pause</button>
     <button id="stop">Stop</button>
 </div>
 
@@ -131,26 +134,11 @@
             .catch(error => console.error('Error:', error));
     }
 
-    function stopAction() {
-        fetch('/stop', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ active: false })
-        })
-        .then(response => {
-            if (response.ok) {
-                console.log('Stop action sent successfully.');
-            } else {
-                console.error('Failed to send stop action.');
-            }
-        })
-        .catch(error => console.error('Error:', error));
-    }
-
     document.getElementById('increment').addEventListener('click', incrementValue);
     document.getElementById('decrement').addEventListener('click', decrementValue);
     document.getElementById('set_to_20').addEventListener('click', setTo20);
-    document.getElementById('stop').addEventListener('click', stopAction);
+    // Stop: Abfrage (kurze Trainings speichern?), dann zurück ins Startmenü – siehe session_end.js
+    document.getElementById('stop').addEventListener('click', () => window.xskiStop());
 
     fetch('/get_value')
         .then(response => response.json())
@@ -158,5 +146,6 @@
         .catch(error => console.error('Error:', error));
 </script>
 
+<script src="/static/js/session_end.js"></script>
 </body>
 </html>

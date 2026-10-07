@@ -7,6 +7,7 @@ import argparse
 import os
 import sys
 import threading
+import time
 import webbrowser
 from pathlib import Path
 from typing import List, Optional
@@ -22,6 +23,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 XSKI_SCRIPT = SCRIPT_DIR / "x-ski.py"
 ROUTES_DIR = SCRIPT_DIR.parent / "routes"
 PORT = 5000
+# Ohne Lebenszeichen vom Browser (Startseite fragt alle 5 s nach) beendet sich x-ski. Grosszügig, weil
+# Browser Zeitgeber in Hintergrund-Tabs auf 1×/min drosseln.
+BROWSER_TIMEOUT_S = 90
+STRAVA_CONNECT_GRACE_S = 900   # beim Verbinden mit Strava ist der Browser länger auf strava.com
 
 MODES = {
     # Modus -> Startseite in x-ski
@@ -66,6 +71,26 @@ def create_app(args) -> Flask:
 
     load_config()
     starting = threading.Event()
+    alive = {"until": time.monotonic() + BROWSER_TIMEOUT_S}   # Frist bis zum nächsten Lebenszeichen
+    app.config["XSKI_ALIVE"] = alive
+
+    @app.before_request
+    def browser_seen():
+        grace = STRAVA_CONNECT_GRACE_S if request.path == "/strava/connect" else BROWSER_TIMEOUT_S
+        alive["until"] = max(alive["until"], time.monotonic() + grace)
+
+    @app.route("/api/alive")
+    def api_alive():
+        return jsonify({"ok": True})
+
+    @app.route("/api/quit", methods=["POST"])
+    def api_quit():
+        if not allow_remote and request.remote_addr not in ("127.0.0.1", "::1"):
+            return jsonify({"ok": False, "message": "x-ski kann nur direkt am Gerät beendet werden."}), 403
+        print("🛑 x-ski wird beendet (Kachel «Beenden»).", flush=True)
+        threading.Timer(0.5, lambda: os._exit(0)).start()
+        return jsonify({"ok": True})
+
     allow_remote = os.environ.get("X_SKI_ALLOW_REMOTE_CONFIG", "0") == "1"
     app.register_blueprint(create_profile_blueprint(cfg_manager, on_saved=load_config, allow_remote=allow_remote))
 
@@ -77,7 +102,7 @@ def create_app(args) -> Flask:
     def header():
         return render_template("partials/header.html", user=state["config"].get("user", {}),
                                active=request.args.get("active", "start"), show_route=False, mode=None,
-                               show_config=False)
+                               show_config=False, show_quit=request.args.get("active", "start") == "start")
 
     route_cache = {}  # Dateiname -> ((Änderungszeit, Grösse), Eintrag)
 
@@ -165,6 +190,16 @@ def create_app(args) -> Flask:
     return app
 
 
+def watch_browser(app):
+    """x-ski beenden, wenn der Browser geschlossen wurde (kein Lebenszeichen mehr innerhalb der Frist)."""
+    alive = app.config["XSKI_ALIVE"]
+    while True:
+        time.sleep(5)
+        if time.monotonic() > alive["until"]:
+            print("🛑 Browser geschlossen (kein Lebenszeichen) – x-ski wird beendet.", flush=True)
+            os._exit(0)
+
+
 def main():
     parser = argparse.ArgumentParser(description="x-ski Startmenü")
     parser.add_argument("--config", dest="config_path", default=None)
@@ -175,6 +210,7 @@ def main():
 
     app = create_app(args)
     print(f"🏠 x-ski Startmenü: http://localhost:{args.port}/", flush=True)
+    threading.Thread(target=watch_browser, args=(app,), daemon=True, name="browser-watch").start()
     if not args.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(f"http://localhost:{args.port}/")).start()
     app.run(host=args.host, port=args.port, debug=False, use_reloader=False)

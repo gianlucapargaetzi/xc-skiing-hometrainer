@@ -115,3 +115,19 @@ def test_start_calibration(client):
     assert len(started) == 1
     a = launcher.build_xski_argv("calib", None, config_path=None, host="0.0.0.0", no_browser=False)
     assert a[3:5] == ["--mode", "calib"] and "--route" not in a
+
+
+def test_browser_heartbeat_and_quit(client, monkeypatch):
+    c, _ = client
+    alive = c.application.config["XSKI_ALIVE"]
+    alive["until"] = 0.0
+    assert c.get("/api/alive").get_json() == {"ok": True}
+    assert alive["until"] > launcher.time.monotonic() + launcher.BROWSER_TIMEOUT_S - 5
+    # Header der Startseite hat die Kachel «Beenden», das Profil nicht
+    assert "quit-tile" in c.get("/header").get_data(as_text=True)
+    assert "quit-tile" not in c.get("/header?active=profil").get_data(as_text=True)
+    exits = []
+    monkeypatch.setattr(launcher.os, "_exit", lambda code: exits.append(code))
+    r = c.post("/api/quit", environ_base={"REMOTE_ADDR": "127.0.0.1"})
+    assert r.get_json()["ok"] is True
+    assert c.post("/api/quit", environ_base={"REMOTE_ADDR": "192.168.1.20"}).status_code == 403

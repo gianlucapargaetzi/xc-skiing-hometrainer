@@ -58,6 +58,7 @@
     button#load { background-color: #4CAF50; }
     button#startButton { background-color: #2e7d32; }
     button#stopButton { background-color: #e53935; }
+    button#pauseButton { background-color: #607D8B; }
     button#backButton { background-color: #ff7b00; }
     button#previousBlockButton { background-color: #607D8B; }
     button#nextBlockButton { background-color: #3F51B5; }
@@ -198,6 +199,7 @@
   <div class="control-panel">
     <div class="control-row primary-controls">
       <button id="startButton" onclick="startTraining()" disabled>START/RESTART</button>
+      <button id="pauseButton" type="button" data-xski-pause disabled>Pause</button>
       <button id="stopButton" onclick="stopTraining()" disabled>STOP</button>
       <button id="backButton" style="display:none;" onclick="showForms()">Auswahl</button>
     </div>
@@ -641,34 +643,8 @@
     }
 
     async function stopTraining() {
-      if (!confirm("Training wirklich stoppen?")) {
-        return;
-      }
-
-      try {
-        const result = await fetchJson('/stop', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-
-        if (result.success || result.status === 'stopped') {
-          alert("Training wurde gestoppt.");
-          if (typeof result.time === 'number') {
-            updateMarker(result.time);
-          }
-          updateBlockStateFromPayload(result);
-          const btn = document.getElementById('stopButton');
-          btn.disabled = true;
-          btn.innerText = 'Gestoppt';
-          btn.style.backgroundColor = '#4CAF50';
-          setStatus('Training gestoppt. Mit START kannst du wieder von vorne beginnen.');
-        } else {
-          alert("Fehler beim Stoppen des Trainings.");
-        }
-      } catch (error) {
-        console.error('Fehler beim Stoppen:', error);
-        alert(`Verbindungsfehler beim Stoppen: ${error.message}`);
-      }
+      // Abfrage (kurze Trainings speichern?), Training beenden, zurück ins Startmenü – siehe session_end.js
+      await window.xskiStop();
     }
 
     window.onload = () => {
@@ -676,5 +652,6 @@
       fetchFileList();
     };
   </script>
+<script src="/static/js/session_end.js"></script>
 </body>
 </html>

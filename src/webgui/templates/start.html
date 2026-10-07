@@ -278,6 +278,8 @@
 
   // Immer den aktuellen Inhalt des Streckenordners zeigen (neu abgelegte oder gelöschte GPX-Dateien)
   setInterval(() => { if (!document.querySelector("dialog[open]")) loadInfo(); }, 5000);
+  // Lebenszeichen fürs Startmenü – auch wenn der Abschnitt-Dialog offen ist (sonst beendet sich x-ski)
+  setInterval(() => fetch("/api/alive", { cache: "no-store" }).catch(() => {}), 10000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { loadInfo(); loadProfiles(); } });
   // Auch wenn der Browser die Seite aus dem Zwischenspeicher zeigt (z.B. nach «Zurück»): alles neu laden
   window.addEventListener("pageshow", (ev) => { if (ev.persisted) { loadHeader(); loadInfo(); loadProfiles(); } });
@@ -472,6 +474,16 @@
     overlay.style.display = "none";
     document.getElementById("error").textContent = "x-ski ist nicht gestartet – bitte die Konsole prüfen.";
   }
+
+  // ---------------------- Beenden ----------------------
+  window.xskiQuit = async () => {
+    if (!confirm("x-ski beenden?")) return;
+    try { await fetch("/api/quit", { method: "POST" }); } catch (e) { /* beendet sich gerade */ }
+    document.body.innerHTML = '<div style="display:grid;place-items:center;height:100vh;font:700 28px sans-serif;' +
+      'color:#12324a;text-align:center">x-ski ist beendet.<br><span style="font-size:20px;font-weight:400">' +
+      'Das Fenster kann geschlossen werden.</span></div>';
+    setTimeout(() => window.close(), 800);
+  };
 
   // ---------------------- Profil ----------------------
   const PROFILES_PER_PAGE = 3;   // Spalte 4: «Bearbeiten» / «Neu»

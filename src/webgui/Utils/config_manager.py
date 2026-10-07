@@ -24,13 +24,13 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "control": {
         "min_torque_calib_pct": 15,
         "min_speed_calib": 100,
-        "min_torque_pct": 20,
-        "CurrentLimit": 80,
-        "pull_speed": 1500,
-        "max_torque_pct": 200,
-        "simple_initial_power_pct": 50,
-        # Rückzugskraft (Seil nach dem Stoss zurückholen) in % des Nenndrehmoments; Standard = min_torque_pct
-        "recovery_torque_pct": 20
+        "min_torque_pct": 5,
+        "CurrentLimit": 100,
+        "pull_speed": 3000,
+        "max_torque_pct": 250,
+        "simple_initial_power_pct": 70,
+        # Rückzugskraft (Seil nach dem Stoss zurückholen) in % des Nenndrehmoments; am Gerät abgestimmt 2026-10-07
+        "recovery_torque_pct": 30
     },
     "user": {
         "weight_kg": 75.0,

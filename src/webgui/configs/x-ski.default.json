@@ -19,7 +19,7 @@
     "max_torque_pct": 250,
     "simple_initial_power_pct": 70.0,
     "initial_zone": 2,
-    "recovery_torque_pct": 10.0
+    "recovery_torque_pct": 30.0
   },
   "user": {
     "weight_kg": 75.0,

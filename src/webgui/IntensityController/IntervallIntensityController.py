@@ -726,12 +726,18 @@ class IntervallIntensityController(BackendNode, IntensityControllerInterface):
         BackendNode.stop(self)
 
     def pause(self):
+        """Ablauf anhalten (Zeitachse steht); der Publisher läuft weiter, damit die Anzeige aktuell bleibt."""
         if self._controller_state == ControllerState.RUNNING:
             Logger().info(f"{self}: Pausing")
             self._elapsed = time() - self._start_time
             self._controller_state = ControllerState.PAUSED
 
-        BackendNode.stop(self)
+    def resume(self):
+        """Nach pause() an derselben Stelle weiterfahren."""
+        if self._controller_state == ControllerState.PAUSED and self.active:
+            Logger().info(f"{self}: Resuming at t={int(self._elapsed)}s")
+            self._start_time = time() - self._elapsed
+            self._controller_state = ControllerState.RUNNING
 
     def getIntensity(self) -> float:
         if self._interval is None or not self._interval.isValid():

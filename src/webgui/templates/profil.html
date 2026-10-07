@@ -181,11 +181,23 @@
       btn.disabled = false;
     }
   });
-  // Zur Startseite immer neu laden (nicht aus dem Browser-Zwischenspeicher), damit Profilnamen aktuell sind
-  document.getElementById("back").addEventListener("click", () => { location.href = "/"; });
+  // Zurück dorthin, woher man kam (z.B. Trainingsansicht bei pausiertem Training), sonst zur Startseite.
+  // Immer neu laden (nicht aus dem Browser-Zwischenspeicher), damit geänderte Werte und Namen aktuell sind.
+  const backTarget = (() => {
+    try {
+      const ref = new URL(document.referrer);
+      if (ref.origin === location.origin && ref.pathname !== "/profil" && !ref.pathname.startsWith("/strava")) {
+        return ref.pathname + ref.search;
+      }
+    } catch (e) { /* kein Referrer */ }
+    return "/";
+  })();
+  document.getElementById("back").addEventListener("click", () => { location.href = backTarget; });
 
   loadHeader();
   load();
+  // Lebenszeichen fürs Startmenü (ohne beendet es sich, wenn der Browser geschlossen wurde)
+  setInterval(() => fetch("/api/alive", { cache: "no-store" }).catch(() => {}), 10000);
 })();
 </script>
 </body>

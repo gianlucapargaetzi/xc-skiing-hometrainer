@@ -63,7 +63,9 @@
       border-radius: 12px; color: #fff; cursor: pointer; }
     #control-bar button:active { filter: brightness(0.9); }
     #c-dec { background: #ff7b00; } #c-inc { background: #4CAF50; } #c-20 { background: #2196F3; font-size: 20px !important; }
-    #c-stop { background: #e53935; margin-left: 24px; font-size: 22px !important; min-width: 110px !important; }
+    #c-stop { background: #e53935; font-size: 22px !important; min-width: 110px !important; }
+    #c-pause { background: #607D8B; margin-left: 24px; font-size: 20px !important; min-width: 130px !important; }
+    #c-pause:disabled { opacity: .45; }
     #c-value { min-width: 190px; text-align: center; }
     #c-value .num { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
     #c-value .what { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-top: 4px; }
@@ -116,6 +118,7 @@
       <button type="button" data-t="dp">Double Poling</button>
       <button type="button" data-t="diagonal">Diagonal</button>
     </div>
+    <button id="c-pause" type="button" data-xski-pause disabled>Pause</button>
     <button id="c-stop" type="button">Stop</button>
   </div>
   <div id="profile-wrap"><canvas id="profile"></canvas></div>
@@ -483,11 +486,12 @@
   document.getElementById("c-dec").addEventListener("click", () => control("/decrement"));
   document.getElementById("c-inc").addEventListener("click", () => control("/increment"));
   document.getElementById("c-20").addEventListener("click", () => control("/set_to_20"));
-  document.getElementById("c-stop").addEventListener("click", () => control("/stop"));
+  document.getElementById("c-stop").addEventListener("click", () => window.xskiStop());
 
   try { initMap(); } catch (e) { console.error("Karte:", e); }
   loadRoutes();   // unabhängig von der Karte
 })();
 </script>
+<script src="/static/js/session_end.js"></script>
 </body>
 </html>

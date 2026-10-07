@@ -78,7 +78,7 @@ class Settings:
     diagonal_arm_share: float = 0.4           # Anteil der Arme am Vortrieb im Diagonalschritt
 
     # Rückzug (Seil nach dem Stoss zurückholen): Drehmoment in %; Standard = Grundzug min_torque_pct
-    recovery_torque_pct: float = 20.0
+    recovery_torque_pct: float = 30.0
 
     # Strava: FIT nach dem Training automatisch hochladen
     strava_auto_upload: bool = False

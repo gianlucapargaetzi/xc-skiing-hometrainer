@@ -32,6 +32,9 @@
     <a href="/sic" title="Training ohne Karte" class="nav-link {% if active == 'dual' %}nav-active{% endif %}">Training</a>
     {% endif %}
     <a href="/profil" title="Profil" class="nav-link {% if active == 'profil' %}nav-active{% endif %}" target="_top">Profil</a>
+    {% if show_quit %}
+    <button type="button" class="quit-tile" onclick="window.xskiQuit && window.xskiQuit()">Beenden</button>
+    {% endif %}
     {% if show_config is not defined or show_config %}
     <a href="/config" title="Konfiguration" target="_blank" rel="noopener noreferrer">
       <svg class="gear {% if active == 'config' %}gear-active{% endif %}"

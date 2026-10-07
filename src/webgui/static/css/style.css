@@ -238,3 +238,9 @@ color: #daa520;
 .header-actions .nav-link { color: inherit; text-decoration: none; font-weight: 600; font-size: 14px;
   padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.6); }
 .header-actions .nav-link.nav-active { background: rgba(255, 255, 255, 0.25); }
+
+/* Startmenü: x-ski beenden (gross genug für den Touchscreen) */
+.header-actions .quit-tile { font: inherit; font-size: 20px; font-weight: 800; min-height: 60px; padding: 8px 22px;
+  border-radius: 14px; border: 2px solid #fff; background: #fff; color: #b91c1c; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); margin-left: 8px; }
+.header-actions .quit-tile:active { background: #fde8e8; }

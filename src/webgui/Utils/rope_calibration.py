@@ -84,14 +84,18 @@ def force_n_to_torque_pct(force_n: float, drum_radius_m: float, rated_torque_nm:
     return 100.0 * force_n * drum_radius_m / rated_torque_nm if rated_torque_nm > 0 else 0.0
 
 
+MAX_PLAUSIBLE_MASS_KG = 4.0     # Seil, Griff, Trommel und Motor; mehr deutet auf eine bremsende Hand hin
+
+
 def fit_mass_friction(points):
     """points: [(Beschleunigung m/s², Motorkraft N)] -> (Masse kg, Reibung N) oder None.
-    Gerade F = m·a + F_reib; braucht mindestens zwei verschiedene Kräfte."""
+    Gerade F = m·a + F_reib; braucht mindestens zwei verschiedene Kräfte. Unplausibel (None):
+    zu grosse Masse, oder Reibung grösser als die kleinste Kraft, bei der das Seil trotzdem hochlief."""
     if len(points) < 3 or len({round(f, 3) for _, f in points}) < 2:
         return None
     a = np.array([p[0] for p in points]); f = np.array([p[1] for p in points])
     m, f0 = np.polyfit(a, f, 1)
-    if not (0.05 <= m <= 20.0):
+    if not (0.05 <= m <= MAX_PLAUSIBLE_MASS_KG) or f0 >= f.min():
         return None
     return float(m), float(max(0.0, f0))
 
@@ -155,8 +159,8 @@ class RopeCalibration:
         for i, lvl in enumerate(FREE_LEVELS_PCT):
             self.steps.append(Step(
                 "free", f"Freilauf {i + 1}/{len(FREE_LEVELS_PCT)} – Zug {lvl:.0f} % (≈ {self._force(lvl):.0f} N)",
-                "Griff ruhig ca. 60–80 cm herausziehen, kurz still halten, dann LOSLASSEN. "
-                "Das Seil läuft allein hoch – nicht bremsen, oben locker auffangen.",
+                "Griff ruhig ca. 60–80 cm herausziehen, kurz still halten, dann GANZ LOSLASSEN. "
+                "Das Seil läuft allein hoch – Griff nicht berühren, erst oben auffangen.",
                 lvl, lvl, FREE_SPEED_RPM, 0.0, FREE_REPS, level=lvl))
         for lvl in LOAD_LEVELS_PCT:
             name = {40.0: "leicht", 70.0: "mittel", 100.0: "hart"}.get(lvl, f"{lvl:.0f} %")
@@ -378,7 +382,8 @@ class RopeCalibration:
             self.model_measured = True
         else:
             self.mass_kg, self.friction_n = FALLBACK_MASS_KG, FALLBACK_FRICTION_N
-            self.message = "Freilauf nicht auswertbar – Masse/Reibung geschätzt."
+            self.message = ("Freilauf nicht plausibel (Seil vermutlich gebremst) – Masse/Reibung geschätzt. "
+                            "Für eine Messung «Schritt wiederholen» und den Griff ganz loslassen.")
         accs = [e.return_acc_m_s2 for e in self._strokes("load")]
         a95 = float(np.percentile(accs, 95)) if accs else 0.0
         need_n = self.mass_kg * a95 + self.friction_n + TENSION_MARGIN_N
@@ -440,6 +445,19 @@ class RopeCalibration:
                     notes.append(f"Das Seil erreicht beim Zurückholen die Grenze von {SPEED_MAX_RPM:.0f} rpm.")
         self.result = {"recommended": rec, "notes": notes}
         self.state = "done"
+
+    def report(self) -> dict:
+        """Alle Messwerte (für die Datei im Log-Ordner)."""
+        with self.lock:
+            def ev(e):
+                return e if isinstance(e, dict) else e.__dict__
+            return {"current": self.current, "model": {"mass_kg": self.mass_kg, "friction_n": self.friction_n,
+                                                       "measured": self.model_measured,
+                                                       "required_recovery_pct": self.required_recovery_pct},
+                    "result": self.result, "applied": self.applied,
+                    "steps": [{"group": s.group, "title": s.title, "level": s.level, "pull_pct": s.pull_pct,
+                               "recovery_pct": s.recovery_pct, "speed_rpm": s.speed_rpm, "load_pct": s.load_pct,
+                               "rating": s.rating, "events": [ev(e) for e in s.events]} for s in self.steps]}
 
     # ---------------------------------------------------------------- Anzeige
     def summary(self) -> dict:

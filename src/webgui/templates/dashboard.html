@@ -2238,16 +2238,27 @@
       updateChart(powerChart, xData, data.power.mean, data.power.stddev);
     });
 
+    // Trainingsuhr von x-ski (ohne Pausen); ohne diese Meldung zählt die Seite selbst
+    let serverClock = null;
+    socket.on("session_clock", (d) => {
+      serverClock = { elapsed: Number(d.elapsed_s) || 0, paused: !!d.paused, at: Date.now() };
+      if (!clockRunning) startClock();
+      updateDuration();
+    });
+
     function updateDuration() {
       if (!startTime) return;
 
       const now = Date.now();
-      const elapsedMs = now - startTime;
+      let elapsedMs = now - startTime;
+      if (serverClock) {
+        elapsedMs = serverClock.elapsed * 1000 + (serverClock.paused ? 0 : Math.min(2000, now - serverClock.at));
+      }
       const totalSeconds = Math.floor(elapsedMs / 1000);
       const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
       const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
       const seconds = String(totalSeconds % 60).padStart(2, "0");
-      durationEl.textContent = `Dauer: ${hours}:${minutes}:${seconds}`;
+      durationEl.textContent = `Dauer: ${hours}:${minutes}:${seconds}${serverClock && serverClock.paused ? " (Pause)" : ""}`;
 
       renderLiveBoxes();
       updateActiveZoneHighlights();

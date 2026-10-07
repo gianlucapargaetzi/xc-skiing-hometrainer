@@ -1,5 +1,6 @@
 # x-ski.py – x-ski WebGUI + Training + Konfig-Management mit ConfigManager & BLEManager
 
+import json
 import os
 import sys
 import time
@@ -70,6 +71,14 @@ THERMAL_WARN_PCT = 75.0
 # Ab dieser Seilgeschwindigkeit nach unten gilt ein Zug (sonst Rückzug/Stillstand)
 PULL_DETECT_M_S = 0.05
 FTMS_PUSH_INTERVAL_S = 0.25
+# Kürzere Trainings: beim Stop fragen, ob gespeichert werden soll
+SHORT_SESSION_S = 300
+# «Weiter» nach einer Pause: so lange Countdown, dann wird der Antrieb freigegeben und spannt das Seil
+RESUME_COUNTDOWN_S = 3.0
+# Ohne Lebenszeichen vom Browser (Trainingsseiten fragen jede Sekunde nach) wird x-ski beendet.
+# Grosszügig, weil Browser Zeitgeber in Hintergrund-Tabs auf 1×/min drosseln.
+BROWSER_TIMEOUT_S = 90
+STRAVA_CONNECT_GRACE_S = 900
 
 # Diese Endpunkte verändern die Konfiguration bzw. legen Dateien ab und sind nur
 # direkt am x-ski (localhost) erlaubt, ausser X_SKI_ALLOW_REMOTE_CONFIG=1.
@@ -808,6 +817,39 @@ class TrainingSession:
     technique_seconds: dict = field(default_factory=dict)
 
 
+# Laufendes Training: Start, Pause und Stop-Entscheid (save: None = normal speichern, False = verwerfen)
+session_state = {"started_at": None, "save": None, "paused": False, "paused_since": None, "paused_total": 0.0,
+                 "resume_at": None}
+session_lock = Lock()
+
+
+def session_resume_if_due(now: float = None) -> bool:
+    """Countdown nach «Weiter» abgelaufen? Dann Pause beenden: Antrieb frei, Uhr und Intervall laufen weiter."""
+    st = session_state
+    now = time.time() if now is None else now
+    with session_lock:
+        if not (st["paused"] and st["resume_at"] and now >= st["resume_at"]):
+            return False
+        st["paused_total"] += now - (st["paused_since"] or now)
+        st.update(paused=False, paused_since=None, resume_at=None)
+    if hasattr(active_ic, "resume"):
+        active_ic.resume()
+    print(f"▶️ Weiter nach Pause (Pausen gesamt {st['paused_total'] / 60:.1f} min)")
+    if scope is not None:
+        scope.log_message("✅ Training läuft")
+    return True
+
+
+def session_active_elapsed(now: float = None) -> float:
+    """Trainingszeit ohne Pausen [s]."""
+    st = session_state
+    if st["started_at"] is None:
+        return 0.0
+    now = time.time() if now is None else now
+    paused = st["paused_total"] + ((now - st["paused_since"]) if st["paused"] and st["paused_since"] else 0.0)
+    return max(0.0, now - st["started_at"] - paused)
+
+
 def send_rower_metrics(analyzer: StrokeAnalyzer, session_started_at: float, *,
                        stroke_rate_spm, power_w, hr_bpm, running, avg_power_w=None):
     if avg_power_w is None:
@@ -822,7 +864,7 @@ def send_rower_metrics(analyzer: StrokeAnalyzer, session_started_at: float, *,
         power_w=int(round(power_w)),
         avg_power_w=int(round(avg_power_w)),
         hr_bpm=int(hr_bpm) if hr_bpm else 0,
-        elapsed_s=int(max(0, time.time() - session_started_at)),
+        elapsed_s=int(session_active_elapsed()),
         running=bool(running),
     )
 
@@ -1010,6 +1052,8 @@ def run_training(drv: DriveM751) -> TrainingSession:
     last_position = abs_zero_position
     last_speed_register_check = 0.0
     last_fit_sample = 0.0
+    last_clock_publish = 0.0
+    speed_ref_rpm = s.pull_speed     # beim Start an den Antrieb geschickt (prepare_drive)
     fit_power_sum, fit_power_n = 0.0, 0
     last_thermal_check = 0.0
     last_model_t = None
@@ -1043,7 +1087,10 @@ def run_training(drv: DriveM751) -> TrainingSession:
         # Bei einem Lesefehler die letzte gültige Position weiterverwenden
         actual_position = position_read if position_read is not None else last_position
         last_position = actual_position
-        drv.update_enabled(actual_position <= soft_zero_position)
+        # In der Pause ist der Antrieb aus (kein Drehmoment, Seil frei); «Weiter» gibt ihn nach dem
+        # Countdown wieder frei – der Rückzug spannt dann das Seil
+        session_resume_if_due()
+        drv.update_enabled(actual_position <= soft_zero_position and not session_state["paused"])
 
         power = drv.read_power()
         now = time.time()
@@ -1067,6 +1114,7 @@ def run_training(drv: DriveM751) -> TrainingSession:
             first_pull_detected = True
             just_started_clock = True
             session_started_at = now
+            session_state["started_at"] = now
 
             if hasattr(ic, "active"):
                 ic.active = True
@@ -1118,7 +1166,8 @@ def run_training(drv: DriveM751) -> TrainingSession:
                     "technique": technique,
                     "technique_choice": technique_state.get(),
                     "diagonal_hint": technique == "dp" and terrain.slope_percent >= s.diagonal_from_slope_percent,
-                    "elapsed_s": int(now - session_started_at) if session_started_at else 0,
+                    "elapsed_s": int(session_active_elapsed(now)),
+                    "paused": session_state["paused"],
                 })
         dt_model = (now - last_model_t) if last_model_t is not None else 0.0
         last_model_t = now
@@ -1130,7 +1179,9 @@ def run_training(drv: DriveM751) -> TrainingSession:
         # wieder hoch und durchlaufen denselben Positionsbereich – zieht der Motor nur mit der Rückzugskraft.
         idx = max(0, min(int(round(pos_mm)), len(f_push) - 1))
         pulling = rope_speed > PULL_DETECT_M_S
-        stroke_share = f_push[idx] / 100.0 if pulling else 0.0
+        # Pause: Antrieb aus (siehe oben), keine Stosskraft; Uhr, Strecke und Aufzeichnung stehen
+        paused = session_state["paused"]
+        stroke_share = f_push[idx] / 100.0 if pulling and not paused else 0.0
         base_pct = s.min_torque_pct if pulling else s.recovery_torque_pct
         if skier_mode:
             peak_pct = force_to_torque_pct(force_planner.peak_force_n, s.drum_radius_m, s.motor_rated_torque_nm)
@@ -1149,10 +1200,18 @@ def run_training(drv: DriveM751) -> TrainingSession:
         else:
             technique = "dp"
         arm_share, leg_boost = technique_factors(s, technique)
-        skier.step(dt_model, terrain, propulsive_power_w=active_power * s.power_scale * leg_boost)
+        if paused:
+            skier.speed_m_s = 0.0   # in der Pause steht der Skifahrer
+        else:
+            skier.step(dt_model, terrain, propulsive_power_w=active_power * s.power_scale * leg_boost)
 
         act_torque_pct = max(0, min(act_torque_pct, s.max_torque_pct))
         drv.update_torque(act_torque_pct)
+        if s.pull_speed != speed_ref_rpm:
+            # Rückzugs-Drehzahlgrenze im Profil geändert -> sofort an den Antrieb
+            drv.set_speed(s.pull_speed)
+            print(f"🔁 Rückzugs-Drehzahlgrenze jetzt {s.pull_speed:.0f} rpm")
+            speed_ref_rpm = s.pull_speed
         diagnostics.add(rope_speed, speed_register, active_power, act_torque_pct, s.min_torque_pct, s.drum_radius_m)
 
         cycle_complete = analyzer.add_sample(now, pos_mm, speed, power, act_torque_pct, record_intensity)
@@ -1164,7 +1223,7 @@ def run_training(drv: DriveM751) -> TrainingSession:
 
         if cycle_complete:
             stroke = analyzer.close_cycle(now, current_hr, s.training_targets, skier.distance_m)
-            if skier_mode:
+            if skier_mode and not paused:
                 # Stosskraft für den nächsten Stoss aus Tempo, Gelände und gemessenem Rhythmus
                 # Kraftgefühl mit eigener Gleitreibung (feel_mu), Tempo mit der gemessenen (user.mu)
                 force_planner.update(
@@ -1172,7 +1231,7 @@ def run_training(drv: DriveM751) -> TrainingSession:
                     cycle_s=stroke.duration_s if stroke else None,
                     push_s=stroke.push_duration_s if stroke else None,
                 )
-            if stroke is not None:
+            if stroke is not None and not paused:
                 if session_started_at is not None:
                     send_rower_metrics(
                         analyzer, session_started_at,
@@ -1217,7 +1276,7 @@ def run_training(drv: DriveM751) -> TrainingSession:
                 if not first_pull_detected:
                     status("✅ Training bereit – Uhr startet automatisch mit dem ersten Zug")
                 else:
-                    status("✅ Training läuft")
+                    status("Pause – Antrieb aus, Uhr angehalten" if paused else "✅ Training läuft")
         else:
             status("⏳ Warte auf Trainingsstart")
 
@@ -1237,7 +1296,12 @@ def run_training(drv: DriveM751) -> TrainingSession:
         # GPS (virtuelle Position) nur in der Streckensimulation.
         fit_power_sum += active_power
         fit_power_n += 1
-        if session_started_at is not None and now - last_fit_sample >= 1.0:
+        if session_started_at is not None and now - last_clock_publish >= 1.0:
+            # Trainingsuhr (ohne Pausen) für die Anzeigen
+            last_clock_publish = now
+            Backend().publish("session_clock", {"elapsed_s": round(session_active_elapsed(now), 1),
+                                                "paused": session_state["paused"]})
+        if session_started_at is not None and not paused and now - last_fit_sample >= 1.0:
             last_fit_sample = now
             if ACTIVE_CONTROLLER_NAME == "iic" and hasattr(ic, "_block_navigation_state"):
                 lap_key, lap_trigger = ic._block_navigation_state().get("block_index"), 0
@@ -1394,6 +1458,19 @@ def run_calibration(drv: DriveM751):
 
     if not cal.stop_requested:
         log("Antrieb aus (Sicherheitsschalter) – Kalibrierung beendet.")
+    save_calibration_report(cal)
+
+
+def save_calibration_report(cal: RopeCalibration):
+    """Messwerte der Kalibrierung als JSON in logs/ ablegen (für spätere Auswertung)."""
+    try:
+        logs = PROJECT_DIR / "logs"
+        logs.mkdir(exist_ok=True)
+        path = logs / f"seilzug_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.json"
+        path.write_text(json.dumps(cal.report(), indent=1, ensure_ascii=False, default=float), encoding="utf-8")
+        print(f"🧪 Messwerte gespeichert: {path}")
+    except Exception as e:
+        print(f"⚠️ Messwerte der Kalibrierung nicht gespeichert: {e}")
 
 
 def calibration_thread():
@@ -1409,6 +1486,9 @@ def calibration_thread():
         drive.shutdown()
         calibration_status["finished"] = True
     calibration_exit.wait()
+    if browser_alive["gone"]:
+        print("🛑 x-ski beendet.", flush=True)
+        os._exit(0)
     restart_launcher()
 
 
@@ -1544,6 +1624,105 @@ def finish_session(session: TrainingSession):
         scope.log_message(f"❌ E-Mail-Versand fehlgeschlagen: {e}")
 
 
+
+
+@app.route("/api/alive")
+def api_alive():
+    return jsonify({"ok": True})
+
+
+@app.route("/api/session", methods=["GET"])
+def api_session():
+    started = session_state["started_at"]
+    return jsonify({"started": started is not None, "short_s": SHORT_SESSION_S, "mode": MODE,
+                    "elapsed_s": round(session_active_elapsed()), "paused": session_state["paused"],
+                    "paused_s": round(time.time() - session_state["paused_since"]) if session_state["paused"] else 0,
+                    "resume_in_s": round(max(0.0, session_state["resume_at"] - time.time()), 1)
+                    if session_state["resume_at"] else None})
+
+
+@app.route("/api/session/pause", methods=["POST"])
+def api_session_pause():
+    """Pause/Weiter: Antrieb aus, Uhr angehalten, Strecke und Aufzeichnung stehen; im Intervall
+    bleibt auch der Ablauf stehen."""
+    st = session_state
+    if st["started_at"] is None:
+        return jsonify({"ok": False, "message": "Das Training hat noch nicht begonnen."}), 409
+    want = bool((request.get_json(silent=True) or {}).get("paused", not st["paused"]))
+    now = time.time()
+    with session_lock:
+        if want and not st["paused"]:
+            st.update(paused=True, paused_since=now, resume_at=None)
+            started_pause = True
+        elif want and st["resume_at"]:
+            st["resume_at"] = None          # Countdown abgebrochen – Pause geht weiter
+            started_pause = False
+        elif not want and st["paused"] and not st["resume_at"]:
+            st["resume_at"] = now + RESUME_COUNTDOWN_S
+            started_pause = False
+            print(f"▶️ Weiter in {RESUME_COUNTDOWN_S:.0f} s – Antrieb wird danach freigegeben")
+        else:
+            started_pause = False
+    if started_pause:
+        if hasattr(active_ic, "pause"):
+            active_ic.pause()
+        print(f"⏸ Pause bei {session_active_elapsed(now) / 60:.1f} min – Antrieb aus")
+        scope.log_message("Pause – Antrieb aus, Uhr angehalten")
+    return jsonify({"ok": True, "paused": st["paused"], "elapsed_s": round(session_active_elapsed(now))})
+
+
+@app.route("/api/session/end", methods=["POST"])
+def api_session_end():
+    """Training beenden (wie Stop), mit Entscheid «speichern» bzw. «verwerfen». Danach geht x-ski
+    zurück ins Startmenü; der Antrieb wird vorher vollständig abgeschaltet."""
+    data = request.get_json(silent=True) or {}
+    session_state["save"] = bool(data.get("save", True))
+    request_training_stop()
+    return jsonify({"ok": True, "save": session_state["save"]})
+
+
+def request_training_stop():
+    """Trainingsschleife beenden (Belastungsprofil und Intervall: beide prüfen stop_requested)."""
+    active_ic.stop()
+    active_ic.stop_requested = True
+
+
+# ---------------------- Browser geschlossen -> x-ski beenden ----------------------
+browser_alive = {"until": time.monotonic() + BROWSER_TIMEOUT_S, "gone": False}
+
+
+@app.before_request
+def browser_seen():
+    grace = STRAVA_CONNECT_GRACE_S if request.path == "/strava/connect" else BROWSER_TIMEOUT_S
+    browser_alive["until"] = max(browser_alive["until"], time.monotonic() + grace)
+
+
+def watch_browser():
+    """Kein Lebenszeichen mehr vom Browser: Training wie mit Stop beenden (ab 5 min speichern, kürzere
+    verwerfen – fragen geht ohne Browser nicht), Antrieb abschalten und x-ski ganz beenden."""
+    while time.monotonic() <= browser_alive["until"]:
+        time.sleep(5)
+    browser_alive["gone"] = True
+    print("🛑 Browser geschlossen (kein Lebenszeichen) – Training wird beendet und x-ski geschlossen.", flush=True)
+    if MODE == "calib":
+        if calibration is not None:
+            calibration.stop_requested = True
+        if calibration_exit is not None:
+            calibration_exit.set()
+    else:
+        if session_state["save"] is None:
+            session_state["save"] = session_active_elapsed() >= SHORT_SESSION_S
+        request_training_stop()
+    # Falls der Ablauf hängt (z.B. wartet noch auf den Sicherheitsschalter): spätestens nach 5 min hart beenden
+    # (Speichern und Strava-Upload brauchen bis ~1 min)
+    time.sleep(300)
+    print("🛑 x-ski wird beendet (Training hat nicht rechtzeitig gestoppt).", flush=True)
+    try:
+        drive.shutdown()
+    finally:
+        os._exit(0)
+
+
 def training_thread():
     session = None
     try:
@@ -1561,9 +1740,18 @@ def training_thread():
 
     if session is not None and session.stopped_by_user:
         try:
-            finish_session(session)
+            if session_state["save"] is False:
+                print("🗑️ Training wird nicht gespeichert " + ("(kürzer als 5 min, Browser geschlossen)."
+                                                              if browser_alive["gone"] else "(auf Wunsch verworfen)."))
+            else:
+                finish_session(session)
         finally:
-            os._exit(0)
+            # Antrieb ist aus – zurück ins Startmenü, dort ist ein komplett neuer Start möglich.
+            # War der Browser zu, wird x-ski ganz beendet.
+            if browser_alive["gone"]:
+                print("🛑 x-ski beendet.", flush=True)
+                os._exit(0)
+            restart_launcher()
 
 
 if __name__ == "__main__":
@@ -1581,5 +1769,6 @@ if __name__ == "__main__":
 
     t = Thread(target=calibration_thread if MODE == "calib" else training_thread, name="training-thread", daemon=True)
     t.start()
+    Thread(target=watch_browser, name="browser-watch", daemon=True).start()
 
     app.run(host=known_args.host, debug=False)
