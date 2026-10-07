@@ -1385,7 +1385,7 @@ def api_calibration():
 
 def run_calibration(drv: DriveM751):
     """Geführter Seilzug-Test: der Ablauf (RopeCalibration) gibt Drehmoment und Drehzahlgrenze vor,
-    die Schleife misst die Seilposition. Grenzen: Grundzug/Rückzug ≤ 20 %, Drehzahl ≤ 3000 rpm."""
+    die Schleife misst die Seilposition. Grenzen: Grundzug/Rückzug ≤ 40 %, Drehzahl ≤ 3000 rpm."""
     global calibration
     s = settings
     swing_start_mm, swing_end_mm = int(s.swing_start_mm), int(s.swing_end_mm)

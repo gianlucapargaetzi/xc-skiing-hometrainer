@@ -39,9 +39,10 @@ MOVE_M_S = 0.05               # Schwelle Zug / Rückzug
 TENSION_MARGIN_N = 3.0        # so viel Spannung soll beim Zurückholen mindestens bleiben
 SLACK_N = 1.0                 # darunter gilt das Seil als durchhängend
 SPEED_MARGIN = 1.3            # Drehzahlgrenze = schnellste Rückholgeschwindigkeit × Reserve
-# Harte Grenzen (Vorgabe Nutzer 2026-10-07): Grundzug und Rückzug nie über 20 %, Drehzahl nie über 3000 rpm.
+# Harte Grenzen (Vorgabe Nutzer 2026-10-07, Rückzug-Grenze auf 40 % angehoben): Grundzug und Rückzug nie über
+# 40 %, Drehzahl nie über 3000 rpm.
 # Gilt für jeden Testschritt und jede Empfehlung; die Stosskraft (Belastung) kommt wie im Training dazu.
-BASE_MAX_PCT = 20.0
+BASE_MAX_PCT = 40.0
 SPEED_LIMIT_RPM = 3000.0
 SPEED_MIN_RPM, SPEED_MAX_RPM = 1200, SPEED_LIMIT_RPM
 RECOVERY_MIN_PCT, RECOVERY_MAX_PCT = 5, BASE_MAX_PCT

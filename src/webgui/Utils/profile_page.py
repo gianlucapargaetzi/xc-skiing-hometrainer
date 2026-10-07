@@ -28,7 +28,7 @@ PROFILE_FIELDS = [
      "Training"),
     ("control", "recovery_torque_pct", "Rückzugskraft", "number", 5, 60, 1, "%",
      "Zieht das Seil nach dem Stoss zurück und hält es gespannt. 10 % ≈ 11 N, 20 % ≈ 22 N. Tiefer = sanfter, "
-     "aber langsamer. Über 20 % nur zum Testen (die Kalibrierung schlägt höchstens 20 % vor).",
+     "aber langsamer. Standard 30 %. Die Kalibrierung schlägt höchstens 40 % vor.",
      "Training"),
     ("control", "pull_speed", "Rückzugs-Geschwindigkeit", "number", 500, 3000, 100, "rpm",
      "Höchste Drehzahl beim Zurückholen. 3000 rpm ≈ 8 m/s Seilgeschwindigkeit.", "Training"),

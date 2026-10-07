@@ -99,7 +99,7 @@ def test_full_run_measures_mechanics_and_respects_limits():
 
 
 def test_commands_never_exceed_limits():
-    cal = make(recovery=35.0, pull=30.0, speed=4000.0)   # Profilwerte über den Grenzen
+    cal = make(recovery=55.0, pull=50.0, speed=4000.0)   # Profilwerte über den Grenzen
     for st in cal.steps:
         st.recovery_pct, st.pull_pct, st.speed_rpm = 60.0, 60.0, 5000.0
     torque, speed = cal.command(False, 0.0)
