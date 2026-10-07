@@ -19,11 +19,12 @@
     "max_torque_pct": 250,
     "simple_initial_power_pct": 70.0,
     "initial_zone": 2,
-    "recovery_torque_pct": 30.0
+    "recovery_torque_pct": 30.0,
+    "end_pull_torque_pct": 15.0
   },
   "user": {
     "weight_kg": 75.0,
-    "mu": 0.037,
+    "mu": 0.025,
     "s_s": 1.1,
     "slope_percent": 0.0,
     "firstname": "x-ski",
@@ -66,9 +67,11 @@
     "route_file": "Sertig Classic 21k.gpx",
     "route_slope_factor": 1.0,
     "equipment_kg": 3.0,
-    "power_scale": 2.1,
+    "power_scale": 2.95,
     "feel_mu": 0.02,
-    "diagonal_arm_share": 0.4
+    "diagonal_arm_share": 0.4,
+    "diagonal_power_factor": 1.0,
+    "downhill_feel_floor": 1.0
   },
   "traccar": {
     "enabled": true,

@@ -200,32 +200,25 @@ import sys as _sys
 
 
 def _technique_funcs():
-    """effective_technique/technique_factors aus x-ski.py lesen, ohne das Programm zu starten."""
+    """diagonal_target_weight/technique_factors aus x-ski.py lesen, ohne das Programm zu starten."""
     import ast
     from pathlib import Path
     src = (Path(__file__).resolve().parents[1] / "x-ski.py").read_text()
     tree = ast.parse(src)
-    keep = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in ("effective_technique", "technique_factors")]
+    keep = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in ("diagonal_target_weight", "technique_factors")]
     ns = {"Settings": Settings}
     exec(compile(ast.Module(body=keep, type_ignores=[]), "x-ski-technique", "exec"), ns)
-    return ns["effective_technique"], ns["technique_factors"]
+    return ns["diagonal_target_weight"], ns["technique_factors"]
 
 
-def test_auto_technique_hysteresis():
-    eff, _ = _technique_funcs()
-    seq, t = [], "dp"
-    for slope in (2, 4.9, 5.0, 4.5, 4.1, 3.9, 6, 4.2):
-        t = eff("auto", slope, t, 5.0, 1.0)
-        seq.append(t)
-    assert seq == ["dp", "dp", "diagonal", "diagonal", "diagonal", "dp", "diagonal", "diagonal"]
-    assert eff("dp", 12, "diagonal", 5.0, 1.0) == "dp"
-    assert eff("diagonal", -3, "dp", 5.0, 1.0) == "diagonal"
-    # Profil des Athleten: 3.5 % mit 1 % Hysterese
-    seq, t = [], "dp"
-    for slope in (3.4, 3.5, 2.6, 2.4, 3.0):
-        t = eff("auto", slope, t, 3.5, 1.0)
-        seq.append(t)
-    assert seq == ["dp", "diagonal", "diagonal", "dp", "dp"]
+def test_auto_technique_blends_over_slope_band():
+    w, _ = _technique_funcs()
+    # Profil des Athleten: Schwelle 3.5 %, Hysterese 1 % -> Übergang von 2.0 % bis 4.0 %
+    assert w("auto", 1.9, 3.5, 1.0) == 0.0
+    assert w("auto", 3.0, 3.5, 1.0) == pytest.approx(0.5)
+    assert w("auto", 4.0, 3.5, 1.0) == 1.0 and w("auto", 9.0, 3.5, 1.0) == 1.0
+    assert w("dp", 12, 3.5, 1.0) == 0.0
+    assert w("diagonal", -3, 3.5, 1.0) == 1.0
 
 
 def test_technique_threshold_from_user_profile():
@@ -242,9 +235,12 @@ def test_technique_threshold_from_user_profile():
         Settings.from_config(cfg, TARGETS).validate_geometry()
 
 
-def test_technique_factors_arm_relief_and_leg_push():
+def test_technique_factors_blend_arm_relief_and_power():
     _, fac = _technique_funcs()
     s = Settings.from_config(_config(), TARGETS)
-    assert fac(s, "dp") == (1.0, 1.0)
-    arm, boost = fac(s, "diagonal")
-    assert arm == pytest.approx(0.4) and boost == pytest.approx(2.5)
+    assert fac(s, 0.0) == (1.0, 1.0)
+    arm, boost = fac(s, 1.0)
+    assert arm == pytest.approx(0.4) and boost == pytest.approx(s.diagonal_power_factor)
+    arm, _ = fac(s, 0.5)
+    assert arm == pytest.approx(0.7)                     # halber Übergang: Armkraft zwischen DP und Diagonal
+

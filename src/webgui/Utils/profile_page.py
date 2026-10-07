@@ -34,8 +34,11 @@ PROFILE_FIELDS = [
      "Höchste Drehzahl beim Zurückholen. 3000 rpm ≈ 8 m/s Seilgeschwindigkeit.", "Training"),
     ("control", "min_torque_pct", "Grundzug beim Stoss", "number", 2, 60, 1, "%",
      "Widerstand, gegen den du immer ziehst – auch bergab. 20 % ≈ 22 N.", "Training"),
+    ("control", "end_pull_torque_pct", "Gegenkraft am Zugende", "number", 0, 40, 1, "%",
+     "Im letzten Drittel des Zugs steigt der Grundzug bis auf diesen Wert, damit das Seil beim Abbremsen der "
+     "Hände gespannt bleibt. Wirkt nur, wenn die Stosskraft dort kleiner ist. 15 % ≈ 16 N.", "Training"),
     ("strava", "auto_upload", "Nach dem Training automatisch zu Strava hochladen", "checkbox", None, None, None, "",
-     "Als Skilanglauf (Indoor) mit Titel und Beschreibung. Dafür muss x-ski unten mit Strava verbunden sein.", "Strava"),
+     "Als Skilanglauf mit Titel und Beschreibung (ohne Indoor-Markierung, damit Strava Karte und Höhenmeter zeigt). Dafür muss x-ski unten mit Strava verbunden sein.", "Strava"),
     ("user", "mu", "Gleitreibung Ski", "number", 0.01, 0.1, 0.001, "",
      "Kleiner = besser gleitender Ski. Gemessen auf deinen GPS-Läufen mit Wachsski: 0.037.", "Ski & Technik"),
     ("simulation", "equipment_kg", "Ausrüstung", "number", 0, 20, 0.5, "kg",

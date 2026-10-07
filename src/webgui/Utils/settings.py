@@ -76,6 +76,15 @@ class Settings:
     diagonal_from_slope_percent: float = 5.0  # Auto: ab hier Diagonal (Userprofil)
     diagonal_hysteresis_percent: float = 1.0  # Auto: zurück auf Double Poling unter Schwelle − Hysterese
     diagonal_arm_share: float = 0.4           # Anteil der Arme am Vortrieb im Diagonalschritt
+    # Diagonal: Faktor auf die Vortriebsleistung (fiktiver Beinabstoss). Abgleich Sertig 13k vom 2026-10-07:
+    # bergauf ziehst du am Seil ohnehin mehr, der Faktor ist ~1 (vorher 1/Armanteil = 2.5 -> zu schnell)
+    diagonal_power_factor: float = 1.0
+    # Bergab fühlt sich der Stoss mindestens so an wie in der Ebene (Anteil 0..1); sonst wäre nur der Grundzug
+    # zu spüren und man könnte bergab keine Leistung abgeben und nicht beschleunigen
+    downhill_feel_floor: float = 1.0
+    # Gegenkraft am Zugende: der Grundzug steigt im letzten Drittel des Zugs bis auf diesen Wert, damit das
+    # Seil beim Abbremsen der Hände nicht lose wird (nur spürbar, wenn die Stosskraft dort kleiner ist)
+    end_pull_torque_pct: float = 15.0
 
     # Rückzug (Seil nach dem Stoss zurückholen): Drehmoment in %; Standard = Grundzug min_torque_pct
     recovery_torque_pct: float = 30.0
@@ -161,6 +170,9 @@ class Settings:
             diagonal_hysteresis_percent=safe_float(
                 user.get("diagonal_hysteresis_percent", sim.get("diagonal_hysteresis_percent", 1.0)), 1.0),
             diagonal_arm_share=safe_float(sim.get("diagonal_arm_share", 0.4), 0.4),
+            diagonal_power_factor=safe_float(sim.get("diagonal_power_factor", 1.0), 1.0),
+            downhill_feel_floor=safe_float(sim.get("downhill_feel_floor", 1.0), 1.0),
+            end_pull_torque_pct=safe_float(ctrl.get("end_pull_torque_pct", 15.0), 15.0),
             recovery_torque_pct=safe_float(ctrl.get("recovery_torque_pct", ctrl["min_torque_pct"]), ctrl["min_torque_pct"]),
             strava_auto_upload=bool(config.get("strava", {}).get("auto_upload", False)),
             strava_athlete_id=int(config.get("strava", {}).get("athlete_id") or 0),
@@ -280,6 +292,12 @@ class Settings:
 
         if not (0.2 <= self.diagonal_arm_share <= 1.0):
             errors.append("simulation.diagonal_arm_share muss zwischen 0.2 und 1.0 liegen.")
+        if not (0.5 <= self.diagonal_power_factor <= 3.0):
+            errors.append("simulation.diagonal_power_factor muss zwischen 0.5 und 3 liegen.")
+        if not (0.0 <= self.downhill_feel_floor <= 1.0):
+            errors.append("simulation.downhill_feel_floor muss zwischen 0 und 1 liegen.")
+        if not (0.0 <= self.end_pull_torque_pct <= 60.0):
+            errors.append("control.end_pull_torque_pct muss zwischen 0 und 60 liegen.")
 
         if not (0.0 <= self.feel_mu <= 0.2):
             errors.append("simulation.feel_mu muss zwischen 0 und 0.2 liegen.")

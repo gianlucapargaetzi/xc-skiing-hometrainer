@@ -118,7 +118,7 @@ def status(athlete_id) -> dict:
 
 
 def upload_activity(path, name: str, athlete_id, description: str = "", sport_type: str = "NordicSki",
-                    trainer: bool = True, external_id: Optional[str] = None, wait_s: float = 60.0) -> dict:
+                    trainer: bool = False, external_id: Optional[str] = None, wait_s: float = 60.0) -> dict:
     """Datei hochladen und warten, bis Strava sie verarbeitet hat.
     Rückgabe: {"activity_id": …, "url": …} oder {"duplicate": True, "url": …}."""
     token = valid_access_token(athlete_id)

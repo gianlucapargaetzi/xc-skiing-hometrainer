@@ -73,6 +73,10 @@ PULL_DETECT_M_S = 0.05
 FTMS_PUSH_INTERVAL_S = 0.25
 # Kürzere Trainings: beim Stop fragen, ob gespeichert werden soll
 SHORT_SESSION_S = 300
+# Gegenkraft am Zugende: ab diesem Anteil des Zugs (0..1) steigt die Mindestkraft auf end_pull_torque_pct
+END_PULL_RAMP_START = 0.65
+# Technikwechsel: Diagonalanteil ändert sich pro Stoss höchstens um so viel (3 Stösse für den ganzen Wechsel)
+DIAG_STEP_PER_STROKE = 0.34
 # «Weiter» nach einer Pause: so lange Countdown, dann wird der Antrieb freigegeben und spannt das Seil
 RESUME_COUNTDOWN_S = 3.0
 # Ohne Lebenszeichen vom Browser (Trainingsseiten fragen jede Sekunde nach) wird x-ski beendet.
@@ -916,25 +920,24 @@ def force_terrain(s: Settings, terrain: Terrain) -> Terrain:
     return Terrain(slope_percent=terrain.slope_percent, mu=s.feel_mu)
 
 
-def effective_technique(choice: str, slope_percent: float, previous: str, threshold_percent: float,
-                        hysteresis_percent: float) -> str:
-    """Auto: Diagonal ab der Schwelle, zurück auf Double Poling erst unter Schwelle minus Hysterese."""
-    if choice in ("dp", "diagonal"):
-        return choice
-    if slope_percent >= threshold_percent:
-        return "diagonal"
-    if slope_percent < threshold_percent - hysteresis_percent:
-        return "dp"
-    return previous
+def diagonal_target_weight(choice: str, slope_percent: float, threshold_percent: float, hysteresis_percent: float) -> float:
+    """Anteil Diagonalschritt 0..1. Auto: fliessender Übergang über ein Steigungsband statt hartem Umschalten –
+    0 unterhalb von (Schwelle − Hysterese − 0.5 %), 1 ab Schwelle + 0.5 %."""
+    if choice == "dp":
+        return 0.0
+    if choice == "diagonal":
+        return 1.0
+    lo = threshold_percent - hysteresis_percent - 0.5
+    hi = threshold_percent + 0.5
+    return max(0.0, min(1.0, (slope_percent - lo) / (hi - lo)))
 
 
-def technique_factors(s: Settings, technique: str):
-    """(Anteil der Arme an der Stosskraft, Faktor auf die Vortriebsleistung).
-    Diagonal: die Arme bringen nur diagonal_arm_share des Vortriebs auf; der Rest ist ein fiktiver
-    Beinabstoss, der die gemessene Armleistung auf die Gesamtleistung hochrechnet (1 / Armanteil)."""
-    if technique == "diagonal":
-        return s.diagonal_arm_share, 1.0 / s.diagonal_arm_share
-    return 1.0, 1.0
+def technique_factors(s: Settings, diagonal_weight: float):
+    """(Anteil der Arme an der Stosskraft, Faktor auf die Vortriebsleistung) für einen Diagonalanteil 0..1.
+    Diagonal: die Arme tragen nur diagonal_arm_share der Kraft; die Vortriebsleistung wird mit
+    diagonal_power_factor (fiktiver Beinabstoss) gewichtet. Dazwischen linear."""
+    w = max(0.0, min(1.0, float(diagonal_weight)))
+    return 1.0 - w * (1.0 - s.diagonal_arm_share), 1.0 + w * (s.diagonal_power_factor - 1.0)
 
 
 def prepare_drive(drv: DriveM751, s: Settings, *, swing_length: float, dist_per_rev: float,
@@ -985,6 +988,15 @@ def prepare_drive(drv: DriveM751, s: Settings, *, swing_length: float, dist_per_
     drv.set_enabled(True)
     return {"abs_zero": abs_zero_position, "pole_zero": pole_zero_position,
             "soft_zero": soft_zero_position, "end_swing": end_swing_position}
+
+
+def feel_resistance_n(s: Settings, skier: VirtualSkier, terrain: Terrain) -> float:
+    """Widerstand für die Stosskraft: Gelände mit Fahrgefühl-Reibung; bergab mindestens wie in der Ebene
+    (Anteil downhill_feel_floor), damit man auch bergab gegen die Stöcke stossen und beschleunigen kann."""
+    ft = force_terrain(s, terrain)
+    r = skier.resistance_force_n(skier.speed_m_s, ft)
+    flat = skier.resistance_force_n(skier.speed_m_s, Terrain(slope_percent=0.0, mu=ft.mu))
+    return max(r, s.downhill_feel_floor * flat)
 
 
 def run_training(drv: DriveM751) -> TrainingSession:
@@ -1061,8 +1073,9 @@ def run_training(drv: DriveM751) -> TrainingSession:
     route_finished_announced = False
     terrain = Terrain(slope_percent=s.slope_percent, mu=s.mu)
     # Startwert der Stosskraft (Widerstand im Stand); baut sich über max_step_n pro Stoss auf
-    force_planner.update(skier.resistance_force_n(0.0, force_terrain(s, terrain)))
+    force_planner.update(feel_resistance_n(s, skier, terrain))
     technique = "dp"
+    diag_weight = 0.0            # Diagonalanteil 0..1, ändert sich pro Stoss um höchstens DIAG_STEP_PER_STROKE
 
     first_pull_detected = False
     session_started_at = None
@@ -1164,8 +1177,8 @@ def run_training(drv: DriveM751) -> TrainingSession:
                     "speed_kmh": round(skier.speed_m_s * 3.6, 1),
                     "finished": route_pos.finished,
                     "technique": technique,
+                    "technique_weight": round(diag_weight, 2),
                     "technique_choice": technique_state.get(),
-                    "diagonal_hint": technique == "dp" and terrain.slope_percent >= s.diagonal_from_slope_percent,
                     "elapsed_s": int(session_active_elapsed(now)),
                     "paused": session_state["paused"],
                 })
@@ -1179,6 +1192,8 @@ def run_training(drv: DriveM751) -> TrainingSession:
         # wieder hoch und durchlaufen denselben Positionsbereich – zieht der Motor nur mit der Rückzugskraft.
         idx = max(0, min(int(round(pos_mm)), len(f_push) - 1))
         pulling = rope_speed > PULL_DETECT_M_S
+        # Fortschritt im Zug 0..1 (für die Gegenkraft am Zugende)
+        stroke_u = (pos_mm - swing_start_mm) / max(1.0, float(swing_end_mm - swing_start_mm))
         # Pause: Antrieb aus (siehe oben), keine Stosskraft; Uhr, Strecke und Aufzeichnung stehen
         paused = session_state["paused"]
         stroke_share = f_push[idx] / 100.0 if pulling and not paused else 0.0
@@ -1190,16 +1205,24 @@ def run_training(drv: DriveM751) -> TrainingSession:
         else:
             act_torque_pct = round(base_pct + ic_torque * stroke_share)
             record_intensity = ic_torque
+        if pulling and not paused:
+            # Gegenkraft am Zugende: im letzten Drittel steigt die Mindestkraft vom Grundzug auf end_pull_torque_pct,
+            # damit das Seil beim Abbremsen der Hände gespannt bleibt (wirkt nur, wo die Stosskraft kleiner ist)
+            ramp = max(0.0, min(1.0, (stroke_u - END_PULL_RAMP_START) / (1.0 - END_PULL_RAMP_START)))
+            end_floor = s.min_torque_pct + ramp * max(0.0, s.end_pull_torque_pct - s.min_torque_pct)
+            act_torque_pct = round(max(act_torque_pct, end_floor), 1)
         # Seilleistung -> Vortrieb auf Schnee (power_scale aus dem Abgleich mit GPS-Läufen)
         if skier_mode:
-            new_technique = effective_technique(technique_state.get(), terrain.slope_percent, technique,
-                                                s.diagonal_from_slope_percent, s.diagonal_hysteresis_percent)
+            # Kraft und Vortrieb gehen fliessend über (diag_weight); angezeigt wird die überwiegende Technik
+            new_technique = "diagonal" if diag_weight >= 0.5 else "dp"
             if new_technique != technique:
                 print(f"🎿 Technik: {TechniqueState.LABELS[new_technique]} (Steigung {terrain.slope_percent:+.1f} %)")
             technique = new_technique
+            diag_target = diagonal_target_weight(technique_state.get(), terrain.slope_percent,
+                                                 s.diagonal_from_slope_percent, s.diagonal_hysteresis_percent)
         else:
-            technique = "dp"
-        arm_share, leg_boost = technique_factors(s, technique)
+            technique, diag_target = "dp", 0.0
+        arm_share, leg_boost = technique_factors(s, diag_weight)
         if paused:
             skier.speed_m_s = 0.0   # in der Pause steht der Skifahrer
         else:
@@ -1223,11 +1246,13 @@ def run_training(drv: DriveM751) -> TrainingSession:
 
         if cycle_complete:
             stroke = analyzer.close_cycle(now, current_hr, s.training_targets, skier.distance_m)
+            # Technikübergang pro Stoss in kleinen Schritten (kein abruptes Umschalten der Kraft)
+            diag_weight += max(-DIAG_STEP_PER_STROKE, min(diag_target - diag_weight, DIAG_STEP_PER_STROKE))
             if skier_mode and not paused:
                 # Stosskraft für den nächsten Stoss aus Tempo, Gelände und gemessenem Rhythmus
                 # Kraftgefühl mit eigener Gleitreibung (feel_mu), Tempo mit der gemessenen (user.mu)
                 force_planner.update(
-                    skier.resistance_force_n(skier.speed_m_s, force_terrain(s, terrain)) * arm_share,
+                    feel_resistance_n(s, skier, terrain) * arm_share,
                     cycle_s=stroke.duration_s if stroke else None,
                     push_s=stroke.push_duration_s if stroke else None,
                 )
@@ -1576,7 +1601,7 @@ def finish_session(session: TrainingSession):
         try:
             result = strava_client.upload_activity(fit_path, name=session.title, athlete_id=s.strava_athlete_id,
                                                    description=strava_description(session),
-                                                   sport_type="NordicSki", trainer=True,
+                                                   sport_type="NordicSki", trainer=False,
                                                    external_id=f"x-ski-{session.file_stamp}")
             if result.get("duplicate"):
                 strava_line = f"Strava: Diese Einheit war bereits hochgeladen. {result.get('url') or ''}".strip()
