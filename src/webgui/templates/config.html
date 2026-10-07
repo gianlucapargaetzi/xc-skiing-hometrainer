@@ -324,7 +324,9 @@
     "club": "x-ski.ch",
     "email": "name@example.com",
     "max_hr_bpm": 176,
-    "ftp_w": 140
+    "ftp_w": 140,
+    "diagonal_from_slope_percent": 5.0,
+    "diagonal_hysteresis_percent": 1.0
   },
   "hr_sensor": {
     "address": "24:AC:AC:03:F5:B4"
@@ -333,6 +335,32 @@
     "host": "192.168.200.199",
     "port": 502,
     "unit_id": 0
+  },
+  "simulation": {
+    "load_mode": "profile",
+    "cda_m2": 0.45,
+    "air_density_kg_m3": 1.2,
+    "motor_rated_torque_nm": 0.0,
+    "force_scale": 1.0,
+    "max_force_step_n": 20.0,
+    "power_scale": 1.0,
+    "equipment_kg": 0.0,
+    "feel_mu": 0.02,
+    "diagonal_arm_share": 0.4,
+    "route_file": "",
+    "route_slope_factor": 1.0,
+    "max_rope_force_n": 150.0,
+    "slope_per_intensity_pct": 0.1,
+    "rope_speed_alpha": 0.5
+  },
+  "traccar": {
+    "enabled": false,
+    "protocol": "osmand",
+    "url": "http://traccar:5055",
+    "host": "traccar",
+    "port": 5064,
+    "device_id": "",
+    "interval_s": 5
   }
 }`;
     }

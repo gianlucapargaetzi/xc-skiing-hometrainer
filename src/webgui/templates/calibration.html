@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>x-ski – Seilzug kalibrieren</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    :root { --ink: #12324a; --muted: #5b7690; --accent: #ff7b00; --line: #dbe5ee; --ok: #15803d; --bad: #b91c1c; }
+    html, body { margin: 0; min-height: 100%; }
+    body { background: #f4f8fb; color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .page { max-width: 1200px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 18px 22px;
+      box-shadow: 0 6px 24px rgba(18, 50, 74, 0.06); }
+    .kicker { font-size: 16px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+    h1 { font-size: 32px; margin: 4px 0 8px; }
+    .instr { font-size: 22px; line-height: 1.4; }
+    .progress { display: flex; align-items: center; gap: 14px; margin-top: 14px; font-size: 22px; font-weight: 700; }
+    .bar { flex: 1; height: 18px; background: #e8eef4; border-radius: 9px; overflow: hidden; }
+    .bar > div { height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+    .live { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .live .v { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .live .l { color: var(--muted); font-size: 15px; }
+    #msg { font-size: 19px; min-height: 1.3em; color: var(--muted); }
+    .btns { display: flex; flex-wrap: wrap; gap: 12px; }
+    .btn { font: inherit; font-size: 21px; min-height: 64px; padding: 10px 24px; border-radius: 14px;
+      border: 2px solid var(--line); background: #fff; color: inherit; cursor: pointer; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 800; }
+    .btn.danger { color: var(--bad); }
+    .stars { display: flex; gap: 12px; flex-wrap: wrap; }
+    .stars .btn { min-width: 110px; font-size: 26px; font-weight: 800; }
+    .stars .btn small { display: block; font-size: 13px; font-weight: 600; color: var(--muted); }
+    table { border-collapse: collapse; width: 100%; font-size: 18px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-size: 14px; text-transform: uppercase; letter-spacing: .04em; }
+    td.num { font-variant-numeric: tabular-nums; }
+    .big td { font-size: 24px; font-weight: 700; }
+    .changed { color: #c2410c; }
+    .slack { color: var(--bad); font-weight: 700; }
+    .hidden { display: none !important; }
+    #overlay { position: fixed; inset: 0; display: none; place-items: center; background: rgba(244, 248, 251, .95);
+      font-size: 26px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div id="header-mount"></div>
+  <div class="page">
+    <section class="card">
+      <div class="kicker" id="kicker">Seilzug kalibrieren</div>
+      <h1 id="title">Antrieb wird vorbereitet …</h1>
+      <div class="instr" id="instr"></div>
+      <div class="progress hidden" id="progress"><span id="count"></span><div class="bar"><div id="bar"></div></div></div>
+    </section>
+
+    <section class="card hidden" id="rating">
+      <h1>Wie hat sich diese Stufe angefühlt?</h1>
+      <div class="stars" id="stars"></div>
+    </section>
+
+    <section class="card hidden" id="result">
+      <h1>Ergebnis</h1>
+      <table class="big"><thead><tr><th>Wert</th><th>Aktuell</th><th>Vorschlag</th></tr></thead><tbody id="res-main"></tbody></table>
+      <div id="res-notes" style="margin-top:10px;font-size:18px"></div>
+      <div id="res-model" style="margin-top:10px;font-size:17px;color:var(--muted)"></div>
+    </section>
+
+    <section class="card live" id="live">
+      <div><div class="v" id="lx">–</div><div class="l">Seil draussen</div></div>
+      <div><div class="v" id="lv">–</div><div class="l">Seilgeschwindigkeit (+ = Zug)</div></div>
+      <div><div class="v" id="lt">–</div><div class="l">Seilspannung beim Rückholen (geschätzt)</div></div>
+    </section>
+    <div id="msg" role="status"></div>
+
+    <div class="btns">
+      <button class="btn primary hidden" id="apply" type="button">Ins Profil übernehmen</button>
+      <button class="btn" id="repeat" type="button">Schritt wiederholen</button>
+      <button class="btn" id="skip" type="button">Schritt überspringen</button>
+      <button class="btn danger" id="exit" type="button">Beenden → Startmenü</button>
+    </div>
+
+    <section class="card">
+      <div class="kicker">Messwerte pro Stufe</div>
+      <table><thead><tr><th>Stufe</th><th>Anzahl</th><th>Freilauf</th><th>Rückholen max</th><th>Beschl. Hände</th>
+        <th>Spannung min</th><th>durchgehängt</th><th>an Grenze</th><th>Gefühl</th></tr></thead>
+        <tbody id="stages"></tbody></table>
+    </section>
+  </div>
+  <div id="overlay"><div id="overlay-text">Zurück zum Startmenü …</div></div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const fmt = (v, d = 1, u = "") => (v === null || v === undefined ? "–" : `${Number(v).toFixed(d)}${u}`);
+  let last = null;
+
+  fetch("/header?active=profil", { cache: "no-store" }).then((r) => r.ok ? r.text() : "")
+    .then((h) => { $("header-mount").innerHTML = h; }).catch(() => {});
+  fetch("/page_ready", { method: "POST" }).catch(() => {});
+
+  const LABELS = ["", "schlecht", "eher schlecht", "ok", "gut", "sehr gut"];
+  for (let i = 1; i <= 5; i++) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "btn"; b.innerHTML = `${"★".repeat(i)}<small>${LABELS[i]}</small>`;
+    b.addEventListener("click", () => act("rate", { stars: i }));
+    $("stars").appendChild(b);
+  }
+
+  async function act(action, extra = {}) {
+    try {
+      const res = await fetch("/api/calibration", { method: "POST", headers: { "Content-Type": "application/json" },
+                                                     body: JSON.stringify({ action, ...extra }) });
+      const data = await res.json();
+      if (!res.ok || !data.ok) $("msg").textContent = data.message || `Fehler (${res.status})`;
+    } catch (e) { $("msg").textContent = "Keine Verbindung zu x-ski."; }
+    poll();
+  }
+  $("repeat").addEventListener("click", () => act("repeat"));
+  $("skip").addEventListener("click", () => act("skip"));
+  $("apply").addEventListener("click", () => act("apply"));
+  $("exit").addEventListener("click", async () => {
+    const st = last || {};
+    if (st.result && !st.applied && !confirm("Ergebnis nicht übernommen. Trotzdem beenden?")) return;
+    if (!st.result && st.drive_ready && !st.finished && !confirm("Kalibrierung abbrechen?")) return;
+    $("overlay").style.display = "grid";
+    await act("exit");
+    // Warten, bis das Startmenü wieder läuft
+    for (let i = 0; i < 60; i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      try { const r = await fetch("/api/launcher", { cache: "no-store" }); if (r.ok) { location.href = "/"; return; } }
+      catch (e) { /* startet noch */ }
+    }
+    $("overlay-text").textContent = "Startmenü nicht erreichbar – bitte x-ski neu starten.";
+  });
+
+  function render(d) {
+    last = d;
+    const step = d.step, done = d.state === "done";
+    $("kicker").textContent = done ? "Seilzug kalibrieren – fertig"
+      : step ? `Seilzug kalibrieren – Schritt ${d.index + 1} von ${d.total}${d.planned_more ? "+" : ""}` : "Seilzug kalibrieren";
+    if (!d.drive_ready) {
+      $("title").textContent = d.finished ? "Kalibrierung beendet" : "Antrieb wird vorbereitet …";
+      $("instr").textContent = d.message || "";
+    } else if (done) {
+      $("title").textContent = d.applied ? "✅ Ins Profil übernommen" : "Vorschlag aus den Messungen";
+      $("instr").textContent = d.applied ? "Die Werte gelten ab dem nächsten Training." :
+        "Die vorgeschlagenen Werte sind jetzt schon aktiv – zieh ein paar Mal zum Ausprobieren.";
+    } else if (step) {
+      $("title").textContent = d.finished ? "Kalibrierung beendet" : step.title;
+      $("instr").textContent = d.finished ? d.message : step.instruction;
+    }
+    const showProgress = d.drive_ready && step && !done;
+    $("progress").classList.toggle("hidden", !showProgress);
+    if (showProgress) {
+      const unit = step.group === "free" ? "Freiläufe" : "Stösse";
+      $("count").textContent = `${step.done} / ${step.count} ${unit}`;
+      $("bar").style.width = `${Math.min(100, 100 * step.done / step.count)}%`;
+    }
+    $("rating").classList.toggle("hidden", d.state !== "rating" || d.finished);
+    $("msg").textContent = d.drive_ready ? (d.message || "") : "";
+    const live = d.live || {};
+    $("lx").textContent = fmt(live.x_m, 2, " m");
+    $("lv").textContent = fmt(live.v_m_s, 2, " m/s");
+    $("lt").textContent = fmt(live.tension_n, 1, " N");
+    $("repeat").classList.toggle("hidden", !step || done || d.finished);
+    $("skip").classList.toggle("hidden", !step || done || d.finished);
+    $("apply").classList.toggle("hidden", !done || d.applied || !d.result);
+    $("exit").textContent = done || d.finished ? "Zum Startmenü" : "Abbrechen → Startmenü";
+
+    $("result").classList.toggle("hidden", !d.result);
+    if (d.result) {
+      const c = d.current, r = d.result.recommended, n = d.n_per_pct || 0;
+      const row = (label, a, b, unit, force) => {
+        const extra = (v) => (force ? ` <small style="color:var(--muted)">(≈ ${(v * n).toFixed(0)} N)</small>` : "");
+        return `<tr><td>${label}</td><td class="num">${a.toFixed(0)} ${unit}${extra(a)}</td>` +
+          `<td class="num ${a !== b ? "changed" : ""}">${b.toFixed(0)} ${unit}${extra(b)}</td></tr>`;
+      };
+      $("res-main").innerHTML = row("Grundzug beim Stoss", c.pull_pct, r.pull_pct, "%", true) +
+        row("Rückzugskraft", c.recovery_pct, r.recovery_pct, "%", true) +
+        row("Rückzugs-Drehzahlgrenze", c.speed_rpm, r.speed_rpm, "rpm", false);
+      $("res-notes").innerHTML = (d.result.notes || []).map((t) => `⚠️ ${t}`).join("<br>");
+    }
+    const m = d.model || {};
+    $("res-model").textContent = m.mass_kg ? `Mechanik ${m.measured ? "gemessen" : "geschätzt"}: bewegte Masse ${fmt(m.mass_kg, 2, " kg")}, ` +
+      `Reibung ${fmt(m.friction_n, 1, " N")} · nötiger Rückzug für deine schnellsten Rückholbewegungen: ${fmt(m.required_recovery_pct, 1, " %")}` : "";
+
+    $("stages").innerHTML = (d.stages || []).map((s, i) => {
+      const cur = i === d.index && !done ? ' style="background:#fff3e6"' : "";
+      const free = s.group === "free";
+      return `<tr${cur}><td>${s.title}</td><td class="num">${s.done}/${s.count}</td>` +
+        `<td class="num">${free ? fmt(s.acc_m_s2, 1, " m/s²") : ""}</td>` +
+        `<td class="num">${free ? "" : fmt(s.return_peak_m_s, 2, " m/s")}</td>` +
+        `<td class="num">${free ? "" : fmt(s.return_acc_m_s2, 1, " m/s²")}</td>` +
+        `<td class="num">${free ? "" : fmt(s.min_tension_n, 1, " N")}</td>` +
+        `<td class="num ${s.slack ? "slack" : ""}">${free || s.slack === undefined ? "" : s.slack}</td>` +
+        `<td class="num">${free || s.limit_hits === undefined ? "" : s.limit_hits}</td>` +
+        `<td>${s.rating ? "★".repeat(s.rating) : s.rating === 0 ? "–" : ""}</td></tr>`;
+    }).join("");
+  }
+
+  async function poll() {
+    try {
+      const d = await (await fetch("/api/calibration", { cache: "no-store" })).json();
+      render(d);
+    } catch (e) { /* x-ski startet neu oder ist beendet */ }
+  }
+  poll();
+  setInterval(poll, 300);
+})();
+</script>
+</body>
+</html>

@@ -28,7 +28,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "CurrentLimit": 80,
         "pull_speed": 1500,
         "max_torque_pct": 200,
-        "simple_initial_power_pct": 50
+        "simple_initial_power_pct": 50,
+        # Rückzugskraft (Seil nach dem Stoss zurückholen) in % des Nenndrehmoments; Standard = min_torque_pct
+        "recovery_torque_pct": 20
     },
     "user": {
         "weight_kg": 75.0,
@@ -41,7 +43,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "club": "x-ski.ch",
         "email": "juerg.pargaetzi@parmail.ch",
         "max_hr_bpm": 180,
-        "ftp_w": 140
+        "ftp_w": 140,
+        # Technikwechsel im Skifahrer-Modus (Auto): ab dieser Steigung Diagonal, zurück auf
+        # Double Poling erst unter Schwelle minus Hysterese
+        "diagonal_from_slope_percent": 5.0,
+        "diagonal_hysteresis_percent": 1.0
     },
     "hr_sensor": {
         "address": "24:AC:AC:03:F5:B4"
@@ -59,6 +65,47 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "ant_hr_sensor": {
         "enabled": True,
         "device_id": 62900
+    },
+    "simulation": {
+        # "profile" = positionsabhängige Bremskurve × Intensität (bisheriges Verhalten)
+        # "skier"   = virtueller Skifahrer: Widerstand aus Masse, Tempo, Schnee und Steigung
+        "load_mode": "profile",
+        "cda_m2": 0.45,
+        "air_density_kg_m3": 1.2,
+        # Nenndrehmoment des Motors (Typenschild). 0 = unbekannt -> Skifahrer-Modus gesperrt
+        "motor_rated_torque_nm": 0.0,
+        # Skalierung der Stosskraft (1.0 = physikalisch) und max. Änderung pro Stoss
+        "force_scale": 1.0,
+        "max_force_step_n": 20.0,
+        # Abstimmung auf Messungen auf Schnee: Leistungsfaktor Seil -> Schnee, Ausrüstung,
+        # und eine eigene Gleitreibung nur für das Kraftgefühl am Seil
+        "power_scale": 1.0,
+        "equipment_kg": 0.0,
+        "feel_mu": 0.02,
+        # Im Diagonalschritt leisten die Arme diesen Anteil des Vortriebs (Stosskraft entsprechend kleiner),
+        # der Rest kommt als fiktiver Beinabstoss dazu. Die Umschaltschwelle steht im Userprofil.
+        "diagonal_arm_share": 0.4,
+        # Strecke (GPX aus src/routes): Datei, die beim Start geladen wird, und Steigungsfaktor
+        # (1.0 = echte Steigung, 0.5 = halb so steil)
+        "route_file": "",
+        "route_slope_factor": 1.0,
+        "max_rope_force_n": 150.0,
+        "slope_per_intensity_pct": 0.1,
+        "rope_speed_alpha": 0.5
+    },
+    "strava": {
+        # FIT-Datei nach dem Training automatisch hochladen (Verbindung im Profil herstellen)
+        "auto_upload": False
+    },
+    "traccar": {
+        # Virtuelle Position auf der Strecke an einen Traccar-Server senden
+        "enabled": False,
+        "protocol": "osmand",          # "osmand" (HTTP, Port 5055) oder "eelink" (TCP, Port 5064)
+        "url": "http://traccar:5055",  # für osmand
+        "host": "traccar",             # für eelink
+        "port": 5064,                  # für eelink
+        "device_id": "",               # Geräte-ID wie in Traccar angelegt (eelink: 15-stellige IMEI)
+        "interval_s": 5
     }
 }
 

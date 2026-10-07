@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>x-ski Strecke</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      background: #f5f5f5;
+    }
+
+    #header-mount {
+      flex: 0 0 auto;
+    }
+
+    .main {
+      flex: 1 1 auto;
+      display: flex;
+      min-height: 0;
+    }
+
+    iframe {
+      flex: 1 1 50%;
+      border: none;
+      min-width: 0;
+      background: #ffffff;
+    }
+
+    @media (max-width: 900px) {
+      .main {
+        flex-direction: column;
+      }
+
+      iframe {
+        flex-basis: 50%;
+        height: 50vh;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="header-mount"></div>
+
+  <div class="main">
+    <iframe src="/route" title="Strecke" style="flex: 1 1 58%;"></iframe>
+    <iframe src="/dashboard" title="Dashboard" style="flex: 1 1 42%;"></iframe>
+  </div>
+
+  <script>
+    fetch("/page_ready", { method: "POST" }).catch(() => {});
+
+    async function loadHeader(activeName) {
+      try {
+        const res = await fetch(`/header?active=${encodeURIComponent(activeName)}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const html = await res.text();
+        document.getElementById("header-mount").innerHTML = html;
+      } catch (e) {
+        console.error("Konnte /header nicht laden:", e);
+        document.getElementById("header-mount").innerHTML =
+          '<div style="padding:10px 20px;background:#ff7b00;color:#fff;font-weight:bold;">x-ski</div>';
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      await loadHeader("strecke");
+    });
+  </script>
+
+</body>
+</html>

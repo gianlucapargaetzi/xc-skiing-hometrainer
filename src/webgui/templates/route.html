@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>x-ski Strecke</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.0/socket.io.js"></script>
+  <style>
+    :root {
+      --ink: #12324a;
+      --muted: #5b7690;
+      --panel: rgba(255, 255, 255, 0.92);
+      --accent: #ff7b00;
+      --shadow: 0 6px 24px rgba(18, 50, 74, 0.18);
+    }
+    html, body { height: 100%; margin: 0; background: #f4f8fb; color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { display: flex; flex-direction: column; overflow: hidden; }
+    #map-wrap { position: relative; flex: 1 1 auto; min-height: 0; }
+    #map { position: absolute; inset: 0; background: #eef3f7; }
+
+    /* Winterlook für die Europa-Karte: entsättigt und aufgehellt (läuft auf der Grafikkarte) */
+    .winter-tiles { filter: grayscale(0.75) brightness(1.15) contrast(0.92) saturate(0.6); }
+
+    .panel { position: absolute; z-index: 1000; background: var(--panel); border-radius: 14px; box-shadow: var(--shadow); }
+
+    #hud { top: 12px; left: 12px; padding: 12px 14px; display: grid;
+      grid-template-columns: repeat(2, minmax(92px, auto)); gap: 8px 18px; }
+    .metric .label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+    .metric .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+    .metric .value small { font-size: 13px; font-weight: 600; color: var(--muted); margin-left: 2px; }
+    #slope-value.up { color: #c2410c; }
+    .diag { display: none; margin-left: 4px; padding: 1px 6px; border-radius: 6px; background: #c2410c; color: #fff;
+      font-size: 10px; letter-spacing: .04em; }
+    .diag.dp { background: #1d4ed8; }
+    .diag.hint { background: #f59e0b; }
+    #technique { display: none; margin-left: 18px; border: 2px solid #c9d6e2; border-radius: 12px; overflow: hidden; }
+    #control-bar #technique button { min-width: 0; height: 60px; font-size: 15px; font-weight: 700;
+      padding: 0 12px; border-radius: 0; background: #fff; color: var(--ink); }
+    #control-bar #technique button + button { border-left: 1px solid #c9d6e2; }
+    #control-bar #technique button.on { background: var(--ink); color: #fff; }
+    #slope-value.down { color: #0369a1; }
+
+    #controls { top: 12px; right: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+      min-width: 220px; max-width: 280px; }
+    #controls select { font-size: 15px; padding: 7px 8px; border-radius: 8px; border: 1px solid #c9d6e2; background: #fff; }
+    #route-info { font-size: 12px; color: var(--muted); }
+    .toggles { display: flex; flex-wrap: wrap; gap: 6px; }
+    .toggles button { font-size: 13px; padding: 6px 10px; border-radius: 999px; border: 1px solid #c9d6e2;
+      background: #fff; color: var(--ink); cursor: pointer; }
+    .toggles button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+    #message { left: 50%; top: 14px; transform: translateX(-50%); padding: 8px 14px; font-weight: 600;
+      display: none; white-space: nowrap; }
+    #empty { position: absolute; inset: 0; display: none; place-items: center; z-index: 999; pointer-events: none; }
+    #empty div { pointer-events: auto; padding: 18px 22px; position: static; }
+
+    #control-bar { flex: 0 0 auto; display: none; align-items: center; justify-content: center; gap: 12px;
+      padding: 10px 12px; background: #fff; border-top: 1px solid #dbe5ee; }
+    #control-bar button { font-size: 28px; font-weight: 700; min-width: 86px; height: 64px; border: none;
+      border-radius: 12px; color: #fff; cursor: pointer; }
+    #control-bar button:active { filter: brightness(0.9); }
+    #c-dec { background: #ff7b00; } #c-inc { background: #4CAF50; } #c-20 { background: #2196F3; font-size: 20px !important; }
+    #c-stop { background: #e53935; margin-left: 24px; font-size: 22px !important; min-width: 110px !important; }
+    #c-value { min-width: 190px; text-align: center; }
+    #c-value .num { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+    #c-value .what { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-top: 4px; }
+
+    #profile-wrap { flex: 0 0 150px; height: 150px; min-height: 0; overflow: hidden; position: relative;
+      background: #fff; border-top: 1px solid #dbe5ee; }
+    /* absolut positioniert, damit die Canvas-Auflösung die Layouthöhe nicht beeinflusst */
+    #profile { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+    @media (max-width: 700px) {
+      #hud { grid-template-columns: repeat(2, minmax(70px, auto)); gap: 6px 12px; padding: 8px 10px; }
+      .metric .value { font-size: 20px; }
+      #controls { top: auto; bottom: 12px; right: 12px; left: 12px; max-width: none; }
+      #profile-wrap { flex-basis: 110px; height: 110px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="map-wrap">
+    <div id="map"></div>
+
+    <div id="hud" class="panel">
+      <div class="metric"><div class="label">Tempo</div><div class="value" id="speed">–<small>km/h</small></div></div>
+      <div class="metric"><div class="label">Steigung <span id="diag" class="diag">Diagonal</span></div><div class="value" id="slope-value">–<small>%</small></div></div>
+      <div class="metric"><div class="label">Distanz</div><div class="value" id="distance">–<small>km</small></div></div>
+      <div class="metric"><div class="label">bis Ziel</div><div class="value" id="remaining">–<small>km</small></div></div>
+      <div class="metric"><div class="label">Höhe</div><div class="value" id="elevation">–<small>m</small></div></div>
+      <div class="metric"><div class="label">Zeit</div><div class="value" id="elapsed">–</div></div>
+    </div>
+
+    <div id="controls" class="panel">
+      <select id="route-select" aria-label="Strecke wählen"><option value="">Strecken werden geladen …</option></select>
+      <div id="route-info"></div>
+      <div class="toggles">
+        <button id="t-follow" class="on" type="button">Karte folgt</button>
+        <button id="t-overview" type="button">Ganze Strecke</button>
+      </div>
+    </div>
+
+    <div id="message" class="panel"></div>
+    <div id="empty"><div class="panel">Keine Strecke gewählt – bitte oben rechts eine Strecke auswählen.</div></div>
+  </div>
+  <div id="control-bar">
+    <button id="c-dec" type="button" aria-label="weniger">−</button>
+    <div id="c-value"><div class="num" id="c-num">–</div><div class="what" id="c-what">Intensität</div></div>
+    <button id="c-inc" type="button" aria-label="mehr">+</button>
+    <button id="c-20" type="button">20 %</button>
+    <div id="technique" role="group" aria-label="Technik">
+      <button type="button" data-t="auto">Auto</button>
+      <button type="button" data-t="dp">Double Poling</button>
+      <button type="button" data-t="diagonal">Diagonal</button>
+    </div>
+    <button id="c-stop" type="button">Stop</button>
+  </div>
+  <div id="profile-wrap"><canvas id="profile"></canvas></div>
+
+<script>
+(() => {
+  "use strict";
+
+  const CH_BOUNDS = [[45.8, 5.9], [47.85, 10.5]];
+  const FOLLOW_INTERVAL_MS = 1000;   // Karte höchstens 1× pro Sekunde nachführen (schont den Pi)
+  const VIEW_RADIUS_M = 200;         // um die aktuelle Position sichtbarer Radius
+  const PROFILE_INTERVAL_MS = 500;
+
+  const state = { route: null, follow: true, last: null, lastFollow: 0, lastProfile: 0, lastDone: 0,
+                  loadMode: "profile", slopePerIntensity: 0.1 };
+
+  // ---------------------- Karte (2D, Leaflet) ----------------------
+  let map = null, routeCasing = null, routeLine = null, doneLine = null, skier = null, startMarker = null, finishMarker = null;
+  let europeLayer = null, swissLayer = null;
+
+  function initMap() {
+    if (typeof L === "undefined") {
+      showMessage("Karte nicht verfügbar (keine Internetverbindung?) – Werte und Profil laufen trotzdem.", 8000);
+      return;
+    }
+    map = L.map("map", { zoomControl: true, preferCanvas: true, zoomSnap: 0, zoomDelta: 0.5, fadeAnimation: false })
+      .setView([46.8, 8.2], 7);
+    window.xskiMap = map;  // für Diagnose über die Browser-Konsole
+
+    europeLayer = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+      maxZoom: 17, subdomains: "abc", className: "winter-tiles",
+      attribution: '© <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA), © OpenStreetMap',
+    });
+    swissLayer = L.tileLayer(
+      "https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe-winter/default/current/3857/{z}/{x}/{y}.jpeg", {
+      maxZoom: 18, attribution: '© <a href="https://www.swisstopo.admin.ch">swisstopo</a>',
+    });
+    europeLayer.addTo(map);
+    L.control.layers({ "Winter Europa (OpenTopoMap)": europeLayer, "Winterkarte Schweiz (swisstopo)": swissLayer },
+                     null, { position: "bottomright" }).addTo(map);
+
+    routeCasing = L.polyline([], { color: "#ffffff", weight: 9, opacity: 0.9 }).addTo(map);
+    routeLine = L.polyline([], { color: "#1d4ed8", weight: 5 }).addTo(map);
+    doneLine = L.polyline([], { color: "#ff7b00", weight: 6 }).addTo(map);
+    skier = L.circleMarker([0, 0], { radius: 9, color: "#ffffff", weight: 3, fillColor: "#ff7b00", fillOpacity: 1 });
+
+    map.on("dragstart", () => setFollow(false));
+  }
+
+  // Zoomstufe, bei der die kürzere Kartenseite VIEW_RADIUS_M in jede Richtung zeigt
+  function zoomForRadius(lat) {
+    const size = map.getSize();
+    const halfPx = Math.max(Math.min(size.x, size.y) / 2, 50);
+    const z = Math.log2(156543.03 * Math.cos(lat * Math.PI / 180) * halfPx / VIEW_RADIUS_M);
+    const maxZ = map.hasLayer(swissLayer) ? 18 : 17;
+    return Math.max(10, Math.min(z, maxZ));
+  }
+
+  function sectionStart() { return state.route && state.route.section_start_m ? state.route.section_start_m : 0; }
+  function sectionEnd() { return state.route && state.route.section_end_m ? state.route.section_end_m : (state.route ? state.route.length_m : 0); }
+
+  function insideSwitzerland(bbox) {
+    return bbox[0] >= CH_BOUNDS[0][1] && bbox[2] <= CH_BOUNDS[1][1] && bbox[1] >= CH_BOUNDS[0][0] && bbox[3] <= CH_BOUNDS[1][0];
+  }
+
+  function showRouteOnMap(r) {
+    if (!map) return;
+    [startMarker, finishMarker].forEach((m) => m && m.remove());
+    if (!r) {
+      routeCasing.setLatLngs([]); routeLine.setLatLngs([]); doneLine.setLatLngs([]);
+      skier.remove();
+      return;
+    }
+    const all = r.coordinates.map(([lon, lat]) => [lat, lon]);
+    const s0 = sectionStart(), s1 = sectionEnd();
+    const latlngs = all.filter((_, i) => r.coordinate_distance_m[i] >= s0 && r.coordinate_distance_m[i] <= s1);
+    if (latlngs.length < 2) latlngs.splice(0, latlngs.length, ...all);
+    routeCasing.setLatLngs(latlngs);
+    routeLine.setLatLngs(latlngs);
+    doneLine.setLatLngs([]);
+    startMarker = L.circleMarker(latlngs[0], { radius: 6, color: "#fff", weight: 2, fillColor: "#16a34a", fillOpacity: 1 })
+      .bindTooltip("Start").addTo(map);
+    finishMarker = L.circleMarker(latlngs[latlngs.length - 1], { radius: 6, color: "#fff", weight: 2, fillColor: "#111827", fillOpacity: 1 })
+      .bindTooltip("Ziel").addTo(map);
+    skier.setLatLng(latlngs[0]).addTo(map).bringToFront();
+
+    // In der Schweiz automatisch die swisstopo-Winterkarte
+    const wantSwiss = insideSwitzerland(r.bbox);
+    if (wantSwiss && !map.hasLayer(swissLayer)) { map.removeLayer(europeLayer); swissLayer.addTo(map); }
+    if (!wantSwiss && !map.hasLayer(europeLayer)) { map.removeLayer(swissLayer); europeLayer.addTo(map); }
+
+    map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+  }
+
+  // ---------------------- Strecke wählen ----------------------
+  async function loadRoutes() {
+    const sel = document.getElementById("route-select");
+    try {
+      const data = await (await fetch("/api/routes", { cache: "no-store" })).json();
+      sel.innerHTML = "";
+      sel.add(new Option("– keine Strecke –", ""));
+      for (const f of data.files) sel.add(new Option(f.replace(/\.gpx$/i, "").replace(/_/g, " "), f));
+      sel.value = data.active || "";
+      state.loadMode = data.load_mode || "profile";
+      state.slopePerIntensity = data.slope_per_intensity_pct || 0.1;
+      initControls();
+      if (!data.files.length) showMessage("Keine GPX-Dateien im Ordner src/routes gefunden.", 6000);
+    } catch (e) {
+      sel.innerHTML = '<option value="">Strecken nicht ladbar</option>';
+      console.error(e);
+    }
+    await loadActiveRoute();
+  }
+
+  async function loadActiveRoute() {
+    let data = { active: false };
+    try { data = await (await fetch("/api/route", { cache: "no-store" })).json(); } catch (e) { console.error(e); }
+    state.route = data.active ? data : null;
+    state.last = null;
+    document.getElementById("empty").style.display = state.route ? "none" : "grid";
+    const r = state.route;
+    document.getElementById("route-info").textContent = r
+      ? (sectionEnd() - sectionStart() < r.length_m - 1
+          ? `Abschnitt km ${(sectionStart() / 1000).toFixed(1)}–${(sectionEnd() / 1000).toFixed(1)} von ${(r.length_m / 1000).toFixed(1)} km`
+          : `${(r.length_m / 1000).toFixed(1)} km · ↑ ${r.elevation_gain_m} m · ↓ ${r.elevation_loss_m} m`)
+        + (r.slope_factor !== 1 ? ` · Steigung × ${r.slope_factor}` : "")
+      : "";
+    showRouteOnMap(r);
+    drawProfile();
+  }
+
+  // Beim Antippen der Auswahl die Liste neu einlesen, damit neu abgelegte GPX-Dateien erscheinen
+  let refreshing = false;
+  document.getElementById("route-select").addEventListener("pointerdown", async () => {
+    if (refreshing) return;
+    refreshing = true;
+    try {
+      const data = await (await fetch("/api/routes", { cache: "no-store" })).json();
+      const sel = document.getElementById("route-select");
+      const current = sel.value;
+      const known = [...sel.options].map((o) => o.value).filter(Boolean);
+      if (data.files.join("|") !== known.join("|")) {
+        sel.innerHTML = "";
+        sel.add(new Option("– keine Strecke –", ""));
+        for (const f of data.files) sel.add(new Option(f.replace(/\.gpx$/i, "").replace(/_/g, " "), f));
+        sel.value = current;
+      }
+    } catch (e) { /* alte Liste behalten */ } finally { refreshing = false; }
+  });
+
+  document.getElementById("route-select").addEventListener("change", async (ev) => {
+    const name = ev.target.value;
+    try {
+      const res = await fetch(name ? "/api/route/select" : "/api/route/clear", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+      if (!res.ok) showMessage((await res.json()).message || "Strecke konnte nicht geladen werden", 5000);
+    } catch (e) {
+      showMessage("Strecke konnte nicht geladen werden", 5000);
+    }
+    setFollow(true);   // zuerst Überblick, ab dem ersten Zug Ausschnitt mit 200 m Radius
+    await loadActiveRoute();
+  });
+
+  // ---------------------- Live-Position ----------------------
+  function onPosition(p) {
+    if (!state.route) return;
+    state.last = p;
+    const now = Date.now();
+
+    setText("speed", p.speed_kmh.toFixed(1), "km/h");
+    const slopeEl = document.getElementById("slope-value");
+    slopeEl.className = "value " + (p.slope_percent > 1 ? "up" : p.slope_percent < -1 ? "down" : "");
+    setText("slope-value", (p.slope_percent > 0 ? "+" : "") + p.slope_percent.toFixed(1), "%");
+    const badge = document.getElementById("diag");
+    if (p.technique) {
+      badge.style.display = "inline-block";
+      if (p.diagonal_hint) { badge.className = "diag hint"; badge.textContent = "Diagonal?"; }
+      else if (p.technique === "diagonal") { badge.className = "diag"; badge.textContent = "Diagonal"; }
+      else { badge.className = "diag dp"; badge.textContent = "Double Poling"; }
+    } else {
+      badge.style.display = "none";
+    }
+    if (p.technique_choice) showTechnique(p.technique_choice);
+    const s0 = p.section_start_m || 0, s1 = p.section_end_m || p.length_m;
+    setText("distance", (Math.max(0, p.distance_m - s0) / 1000).toFixed(2), "km");
+    setText("remaining", (Math.max(0, s1 - p.distance_m) / 1000).toFixed(2), "km");
+    setText("elevation", Math.round(p.elevation_m), "m");
+    const s = p.elapsed_s || 0;
+    document.getElementById("elapsed").textContent =
+      `${Math.floor(s / 3600) ? Math.floor(s / 3600) + ":" : ""}${String(Math.floor(s / 60) % 60).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+    if (map) {
+      skier.setLatLng([p.lat, p.lon]);
+      if (now - state.lastDone >= FOLLOW_INTERVAL_MS) {
+        state.lastDone = now;
+        const r = state.route, done = [];
+        for (let i = 0; i < r.coordinates.length && r.coordinate_distance_m[i] <= p.distance_m; i++) {
+          if (r.coordinate_distance_m[i] >= sectionStart()) done.push([r.coordinates[i][1], r.coordinates[i][0]]);
+        }
+        done.push([p.lat, p.lon]);
+        doneLine.setLatLngs(done);
+      }
+      if (state.follow && now - state.lastFollow >= FOLLOW_INTERVAL_MS) {
+        state.lastFollow = now;
+        const z = zoomForRadius(p.lat);
+        if (Math.abs(map.getZoom() - z) > 0.05) map.setView([p.lat, p.lon], z, { animate: false });
+        else map.panTo([p.lat, p.lon], { animate: true, duration: 0.8, easeLinearity: 1 });
+      }
+    }
+    if (now - state.lastProfile >= PROFILE_INTERVAL_MS) {
+      state.lastProfile = now;
+      drawProfile();
+    }
+  }
+
+  function setText(id, value, unit) {
+    document.getElementById(id).innerHTML = `${value}<small>${unit}</small>`;
+  }
+
+  // ---------------------- Höhenprofil ----------------------
+  function slopeColor(s) {
+    if (s >= 8) return "#dc2626";
+    if (s >= 5) return "#f97316";
+    if (s >= 2) return "#facc15";
+    if (s <= -5) return "#0284c7";
+    if (s <= -2) return "#38bdf8";
+    return "#94b8a0";
+  }
+
+  function drawProfile() {
+    const canvas = document.getElementById("profile");
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+    const r = state.route;
+    if (!r) return;
+    const d = r.profile.distance_m, e = r.profile.elevation_m, sl = r.profile.slope_percent;
+    const pad = { l: 46, r: 14, t: 14, b: 22 };
+    const emin = Math.min(...e), emax = Math.max(...e);
+    const span = Math.max(emax - emin, 20);
+    const x = (v) => pad.l + (v / r.length_m) * (w - pad.l - pad.r);
+    const y = (v) => h - pad.b - ((v - emin) / span) * (h - pad.t - pad.b);
+
+    const s0 = sectionStart(), s1 = sectionEnd();
+    for (let i = 1; i < d.length; i++) {
+      ctx.fillStyle = (d[i] < s0 || d[i - 1] > s1) ? "#e2e8ee" : slopeColor(sl[i]);
+      ctx.beginPath();
+      ctx.moveTo(x(d[i - 1]), h - pad.b);
+      ctx.lineTo(x(d[i - 1]), y(e[i - 1]));
+      ctx.lineTo(x(d[i]), y(e[i]));
+      ctx.lineTo(x(d[i]), h - pad.b);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.strokeStyle = "#12324a"; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    d.forEach((v, i) => (i ? ctx.lineTo(x(v), y(e[i])) : ctx.moveTo(x(v), y(e[i]))));
+    ctx.stroke();
+
+    ctx.fillStyle = "#5b7690"; ctx.font = "11px sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(`${Math.round(emax)} m`, pad.l - 6, y(emax) + 4);
+    ctx.fillText(`${Math.round(emin)} m`, pad.l - 6, y(emin) + 4);
+    ctx.textAlign = "center";
+    const stepKm = r.length_m > 30000 ? 5 : r.length_m > 8000 ? 2 : 1;
+    for (let km = 0; km * 1000 <= r.length_m; km += stepKm) ctx.fillText(`${km} km`, x(km * 1000), h - 6);
+
+    if (state.last) {
+      const px = x(Math.min(state.last.distance_m, r.length_m));
+      ctx.strokeStyle = "#ff7b00"; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(px, pad.t - 4); ctx.lineTo(px, h - pad.b); ctx.stroke();
+      ctx.fillStyle = "#ff7b00";
+      ctx.beginPath(); ctx.arc(px, y(state.last.elevation_m), 5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  window.addEventListener("resize", drawProfile);
+
+  // ---------------------- Bedienung ----------------------
+  function setFollow(on) {
+    state.follow = on;
+    document.getElementById("t-follow").classList.toggle("on", on);
+  }
+  document.getElementById("t-follow").addEventListener("click", () => {
+    setFollow(!state.follow);
+    state.lastFollow = 0;
+    if (state.follow && state.last) onPosition(state.last);
+  });
+  document.getElementById("t-overview").addEventListener("click", () => {
+    setFollow(false);
+    if (map && state.route) map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+  });
+
+  let messageTimer = null;
+  function showMessage(text, ms) {
+    const el = document.getElementById("message");
+    el.textContent = text; el.style.display = "block";
+    clearTimeout(messageTimer);
+    messageTimer = setTimeout(() => (el.style.display = "none"), ms || 4000);
+  }
+
+  // ---------------------- Live-Daten ----------------------
+  if (typeof io !== "undefined") {
+    const socket = io();
+    socket.on("route_position", onPosition);
+    socket.on("scope_log", (data) => {
+      if (data && data.message && data.message.startsWith("🏁")) showMessage(data.message, 10000);
+    });
+  }
+
+  // ---------------------- Bedienleiste (wie die Steuerungsseite) ----------------------
+  function showValue(v) {
+    if (typeof v !== "number") return;
+    const num = document.getElementById("c-num"), what = document.getElementById("c-what");
+    if (state.loadMode === "skier") {
+      const extra = (v - 100) * state.slopePerIntensity;
+      num.textContent = (extra > 0 ? "+" : "") + extra.toFixed(1) + " %";
+      what.textContent = "Zusatz-Steigung";
+    } else {
+      num.textContent = String(v);
+      what.textContent = "Intensität (Kraft)";
+    }
+  }
+  async function control(path) {
+    try {
+      const res = await fetch(path, { method: path === "/get_value" ? "GET" : "POST",
+        headers: { "Content-Type": "application/json" }, body: path === "/get_value" ? undefined : "{}" });
+      if (!res.ok) return null;
+      const data = await res.json();
+      showValue(data.value);
+      return data;
+    } catch (e) { return null; }
+  }
+  async function initControls() {
+    // Nur mit dem Simple-Controller (SIC); im Intervall-Modus bleibt die Leiste ausgeblendet
+    const data = await control("/get_value");
+    if (!data) return;
+    document.getElementById("control-bar").style.display = "flex";
+    showValue(data.value);
+    initTechnique();
+    setTimeout(drawProfile, 50);
+  }
+  function showTechnique(choice) {
+    document.querySelectorAll("#technique button").forEach((b) => b.classList.toggle("on", b.dataset.t === choice));
+  }
+  async function initTechnique() {
+    try {
+      const data = await (await fetch("/api/technique", { cache: "no-store" })).json();
+      if (!data.available) return;   // nur im Skifahrer-Modus
+      document.getElementById("technique").style.display = "flex";
+      showTechnique(data.technique);
+    } catch (e) { /* ohne Schalter weiter */ }
+  }
+  document.querySelectorAll("#technique button").forEach((b) => b.addEventListener("click", async () => {
+    showTechnique(b.dataset.t);
+    try {
+      await fetch("/api/technique", { method: "POST", headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ technique: b.dataset.t }) });
+    } catch (e) { showMessage("Technik konnte nicht umgestellt werden", 4000); }
+  }));
+
+  document.getElementById("c-dec").addEventListener("click", () => control("/decrement"));
+  document.getElementById("c-inc").addEventListener("click", () => control("/increment"));
+  document.getElementById("c-20").addEventListener("click", () => control("/set_to_20"));
+  document.getElementById("c-stop").addEventListener("click", () => control("/stop"));
+
+  try { initMap(); } catch (e) { console.error("Karte:", e); }
+  loadRoutes();   // unabhängig von der Karte
+})();
+</script>
+</body>
+</html>

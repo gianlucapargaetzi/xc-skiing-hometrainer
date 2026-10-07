@@ -12,7 +12,12 @@ source "$VENV_DIR/bin/activate" || { echo "Fehler: Virtuelle Umgebung nicht gefu
 
 if [ -f "$PYTHON_SCRIPT" ]; then
   echo "Starte das Python-Programm im IIC-Modus: $PYTHON_SCRIPT"
-  python "$PYTHON_SCRIPT" --controller iic
+  LOG_DIR="$PROJECT_DIR/logs"
+  mkdir -p "$LOG_DIR"
+  LOG_FILE="$LOG_DIR/x-ski_iic_$(date +%Y-%m-%d_%H-%M-%S).log"
+  echo "Konsolenausgabe wird mitgeschrieben: $LOG_FILE"
+  # -u: ungepuffert, damit das Log live mitläuft
+  python -u "$PYTHON_SCRIPT" --controller iic 2>&1 | tee "$LOG_FILE"
 else
   echo "Fehler: Python-Skript $PYTHON_SCRIPT nicht gefunden."
 fi

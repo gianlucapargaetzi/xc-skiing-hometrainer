@@ -1,0 +1,164 @@
+global_training_recommendation: "6x4' Z4: Pace 2:55–2:59 kontrollieren; Belastung SPM 47–49, locker SPM 42–46."
+
+warmup:
+  type: duration_block
+  duration: 900
+  intensity_start: 50
+  intensity_end: 60
+  training_recommendation: "Einlaufen 10–15'. Locker einziehen, SPM 42–47. Technik ruhig: Hüfte aktiv, langer Arm, sauberer Return."
+
+transition_to_intervall1:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Auf Intervallrhythmus vorbereiten. SPM Richtung 47 bringen, nicht hektisch starten."
+
+intervall1:
+  type: duration_block
+  duration: 240
+  intensity_start: 150
+  intensity_end: 150
+  training_recommendation: "Intervall 1/6: Kontrolliert starten. Zielpace 2:55–2:59, SPM 47–49. Hüfte explosiv, langer Arm."
+
+transition_to_pause1:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Druck rausnehmen, Frequenz senken, ruhig weiterziehen."
+
+pause1:
+  type: duration_block
+  duration: 180
+  intensity_start: 60
+  intensity_end: 60
+  training_recommendation: "Pause 1/6: Locker bleiben, SPM 42–46. Puls senken, Schultern locker, Technik sauber halten."
+
+transition_to_intervall2:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Wieder Druck aufbauen, SPM 47 stabilisieren."
+
+intervall2:
+  type: duration_block
+  duration: 240
+  intensity_start: 150
+  intensity_end: 150
+  training_recommendation: "Intervall 2/6: Gleiche Pace wie Intervall 1. Ziel 2:55–2:59, SPM 47–49. Nicht überziehen."
+
+transition_to_pause2:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Aktiv lösen, nicht abrupt stoppen."
+
+pause2:
+  type: duration_block
+  duration: 180
+  intensity_start: 60
+  intensity_end: 60
+  training_recommendation: "Pause 2/6: Ruhiger Rhythmus, SPM 42–46. Atmung beruhigen, Arme lang lassen."
+
+transition_to_intervall3:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Jetzt in den Arbeitsbereich wechseln. Druck erhöhen, Frequenz kontrollieren."
+
+intervall3:
+  type: duration_block
+  duration: 240
+  intensity_start: 155
+  intensity_end: 155
+  training_recommendation: "Intervall 3/6: Z4 stabilisieren. Pace 2:55–2:59, SPM 47–49. Druck aus Hüfte und Rumpf, kein Reißen."
+
+transition_to_pause3:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Belastung lösen, technisch sauber in die Pause."
+
+pause3:
+  type: duration_block
+  duration: 180
+  intensity_start: 60
+  intensity_end: 60
+  training_recommendation: "Pause 3/6: Locker ziehen, SPM 42–46. Puls aktiv fallen lassen, Schultern entspannen."
+
+transition_to_intervall4:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Ruhig Druck aufbauen. Nicht über SPM erzwingen."
+
+intervall4:
+  type: duration_block
+  duration: 240
+  intensity_start: 155
+  intensity_end: 155
+  training_recommendation: "Intervall 4/6: Entscheidend ist Gleichmäßigkeit. Zielpace 2:55–2:59, SPM 47–49. Technik darf nicht kürzer werden."
+
+transition_to_pause4:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Druck deutlich reduzieren, Rhythmus locker halten."
+
+pause4:
+  type: duration_block
+  duration: 180
+  intensity_start: 60
+  intensity_end: 60
+  training_recommendation: "Pause 4/6: Erholen für die letzten zwei Wiederholungen. SPM 42–46, ruhig atmen."
+
+transition_to_intervall5:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Nur steigern, wenn die ersten vier Intervalle sauber waren."
+
+intervall5:
+  type: duration_block
+  duration: 240
+  intensity_start: 160
+  intensity_end: 160
+  training_recommendation: "Intervall 5/6: Hart, aber kontrolliert. Pace 2:55–2:59, SPM 47–50. Hüfte explosiv, Return sauber."
+
+transition_to_pause5:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Belastung lösen, keine unnötige Spannung halten."
+
+pause5:
+  type: duration_block
+  duration: 180
+  intensity_start: 60
+  intensity_end: 60
+  training_recommendation: "Pause 5/6: Letzte Erholung. SPM 42–46, Puls senken, technisch ruhig bleiben."
+
+transition_to_intervall6:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Letztes Intervall vorbereiten. Sauber starten, nicht sprinten."
+
+intervall6:
+  type: duration_block
+  duration: 240
+  intensity_start: 160
+  intensity_end: 160
+  training_recommendation: "Intervall 6/6: Letzte Belastung. Zielpace 2:55–2:59 halten. SPM 47–50, Technik vor Gewalt."
+
+transition_to_cooldown:
+  type: transition
+  duration: 10
+  curve: ease
+  training_recommendation: "Belastung aktiv lösen, Druck und Frequenz deutlich reduzieren."
+
+cooldown:
+  type: duration_block
+  duration: 900
+  intensity_start: 60
+  intensity_end: 40
+  training_recommendation: "Auslaufen 10–15'. Locker ziehen, SPM frei. Puls beruhigen lassen, langer Arm, entspannter Return."

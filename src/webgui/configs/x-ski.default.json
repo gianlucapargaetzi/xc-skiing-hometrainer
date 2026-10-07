@@ -13,25 +13,28 @@
   "control": {
     "min_torque_calib_pct": 15,
     "min_speed_calib": 100,
-    "min_torque_pct": 20,
+    "min_torque_pct": 5.0,
     "CurrentLimit": 100,
-    "pull_speed": 3000,
+    "pull_speed": 3000.0,
     "max_torque_pct": 250,
-    "simple_initial_power_pct": 70,
-    "initial_zone": 2
+    "simple_initial_power_pct": 70.0,
+    "initial_zone": 2,
+    "recovery_torque_pct": 10.0
   },
   "user": {
     "weight_kg": 75.0,
-    "mu": 0.02,
+    "mu": 0.037,
     "s_s": 1.1,
     "slope_percent": 0.0,
-    "firstname": "Jürg",
-    "lastname": "Pargätzi",
-    "birthdate": "1970-08-18",
-    "club": "Nordic Team Davos",
-    "email": "juerg.pargaetzi@parmail.ch",
+    "firstname": "x-ski",
+    "lastname": "Double Poling",
+    "birthdate": "",
+    "club": "",
+    "email": "",
     "max_hr_bpm": 176,
-    "ftp_w": 159
+    "ftp_w": 159,
+    "diagonal_from_slope_percent": 3.5,
+    "diagonal_hysteresis_percent": 1.0
   },
   "hr_sensor": {
     "address": "24:AC:AC:03:F5:B4"
@@ -49,5 +52,31 @@
   "ant_hr_sensor": {
     "enabled": true,
     "device_id": 62900
+  },
+  "simulation": {
+    "load_mode": "skier",
+    "cda_m2": 0.45,
+    "air_density_kg_m3": 1.0,
+    "motor_rated_torque_nm": 2.88,
+    "max_rope_force_n": 180.0,
+    "slope_per_intensity_pct": 0.1,
+    "rope_speed_alpha": 0.5,
+    "force_scale": 1.0,
+    "max_force_step_n": 30.0,
+    "route_file": "Sertig Classic 21k.gpx",
+    "route_slope_factor": 1.0,
+    "equipment_kg": 3.0,
+    "power_scale": 2.1,
+    "feel_mu": 0.02,
+    "diagonal_arm_share": 0.4
+  },
+  "traccar": {
+    "enabled": true,
+    "protocol": "osmand",
+    "url": "https://traccar.gps-live.ch",
+    "host": "traccar.gps-live.ch",
+    "port": 5064,
+    "device_id": "x-ski",
+    "interval_s": 5
   }
 }

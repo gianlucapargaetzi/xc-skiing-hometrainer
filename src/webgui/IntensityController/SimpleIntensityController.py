@@ -5,7 +5,9 @@ from flask import jsonify
 
 MIN_VALUE = 5
 DEFAULT_INIT_VALUE = 60
-MAX_VALUE = 200
+# Der Drive begrenzt den Bremsstrom auf 200 % (Pr 04.006): 20 % Grundzug + 180 % ist das Maximum,
+# höhere Werte hätten keine Wirkung.
+MAX_VALUE = 180
 STEP = 5
 
 

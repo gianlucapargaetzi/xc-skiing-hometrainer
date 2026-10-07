@@ -26,6 +26,7 @@ class IntervallParser:
         self._filename = filename
         self._data = None
         self._intensity_list: np.ndarray = None
+        self._slope_list: np.ndarray = None
         self._block_starts: List[Dict[str, object]] = []
         self._segments: List[Dict[str, object]] = []
         self._global_training_recommendation: str = ''
@@ -73,10 +74,31 @@ class IntervallParser:
             'training_recommendation': str(training_recommendation or ''),
         })
 
+    @staticmethod
+    def _optional_float(block_data: dict, key: str):
+        value = block_data.get(key) if isinstance(block_data, dict) else None
+        return None if value is None else float(value)
+
+    @staticmethod
+    def _slope_ramp(start, end, length: int) -> np.ndarray:
+        """Steigungsverlauf [%] für einen Abschnitt; NaN = keine Steigung angegeben."""
+        if start is None and end is None:
+            return np.full(length, np.nan)
+        start = end if start is None else start
+        end = start if end is None else end
+        return np.linspace(float(start), float(end), length)
+
+    @staticmethod
+    def _last_slope(s_all):
+        if not s_all or len(s_all[-1]) == 0 or np.isnan(s_all[-1][-1]):
+            return None
+        return float(s_all[-1][-1])
+
     def evaluate(self):
         current_time = 0
         x_all = []
         y_all = []
+        s_all = []  # optionale Steigung [%] parallel zu y_all
         self._block_starts = []
         self._segments = []
         interval_items = list(self._iter_interval_items())
@@ -100,6 +122,11 @@ class IntervallParser:
                 )
                 x_all.append(x)
                 y_all.append(y)
+                s_all.append(self._slope_ramp(
+                    self._optional_float(block_data, 'slope_start'),
+                    self._optional_float(block_data, 'slope_end'),
+                    len(y)
+                ))
                 current_time += duration
                 self._block_starts.append({
                     'name': str(block_name),
@@ -126,8 +153,10 @@ class IntervallParser:
                 next_type = next_block_data.get('type')
                 if next_type == 'interval_block':
                     y1 = float(next_block_data['on_intensity'])
+                    s1 = self._optional_float(next_block_data, 'on_slope')
                 elif next_type == 'duration_block':
                     y1 = float(next_block_data['intensity_start'])
+                    s1 = self._optional_float(next_block_data, 'slope_start')
                 else:
                     continue
 
@@ -152,6 +181,7 @@ class IntervallParser:
                 transition_start = current_time
                 x_all.append(x)
                 y_all.append(y)
+                s_all.append(self._slope_ramp(self._last_slope(s_all), s1, len(y)))
                 current_time += transition_duration
                 self._append_segment(block_name, block_type, transition_start, current_time - 1, training_recommendation)
 
@@ -168,6 +198,9 @@ class IntervallParser:
 
                 x_block = []
                 y_block = []
+                s_block = []
+                on_slope = self._optional_float(block_data, 'on_slope')
+                off_slope = self._optional_float(block_data, 'off_slope')
 
                 do_transition = False
                 transition_type = 'None'
@@ -200,12 +233,14 @@ class IntervallParser:
 
                         x_block.append(x)
                         y_block.append(y)
+                        s_block.append(self._slope_ramp(off_slope, on_slope, len(y)))
                         current_time += transition_duration
 
                     x = np.linspace(current_time, current_time + on_duration - 1, on_duration)
                     y = np.ones(on_duration) * on_intensity
                     x_block.append(x)
                     y_block.append(y)
+                    s_block.append(self._slope_ramp(on_slope, on_slope, len(y)))
                     current_time += on_duration
 
                     if do_transition:
@@ -229,18 +264,21 @@ class IntervallParser:
 
                         x_block.append(x)
                         y_block.append(y)
+                        s_block.append(self._slope_ramp(on_slope, off_slope, len(y)))
                         current_time += transition_duration
 
                     x = np.linspace(current_time, current_time + off_duration - 1, off_duration)
                     y = np.ones(off_duration) * off_intensity
                     x_block.append(x)
                     y_block.append(y)
+                    s_block.append(self._slope_ramp(off_slope, off_slope, len(y)))
                     current_time += off_duration
 
                 x_block = np.concatenate(x_block)
                 y_block = np.concatenate(y_block)
                 x_all.append(x_block)
                 y_all.append(y_block)
+                s_all.append(np.concatenate(s_block))
                 self._block_starts.append({
                     'name': str(block_name),
                     'type': block_type,
@@ -257,6 +295,7 @@ class IntervallParser:
             raise ValueError("No intensity data could be created from interval file")
 
         self._intensity_list = np.concatenate(y_all)
+        self._slope_list = np.concatenate(s_all)
 
         if len(self._block_starts) == 0:
             self._block_starts.append({
@@ -342,6 +381,20 @@ class IntervallParser:
             idx = len(self._intensity_list) - 1
 
         return float(self._intensity_list[idx])
+
+    def getSlope(self, idx) -> float:
+        """Steigung [%] zum Zeitpunkt idx oder None, wenn die Datei dort keine angibt."""
+        if self._slope_list is None or len(self._slope_list) == 0:
+            return None
+        idx = max(0, min(int(idx), len(self._slope_list) - 1))
+        value = float(self._slope_list[idx])
+        return None if np.isnan(value) else value
+
+    @property
+    def slopeList(self) -> List[float]:
+        if self._slope_list is None:
+            return []
+        return [None if np.isnan(v) else float(v) for v in self._slope_list]
 
     def length(self) -> int:
         if self._intensity_list is None:
@@ -451,6 +504,7 @@ class IntervallIntensityController(BackendNode, IntensityControllerInterface):
         intensity = self.getIntensity()
         payload = {
             "intensity": intensity,
+            "slope_percent": self.getSlopePercent(),
             "time": int(self._elapsed),
             "state": str(self._controller_state),
         }
@@ -617,6 +671,7 @@ class IntervallIntensityController(BackendNode, IntensityControllerInterface):
             interval_data = {
                 'x': x,
                 'y': y,
+                'slope': self._interval.slopeList,
                 'blocks': self._interval.blockStarts,
                 'block_count': self._interval.blockCount(),
                 'global_training_recommendation': self._interval.globalTrainingRecommendation,
@@ -698,8 +753,11 @@ class IntervallIntensityController(BackendNode, IntensityControllerInterface):
             self._elapsed = time() - self._start_time
 
             if self._elapsed >= self._interval.length():
+                # Kein BackendNode.stop() hier: getIntensity() läuft im Trainings-Thread
+                # (join() würde die Regelschleife bis zu 1 s blockieren) bzw. im
+                # Publisher-Thread selbst (join() auf sich selbst -> RuntimeError).
+                # Der Publisher meldet ab jetzt einfach den Zustand INITIALIZED.
                 Logger().info(f"{self}: Interval finished")
-                BackendNode.stop(self)
                 self.active = False
                 self._start_time = None
                 self._elapsed = 0.0
@@ -709,3 +767,12 @@ class IntervallIntensityController(BackendNode, IntensityControllerInterface):
             return self._interval.get(int(self._elapsed))
 
         return 0
+
+    def getSlopePercent(self):
+        """Steigung [%] aus der Intervalldatei an der aktuellen Position, sonst None.
+        Liest nur den Zustand (getIntensity() aktualisiert die verstrichene Zeit)."""
+        if self._interval is None or not self._interval.isValid() or not self.active:
+            return None
+        if self._controller_state not in (ControllerState.RUNNING, ControllerState.PAUSED):
+            return None
+        return self._interval.getSlope(int(self._elapsed))

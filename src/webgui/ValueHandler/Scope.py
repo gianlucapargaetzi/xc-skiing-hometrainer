@@ -1,10 +1,8 @@
 from ValueHandler.ValueHandlerInterface import ValueHandler
-import sys
-import os
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 from BasicWebGUI import BackendNode, Backend
+from Utils.settings import MAX_TRAVEL_MM
+from Utils.zones import get_hr_zone_key, get_spm_zone_key
 from scipy.interpolate import interp1d
 import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
@@ -14,7 +12,7 @@ ANALYSIS_AMOUNT = 4
 VECTOR_SIZE_MULTIPLIER = 1
 
 MIN_X_VALUE = 0
-MAX_X_VALUE = 2000
+MAX_X_VALUE = MAX_TRAVEL_MM
 VEC_LENGTH = (MAX_X_VALUE - MIN_X_VALUE) * VECTOR_SIZE_MULTIPLIER + 1
 
 
@@ -37,7 +35,7 @@ class Scope(ValueHandler, BackendNode):
 
     def __init__(self, max_hr_bpm: float = None, ftp_w: float = None, training_targets: dict = None):
         ValueHandler.__init__(self, "Scope")
-        BackendNode.__init__(self, "IntervalIntensityControllerBackend", update_interval=None)
+        BackendNode.__init__(self, "ScopeBackend", update_interval=None)
 
         self._speed_cache: List[float] = []
         self._cycles: List[np.ndarray] = []
@@ -95,27 +93,13 @@ class Scope(ValueHandler, BackendNode):
         except (TypeError, ValueError):
             return None, "#9E9E9E", None, "Unknown"
 
-        z1_low = hr_zones.get("z1", {}).get("low_bpm")
-        z2_low = hr_zones.get("z2", {}).get("low_bpm")
-        z3_low = hr_zones.get("z3", {}).get("low_bpm")
-        z4_low = hr_zones.get("z4", {}).get("low_bpm")
-        z5_low = hr_zones.get("z5", {}).get("low_bpm")
         z5_high = hr_zones.get("z5", {}).get("high_bpm")
 
         max_hr_for_pct = self.max_hr_bpm if self.max_hr_bpm > 0 else self._safe_float(z5_high, 0.0)
         pct = round((hr / max_hr_for_pct) * 100, 1) if max_hr_for_pct > 0 else None
 
-        if z5_low is not None and hr >= z5_low:
-            zone_key = "z5"
-        elif z4_low is not None and hr >= z4_low:
-            zone_key = "z4"
-        elif z3_low is not None and hr >= z3_low:
-            zone_key = "z3"
-        elif z2_low is not None and hr >= z2_low:
-            zone_key = "z2"
-        elif z1_low is not None and hr >= z1_low:
-            zone_key = "z1"
-        else:
+        zone_key = get_hr_zone_key(hr, self.training_targets)
+        if zone_key is None:
             return None, "#9E9E9E", pct, "Unknown"
 
         return (
@@ -135,21 +119,7 @@ class Scope(ValueHandler, BackendNode):
         except (TypeError, ValueError):
             return None, "#9E9E9E", [], "Unknown"
 
-        z1_high = spm_zones.get("z1", {}).get("high_spm")
-        z2_high = spm_zones.get("z2", {}).get("high_spm")
-        z3_high = spm_zones.get("z3", {}).get("high_spm")
-        z4_high = spm_zones.get("z4", {}).get("high_spm")
-
-        if z1_high is not None and cadence_spm <= z1_high:
-            zone_key = "z1"
-        elif z2_high is not None and cadence_spm <= z2_high:
-            zone_key = "z2"
-        elif z3_high is not None and cadence_spm <= z3_high:
-            zone_key = "z3"
-        elif z4_high is not None and cadence_spm <= z4_high:
-            zone_key = "z4"
-        else:
-            zone_key = "z5"
+        zone_key = get_spm_zone_key(cadence_spm, self.training_targets)
 
         return (
             zone_key,
@@ -173,7 +143,10 @@ class Scope(ValueHandler, BackendNode):
         push_phase_utilization_pct: float = None,
         reference_zone_key: str = None,
         reference_spm: float = None,
-        reference_power_w: float = None
+        reference_power_w: float = None,
+        virtual_speed_kmh: float = None,
+        slope_percent: float = None,
+        load_mode: str = None
     ):
         hr_zone_key, hr_color, hr_pct, hr_zone_label = self._get_hr_zone_key_and_color(heart_rate)
         spm_zone_key, spm_color, spm_matches, spm_zone_label = self._get_spm_zone_key_and_color(cadence_spm)
@@ -211,7 +184,11 @@ class Scope(ValueHandler, BackendNode):
             "push_phase_utilization_pct": push_phase_utilization_pct,
             "reference_zone_key": reference_zone_key,
             "reference_spm": reference_spm,
-            "reference_power_w": reference_power_w
+            "reference_power_w": reference_power_w,
+
+            "virtual_speed_kmh": virtual_speed_kmh,
+            "slope_percent": slope_percent,
+            "load_mode": load_mode
         }
 
         Backend().publish("scope_summary", self._summary_data)

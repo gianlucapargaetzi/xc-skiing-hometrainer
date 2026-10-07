@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>x-ski – Modus wählen</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <style>
+    :root { --ink: #12324a; --muted: #5b7690; --accent: #ff7b00; --line: #dbe5ee; }
+    html, body { height: 100%; margin: 0; }
+    body { display: flex; flex-direction: column; background: #f4f8fb; color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .start-main { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 12px 16px; gap: 14px; }
+    h1 { margin: 0; font-size: 34px; }
+    /* Gemeinsame Kachelhöhe für Profile und Strecken: drei Reihen passen ohne Scrollen auf den Bildschirm */
+    :root { --row-h: clamp(104px, calc((100vh - 330px) / 3), 200px); }
+    /* Profile: gleiches Raster wie das Startbrett. Spalten 1–3 = Profile, Spalte 4 = «Bearbeiten» / «Neu» */
+    .profiles-wrap { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: auto var(--row-h);
+      gap: 12px 20px; width: min(1400px, 100%); }
+    .profiles-wrap > .group-head { grid-column: 1 / 5; }
+    .profiles { display: contents; }
+    .tile.ptile { justify-content: center; }
+    .ptile .title { font-size: 26px; }
+    .ptile .psub { font-size: 17px; color: var(--muted); }
+    .ptile.active { border-color: var(--accent); background: #fff3e6; box-shadow: 0 0 0 2px var(--accent) inset; }
+    .ptile.active .psub { color: #c2410c; font-weight: 700; }
+    .p-actions { grid-column: 4; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+    .p-actions .tile { flex: 1 1 0; min-height: 0; padding: 6px 18px; flex-direction: row; align-items: center;
+      justify-content: center; gap: 10px; background: #f8fbfd; border-style: dashed; }
+    .p-actions .title { font-size: 22px; -webkit-line-clamp: 1; }
+    #profile-msg { font-size: 15px; color: var(--muted); }
+    /* Startbrett: 4 gleich breite Spalten. Spalte 1 = Training, Spalten 2–4 = Strecken (3 × 2 pro Seite) */
+    /* Kachelhöhe passt sich der Bildschirmhöhe an, damit beide Reihen ohne Scrollen sichtbar sind */
+    .board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-rows: auto repeat(2, var(--row-h));
+      gap: 12px 20px; width: min(1400px, 100%); }
+    .group-head { display: flex; align-items: center; gap: 14px; min-height: 52px; }
+    .group-head h2 { margin: 0; font-size: 24px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    #routes-head { grid-column: 2 / 5; grid-row: 1; }
+    #training-head { grid-column: 1; grid-row: 1; }
+    .pager { margin-left: auto; display: none; align-items: center; gap: 10px; }
+    .pager button { font: inherit; font-size: 34px; font-weight: 800; width: 64px; height: 56px; border-radius: 14px;
+      border: 2px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; line-height: 1; }
+    .pager button:disabled { opacity: .3; cursor: default; }
+    #page-label { font-size: 20px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 56px; text-align: center; }
+    #routes-note { font-size: 16px; color: #b45309; }
+
+    .tile { background: #fff; border: 2px solid var(--line); border-radius: 20px; padding: 14px 18px;
+      text-align: left; cursor: pointer; box-shadow: 0 6px 24px rgba(18, 50, 74, 0.08); overflow: hidden;
+      display: flex; flex-direction: column; gap: 6px; font: inherit; color: inherit; min-width: 0; }
+    .tile:hover:not(:disabled), .tile:active:not(:disabled) { border-color: var(--accent); background: #fff9f3; }
+    .tile:disabled { opacity: .45; cursor: not-allowed; }
+    .tile .icon { width: 48px; height: 48px; color: var(--accent); flex: 0 0 auto; }
+    .tile .icon svg { width: 100%; height: 100%; }
+    .tile .title { font-size: 24px; font-weight: 800; line-height: 1.15; overflow-wrap: break-word; hyphens: auto;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex: 0 0 auto; }
+    .tile .desc { font-size: 16px; color: var(--muted); line-height: 1.35; }
+    .tile .meta { font-size: 18px; color: var(--muted); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+    .tile .spark { margin-top: auto; width: 100%; flex: 1 1 0; min-height: 14px; max-height: 46px; }
+    #t-profile { grid-column: 1; grid-row: 2; }
+    #t-interval { grid-column: 1; grid-row: 3; }
+
+    dialog { margin: auto; border: none; border-radius: 20px; padding: 0; width: min(1180px, calc(100vw - 32px));
+      box-shadow: 0 20px 60px rgba(18, 50, 74, 0.35); color: var(--ink); }
+    dialog::backdrop { background: rgba(18, 50, 74, 0.45); }
+    /* Touch-Bildschirm: grosse Schrift und grosse Tippflächen */
+    .dlg-head { padding: 24px 28px 8px; font-size: 34px; font-weight: 800; }
+    .dlg-sub { padding: 0 28px 16px; color: var(--muted); font-size: 20px; }
+    dialog:focus { outline: none; }
+    .dlg-foot { display: flex; justify-content: flex-end; padding: 20px 28px 24px; }
+    .btn { font: inherit; font-size: 22px; min-height: 64px; padding: 12px 26px; border-radius: 14px;
+      border: 2px solid var(--line); background: #fff; cursor: pointer; color: inherit; }
+    .empty { padding: 16px 24px; color: var(--muted); }
+
+    /* Dialog passt immer auf den Bildschirm; die Karte nimmt den restlichen Platz */
+    #section-dialog { width: min(1100px, calc(100vw - 32px)); max-height: calc(100vh - 24px); overflow-y: auto; }
+    .sec-body { padding: 0 20px; display: flex; flex-direction: column; gap: 10px; }
+    #sec-map { height: clamp(160px, calc(100vh - 560px), 460px); border-radius: 12px; border: 1px solid var(--line); }
+    #sec-profile-wrap { position: relative; height: 110px; border: 1px solid var(--line); border-radius: 12px;
+      overflow: hidden; cursor: crosshair; }
+    #sec-profile { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .sec-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+    .seg { display: inline-flex; border: 2px solid var(--line); border-radius: 10px; overflow: hidden; }
+    .seg button { font: inherit; font-size: 22px; font-weight: 700; min-height: 64px; padding: 10px 22px; border: none;
+      background: #fff; color: var(--ink); cursor: pointer; }
+    .seg button.on { background: var(--ink); color: #fff; }
+    .seg button + button { border-left: 1px solid var(--line); }
+    #sec-info { font-size: 21px; font-variant-numeric: tabular-nums; }
+    #sec-info b { font-size: 24px; }
+    #sec-profile-wrap { height: 120px; }
+    #section-dialog .dlg-head { font-size: 28px; padding-top: 18px; }
+    #section-dialog .dlg-sub { font-size: 18px; padding-bottom: 10px; }
+    .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
+    .dlg-foot { gap: 10px; }
+    /* Knöpfe bleiben auch bei kleinem Bildschirm sichtbar */
+    #section-dialog .dlg-foot { position: sticky; bottom: 0; background: #fff; border-top: 1px solid var(--line); }
+
+    #starting { position: fixed; inset: 0; display: none; place-items: center; background: rgba(244, 248, 251, 0.94);
+      z-index: 10; font-size: 26px; font-weight: 700; text-align: center; }
+    .spinner { width: 46px; height: 46px; margin: 0 auto 16px; border-radius: 50%;
+      border: 5px solid var(--line); border-top-color: var(--accent); animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #error { color: #b91c1c; font-weight: 600; min-height: 1.4em; }
+    #error:empty { display: none; }
+
+    @media (max-height: 760px) and (min-width: 901px) {
+      #t-profile .icon, #t-interval .icon { display: none; }
+    }
+    @media (max-width: 900px) {
+      /* Schmaler Bildschirm: alles untereinander */
+      .board { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-rows: minmax(150px, auto); }
+      .board > * { grid-column: auto !important; grid-row: auto !important; }
+      .group-head { min-height: 0; }
+      .profiles-wrap { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; grid-auto-rows: 110px; }
+      .profiles-wrap > .group-head { grid-column: 1 / -1; }
+      .p-actions { grid-column: auto; }
+    }
+    @media (max-height: 700px) and (min-width: 901px) {
+      /* Niedriger Bildschirm: Kachelnamen einzeilig, damit Kennzahlen und Höhenprofil Platz haben */
+      .tile .title { font-size: 22px; -webkit-line-clamp: 1; }
+      .group-head { min-height: 44px; }
+      .pager button { height: 46px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="header-mount"></div>
+  <div class="start-main">
+    <div class="profiles-wrap">
+      <div class="group-head">
+        <h2>Profil</h2>
+        <span id="profile-msg" role="status"></span>
+        <div class="pager" id="ppager">
+          <button type="button" id="ppage-prev" aria-label="Vorherige Profile">‹</button>
+          <span id="ppage-label"></span>
+          <button type="button" id="ppage-next" aria-label="Weitere Profile">›</button>
+        </div>
+      </div>
+      <div class="profiles" id="profiles"></div>
+    </div>
+    <div class="board" id="board">
+      <div class="group-head" id="training-head"><h2>Training</h2></div>
+      <div class="group-head" id="routes-head">
+        <h2>Strecken</h2>
+        <span id="routes-note"></span>
+        <div class="pager" id="pager">
+          <button type="button" id="page-prev" aria-label="Vorherige Strecken">‹</button>
+          <span id="page-label"></span>
+          <button type="button" id="page-next" aria-label="Weitere Strecken">›</button>
+        </div>
+      </div>
+      <button class="tile" id="t-profile" type="button">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 48 A24 24 0 0 1 56 48"/><path d="M32 48 L44 30"/><circle cx="32" cy="48" r="4" fill="currentColor"/>
+          <path d="M14 34 L18 36"/><path d="M32 24 L32 28"/><path d="M50 34 L46 36"/></svg></span>
+        <span class="title">Belastungsprofil</span>
+        <span class="desc">Freies Training: Die Kraft pro Stoss stellst du mit + und − selbst ein.</span>
+      </button>
+      <button class="tile" id="t-interval" type="button">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="32" cy="36" r="22"/><path d="M26 6 L38 6"/><path d="M32 6 L32 14"/><path d="M32 36 L42 26"/><path d="M50 16 L54 12"/></svg></span>
+        <span class="title">Intervall</span>
+        <span class="desc">Ein Intervallprogramm (.xciv) gibt die Belastung über die Zeit vor.</span>
+      </button>
+    </div>
+    <div id="error" role="alert"></div>
+  </div>
+
+  <dialog id="section-dialog">
+    <div class="dlg-head" id="sec-title">Abschnitt wählen</div>
+    <div class="dlg-sub">Tippe auf die Strecke oder ins Höhenprofil, um den Startpunkt (und optional das Ziel) zu setzen.</div>
+    <div class="sec-body">
+      <div id="sec-map"></div>
+      <div id="sec-profile-wrap"><canvas id="sec-profile"></canvas></div>
+      <div class="sec-bar">
+        <div class="seg" role="group" aria-label="Nächster Klick setzt">
+          <button type="button" id="pick-start" class="on">Start setzen</button>
+          <button type="button" id="pick-end">Ziel setzen</button>
+        </div>
+        <button class="btn" id="sec-full" type="button">Ganze Strecke</button>
+        <div id="sec-info"></div>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn" id="sec-back" type="button">Zurück</button>
+      <button class="btn primary" id="sec-go" type="button">Los geht's</button>
+    </div>
+  </dialog>
+
+  <div id="starting"><div><div class="spinner"></div><div id="starting-text">x-ski wird gestartet …</div></div></div>
+
+<script>
+(() => {
+  "use strict";
+  let info = { skier_available: true, routes: [] };
+
+  async function loadHeader() {
+    try {
+      const res = await fetch("/header", { cache: "no-store" });
+      if (res.ok) document.getElementById("header-mount").innerHTML = await res.text();
+    } catch (e) { /* Kopfzeile ist optional */ }
+  }
+
+  // ---------------------- Strecken als Kacheln ----------------------
+  const PER_PAGE = 6;
+  let page = 0, shownFiles = "";
+
+  async function loadInfo() {
+    try {
+      info = await (await fetch("/api/launcher", { cache: "no-store" })).json();
+    } catch (e) {
+      document.getElementById("error").textContent = "Startmenü nicht erreichbar.";
+      return;
+    }
+    // Nur neu zeichnen, wenn sich die Strecken oder die Verfügbarkeit geändert haben
+    const sig = info.skier_available + "|" + info.routes.map((r) => r.file + ":" + r.length_km).join("|");
+    if (sig !== shownFiles) { shownFiles = sig; renderRoutes(); }
+  }
+
+  function sparkline(values) {
+    if (!values || values.length < 2) return "";
+    const lo = Math.min(...values), hi = Math.max(...values), span = Math.max(hi - lo, 20);
+    const pts = values.map((v, i) => `${(i / (values.length - 1) * 100).toFixed(1)},${(28 - (v - lo) / span * 26).toFixed(1)}`);
+    return `<svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+      <polygon points="0,30 ${pts.join(" ")} 100,30" fill="#ffe2c7"/>
+      <polyline points="${pts.join(" ")}" fill="none" stroke="#ff7b00" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`;
+  }
+
+  function renderRoutes() {
+    const board = document.getElementById("board");
+    board.querySelectorAll(".route-tile").forEach((t) => t.remove());
+    const routes = info.routes || [];
+    const pages = Math.max(1, Math.ceil(routes.length / PER_PAGE));
+    page = Math.min(page, pages - 1);
+    const note = document.getElementById("routes-note");
+    note.textContent = !info.skier_available ? "Nicht verfügbar: Motor-Nenndrehmoment fehlt in der Konfiguration."
+      : !routes.length ? "Keine Strecken – bitte GPX-Dateien in src/routes ablegen." : "";
+
+    routes.slice(page * PER_PAGE, (page + 1) * PER_PAGE).forEach((r, i) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "tile route-tile";
+      b.style.gridColumn = String(2 + (i % 3)); b.style.gridRow = String(2 + Math.floor(i / 3));
+      b.disabled = !info.skier_available || !!r.error;
+      const title = document.createElement("span"); title.className = "title"; title.textContent = r.name;
+      const meta = document.createElement("span"); meta.className = "meta";
+      meta.textContent = r.error ? "nicht lesbar" : `${r.length_km} km · ↑ ${r.gain_m} m · ↓ ${r.loss_m} m`;
+      b.append(title, meta);
+      b.insertAdjacentHTML("beforeend", sparkline(r.sparkline));
+      b.addEventListener("click", () => openSection(r));
+      board.appendChild(b);
+    });
+
+    const pager = document.getElementById("pager");
+    pager.style.display = pages > 1 ? "flex" : "none";
+    document.getElementById("page-label").textContent = `${page + 1} / ${pages}`;
+    document.getElementById("page-prev").disabled = page === 0;
+    document.getElementById("page-next").disabled = page >= pages - 1;
+  }
+
+  function changePage(delta) {
+    const pages = Math.max(1, Math.ceil((info.routes || []).length / PER_PAGE));
+    const next = Math.max(0, Math.min(page + delta, pages - 1));
+    if (next !== page) { page = next; renderRoutes(); }
+  }
+  document.getElementById("page-prev").addEventListener("click", () => changePage(-1));
+  document.getElementById("page-next").addEventListener("click", () => changePage(1));
+
+  // Wischen über die Strecken blättert ebenfalls
+  let swipeX = null;
+  document.getElementById("board").addEventListener("pointerdown", (ev) => { swipeX = ev.clientX; });
+  document.getElementById("board").addEventListener("pointerup", (ev) => {
+    if (swipeX !== null && Math.abs(ev.clientX - swipeX) > 80) changePage(ev.clientX < swipeX ? 1 : -1);
+    swipeX = null;
+  });
+
+  // Immer den aktuellen Inhalt des Streckenordners zeigen (neu abgelegte oder gelöschte GPX-Dateien)
+  setInterval(() => { if (!document.querySelector("dialog[open]")) loadInfo(); }, 5000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { loadInfo(); loadProfiles(); } });
+  // Auch wenn der Browser die Seite aus dem Zwischenspeicher zeigt (z.B. nach «Zurück»): alles neu laden
+  window.addEventListener("pageshow", (ev) => { if (ev.persisted) { loadHeader(); loadInfo(); loadProfiles(); } });
+
+  // ---------------------- Abschnitt wählen ----------------------
+  const CH = [[45.8, 5.9], [47.85, 10.5]];
+  const sec = { route: null, meta: null, start: 0, end: 0, pick: "start", map: null, layers: {} };
+
+  function sectionLabel() {
+    const full = sec.start <= 0 && sec.end >= sec.route.length_m - 1;
+    return full ? sec.meta.name : `${sec.meta.name} (km ${(sec.start / 1000).toFixed(1)}–${(sec.end / 1000).toFixed(1)})`;
+  }
+
+  function sectionGain() {
+    const d = sec.route.profile.distance_m, e = sec.route.profile.elevation_m;
+    let up = 0, down = 0;
+    for (let i = 1; i < d.length; i++) {
+      if (d[i] < sec.start || d[i - 1] > sec.end) continue;
+      const de = e[i] - e[i - 1];
+      if (de > 0) up += de; else down -= de;
+    }
+    return [Math.round(up), Math.round(down)];
+  }
+
+  function pointAt(distance) {
+    const c = sec.route.coordinates, cd = sec.route.coordinate_distance_m;
+    let i = 0;
+    while (i < cd.length - 1 && cd[i + 1] < distance) i++;
+    return [c[i][1], c[i][0]];
+  }
+
+  function updateSection() {
+    const r = sec.route;
+    const latlngs = r.coordinates.map(([lon, lat]) => [lat, lon]);
+    const part = latlngs.filter((_, i) => r.coordinate_distance_m[i] >= sec.start && r.coordinate_distance_m[i] <= sec.end);
+    sec.layers.part.setLatLngs(part);
+    sec.layers.start.setLatLng(pointAt(sec.start));
+    sec.layers.end.setLatLng(pointAt(sec.end));
+    const [up, down] = sectionGain();
+    document.getElementById("sec-info").innerHTML =
+      `Start <b>km ${(sec.start / 1000).toFixed(2)}</b> · Ziel <b>km ${(sec.end / 1000).toFixed(2)}</b> · ` +
+      `${((sec.end - sec.start) / 1000).toFixed(1)} km · ↑ ${up} m · ↓ ${down} m`;
+    drawSectionProfile();
+  }
+
+  function setPoint(distance) {
+    distance = Math.max(0, Math.min(distance, sec.route.length_m));
+    if (sec.pick === "start") {
+      if (distance > sec.end - 200) { flashInfo("Der Start muss mindestens 200 m vor dem Ziel liegen."); return; }
+      sec.start = distance;
+    } else {
+      if (distance < sec.start + 200) { flashInfo("Das Ziel muss mindestens 200 m nach dem Start liegen."); return; }
+      sec.end = distance;
+    }
+    updateSection();
+  }
+
+  function flashInfo(text) {
+    const el = document.getElementById("sec-info");
+    el.innerHTML = `<span style="color:#b91c1c;font-weight:700">${text}</span>`;
+    setTimeout(updateSection, 2200);
+  }
+
+  // Klick auf die Karte -> nächster Streckenpunkt. Bei Runden (Punkt mehrfach auf der Strecke):
+  // Start = erster Durchgang, Ziel = letzter Durchgang.
+  function snapToRoute(latlng) {
+    const r = sec.route, cosLat = Math.cos(latlng.lat * Math.PI / 180);
+    const dist = r.coordinates.map(([lon, lat]) =>
+      Math.hypot((lat - latlng.lat) * 111195, (lon - latlng.lng) * 111195 * cosLat));
+    const dmin = Math.min(...dist);
+    if (dmin > 150) { flashInfo("Bitte näher an die Strecke tippen."); return null; }
+    const cand = dist.map((d, i) => [d, r.coordinate_distance_m[i]]).filter(([d]) => d <= dmin + 20).map(([, cd]) => cd);
+    return sec.pick === "start" ? Math.min(...cand) : Math.max(...cand);
+  }
+
+  function drawSectionProfile() {
+    const canvas = document.getElementById("sec-profile");
+    const w = canvas.clientWidth, h = canvas.clientHeight, dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (!w || !h) return;
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    const ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr); ctx.clearRect(0, 0, w, h);
+    const r = sec.route, d = r.profile.distance_m, e = r.profile.elevation_m;
+    const emin = Math.min(...e), emax = Math.max(...e), span = Math.max(emax - emin, 20);
+    const pad = { l: 8, r: 8, t: 10, b: 18 };
+    const x = (v) => pad.l + v / r.length_m * (w - pad.l - pad.r);
+    const y = (v) => h - pad.b - (v - emin) / span * (h - pad.t - pad.b);
+    for (let i = 1; i < d.length; i++) {
+      const inside = d[i] >= sec.start && d[i - 1] <= sec.end;
+      ctx.fillStyle = inside ? "#ff7b00" : "#d6dee6";
+      ctx.beginPath(); ctx.moveTo(x(d[i - 1]), h - pad.b); ctx.lineTo(x(d[i - 1]), y(e[i - 1]));
+      ctx.lineTo(x(d[i]), y(e[i])); ctx.lineTo(x(d[i]), h - pad.b); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = "#5b7690"; ctx.font = "11px sans-serif"; ctx.textAlign = "center";
+    const step = r.length_m > 30000 ? 5 : r.length_m > 8000 ? 2 : 1;
+    for (let km = 0; km * 1000 <= r.length_m; km += step) ctx.fillText(`${km} km`, x(km * 1000), h - 4);
+    for (const [v, col] of [[sec.start, "#16a34a"], [sec.end, "#111827"]]) {
+      ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(x(v), pad.t - 6); ctx.lineTo(x(v), h - pad.b); ctx.stroke();
+    }
+    canvas.onclick = (ev) => {
+      const rect = canvas.getBoundingClientRect();
+      setPoint((ev.clientX - rect.left - pad.l) / (w - pad.l - pad.r) * r.length_m);
+    };
+  }
+
+  async function openSection(meta) {
+    let r;
+    try {
+      const res = await fetch(`/api/launcher/route?file=${encodeURIComponent(meta.file)}`, { cache: "no-store" });
+      r = await res.json();
+      if (!res.ok) throw new Error(r.message || res.status);
+    } catch (e) {
+      document.getElementById("error").textContent = `Strecke nicht ladbar: ${e.message}`;
+      return;
+    }
+    sec.route = r; sec.meta = meta; sec.start = 0; sec.end = r.length_m; setPick("start");
+    document.getElementById("sec-title").textContent = `Abschnitt wählen – ${meta.name}`;
+    const dlg = document.getElementById("section-dialog");
+    dlg.showModal();
+
+    if (typeof L === "undefined") {
+      document.getElementById("sec-map").textContent = "Karte nicht verfügbar – Abschnitt über das Höhenprofil wählen.";
+    } else {
+      if (!sec.map) {
+        sec.map = L.map("sec-map", { zoomSnap: 0.5 });
+        sec.layers.topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+          { maxZoom: 17, subdomains: "abc", attribution: "© OpenTopoMap, © OpenStreetMap" });
+        sec.layers.swiss = L.tileLayer(
+          "https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe-winter/default/current/3857/{z}/{x}/{y}.jpeg",
+          { maxZoom: 18, attribution: "© swisstopo" });
+        sec.layers.full = L.polyline([], { color: "#1d4ed8", weight: 5, opacity: 0.55 }).addTo(sec.map);
+        sec.layers.part = L.polyline([], { color: "#ff7b00", weight: 7 }).addTo(sec.map);
+        sec.layers.start = L.circleMarker([0, 0], { radius: 9, color: "#fff", weight: 3, fillColor: "#16a34a", fillOpacity: 1 })
+          .bindTooltip("Start", { permanent: true, direction: "top", offset: [0, -8] }).addTo(sec.map);
+        sec.layers.end = L.circleMarker([0, 0], { radius: 9, color: "#fff", weight: 3, fillColor: "#111827", fillOpacity: 1 })
+          .bindTooltip("Ziel", { permanent: true, direction: "top", offset: [0, -8] }).addTo(sec.map);
+        sec.map.on("click", (ev) => { const dd = snapToRoute(ev.latlng); if (dd !== null) setPoint(dd); });
+      }
+      const b = r.bbox, inCH = b[0] >= CH[0][1] && b[2] <= CH[1][1] && b[1] >= CH[0][0] && b[3] <= CH[1][0];
+      [sec.layers.topo, sec.layers.swiss].forEach((l) => sec.map.hasLayer(l) && sec.map.removeLayer(l));
+      (inCH ? sec.layers.swiss : sec.layers.topo).addTo(sec.map);
+      const latlngs = r.coordinates.map(([lon, lat]) => [lat, lon]);
+      sec.layers.full.setLatLngs(latlngs);
+      setTimeout(() => { sec.map.invalidateSize(); sec.map.fitBounds(sec.layers.full.getBounds(), { padding: [30, 30] }); }, 60);
+    }
+    setTimeout(updateSection, 80);
+  }
+
+  function setPick(which) {
+    sec.pick = which;
+    document.getElementById("pick-start").classList.toggle("on", which === "start");
+    document.getElementById("pick-end").classList.toggle("on", which === "end");
+  }
+  document.getElementById("pick-start").addEventListener("click", () => setPick("start"));
+  document.getElementById("pick-end").addEventListener("click", () => setPick("end"));
+  document.getElementById("sec-full").addEventListener("click", () => { sec.start = 0; sec.end = sec.route.length_m; updateSection(); });
+  document.getElementById("sec-back").addEventListener("click", () => {
+    document.getElementById("section-dialog").close();
+  });
+  document.getElementById("sec-go").addEventListener("click", () => {
+    document.getElementById("section-dialog").close();
+    const full = sec.start <= 0 && sec.end >= sec.route.length_m - 1;
+    start("skier", sec.meta.file, sectionLabel(),
+          full || sec.start <= 0 ? null : sec.start / 1000, full || sec.end >= sec.route.length_m - 1 ? null : sec.end / 1000);
+  });
+
+  async function start(mode, route, label, startKm = null, endKm = null) {
+    document.getElementById("error").textContent = "";
+    const overlay = document.getElementById("starting");
+    document.getElementById("starting-text").textContent =
+      mode === "skier" ? `Starte Streckensimulation – ${label} …` : mode === "profile" ? "Starte Belastungsprofil …" : "Starte Intervall …";
+    overlay.style.display = "grid";
+    let next;
+    try {
+      const res = await fetch("/start", { method: "POST", headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ mode, route, start_km: startKm, end_km: endKm }) });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.message || `HTTP ${res.status}`);
+      next = data.next;
+    } catch (e) {
+      overlay.style.display = "none";
+      document.getElementById("error").textContent = `Start fehlgeschlagen: ${e.message}`;
+      return;
+    }
+    // Warten, bis x-ski den Launcher ersetzt hat und die Zielseite ausliefert
+    for (let i = 0; i < 120; i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      try {
+        const res = await fetch(next, { cache: "no-store" });
+        if (res.ok) { location.href = next; return; }
+      } catch (e) { /* Server startet noch */ }
+    }
+    overlay.style.display = "none";
+    document.getElementById("error").textContent = "x-ski ist nicht gestartet – bitte die Konsole prüfen.";
+  }
+
+  // ---------------------- Profil ----------------------
+  const PROFILES_PER_PAGE = 3;   // Spalte 4: «Bearbeiten» / «Neu»
+  let profilePage = 0, profileData = { profiles: [], active: null };
+
+  async function loadProfiles() {
+    try {
+      profileData = await (await fetch("/api/profiles", { cache: "no-store" })).json();
+    } catch (e) {
+      document.getElementById("profile-msg").textContent = "Profile nicht ladbar";
+      return;
+    }
+    // Beim ersten Laden die Seite mit dem aktiven Profil zeigen
+    const idx = profileData.profiles.findIndex((p) => p.file === profileData.active);
+    if (idx >= 0 && !renderProfiles.done) profilePage = Math.floor(idx / PROFILES_PER_PAGE);
+    renderProfiles();
+    renderProfiles.done = true;
+  }
+
+  function profileTile(name, sub, cls, onClick) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "tile ptile " + cls;
+    const n = document.createElement("span"); n.className = "title"; n.textContent = name;
+    const s = document.createElement("span"); s.className = "psub"; s.textContent = sub;
+    b.append(n); if (sub) b.append(s);
+    b.addEventListener("click", onClick);
+    return b;
+  }
+
+  function renderProfiles() {
+    const box = document.getElementById("profiles");
+    box.innerHTML = "";
+    const list = profileData.profiles || [];
+    const pages = Math.max(1, Math.ceil(list.length / PROFILES_PER_PAGE));
+    profilePage = Math.min(profilePage, pages - 1);
+    for (const p of list.slice(profilePage * PROFILES_PER_PAGE, (profilePage + 1) * PROFILES_PER_PAGE)) {
+      const active = p.file === profileData.active;
+      const sub = (active ? "✓ aktiv" : "antippen zum Laden") + (p.strava ? " · Strava" : "");
+      box.appendChild(profileTile(p.person || p.label, sub, active ? "active" : "", () => {
+        if (!active) profileAction("/api/profiles/activate", { file: p.file }, "Profil geladen.");
+      }));
+    }
+    // Platzhalter, damit «Bearbeiten» und «Neu» immer in Spalte 4 übereinander stehen
+    for (let i = box.children.length; i < PROFILES_PER_PAGE; i++) box.appendChild(document.createElement("span"));
+    const actions = document.createElement("div"); actions.className = "p-actions";
+    actions.appendChild(profileTile("✎ Bearbeiten", "", "action", () => { location.href = "/profil"; }));
+    actions.appendChild(profileTile("＋ Neu", "", "action", () => {
+      const name = prompt("Name des neuen Profils (z.B. Vorname oder «Skating-Ski»):");
+      if (name && name.trim()) profileAction("/api/profiles/new", { name: name.trim() }, "Profil angelegt.");
+    }));
+    box.appendChild(actions);
+    document.getElementById("ppager").style.display = pages > 1 ? "flex" : "none";
+    document.getElementById("ppage-label").textContent = `${profilePage + 1} / ${pages}`;
+    document.getElementById("ppage-prev").disabled = profilePage === 0;
+    document.getElementById("ppage-next").disabled = profilePage >= pages - 1;
+  }
+  document.getElementById("ppage-prev").addEventListener("click", () => { profilePage--; renderProfiles(); });
+  document.getElementById("ppage-next").addEventListener("click", () => { profilePage++; renderProfiles(); });
+
+  async function profileAction(path, body, okText) {
+    const msg = document.getElementById("profile-msg");
+    try {
+      const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const data = await res.json();
+      msg.textContent = data.message || (res.ok ? okText : "Fehler");
+      msg.style.color = res.ok ? "#15803d" : "#b91c1c";
+      if (res.ok && data.edit) { location.href = "/profil"; return; }   // neues Profil gleich ausfüllen
+    } catch (e) {
+      msg.textContent = "Fehler"; msg.style.color = "#b91c1c";
+    }
+    await Promise.all([loadProfiles(), loadHeader(), loadInfo()]);
+  }
+
+
+  document.getElementById("t-profile").addEventListener("click", () => start("profile"));
+  document.getElementById("t-interval").addEventListener("click", () => start("interval"));
+
+  loadHeader();
+  loadInfo();
+  loadProfiles();
+})();
+</script>
+</body>
+</html>

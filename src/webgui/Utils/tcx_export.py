@@ -1,9 +1,24 @@
 # tcx_export.py
 
 import xml.etree.ElementTree as ET
+from datetime import datetime
+
+TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
-def write_tcx(records, filename="training_output.tcx", sport_note="SkiErg Training", sport="Rowing"):
+def total_time_seconds(records) -> float:
+    """Dauer zwischen erstem und letztem Trackpoint (Zeitstempel in UTC, Format TIMESTAMP_FORMAT)."""
+    try:
+        start = datetime.strptime(records[0]["timestamp"], TIMESTAMP_FORMAT)
+        end = datetime.strptime(records[-1]["timestamp"], TIMESTAMP_FORMAT)
+    except (KeyError, ValueError):
+        return 0.0
+    return max(0.0, (end - start).total_seconds())
+
+
+def write_tcx(records, filename="training_output.tcx", sport_note="SkiErg Training", sport="Other"):
+    # Das TCX-Schema erlaubt nur Running, Biking und Other. Die Sportart für Strava
+    # (NordicSki, Indoor) wird beim Upload gesetzt, siehe Utils/strava_upload.py.
     if not records:
         raise ValueError("write_tcx: 'records' ist leer – keine TCX-Erzeugung möglich.")
 
@@ -17,7 +32,10 @@ def write_tcx(records, filename="training_output.tcx", sport_note="SkiErg Traini
     ET.register_namespace("xsi", NS["xsi"])
     ET.register_namespace("ext", NS["ext"])
 
+    # Die Elemente werden ohne Namespace-Präfix erzeugt; der Default-Namespace muss deshalb
+    # explizit gesetzt werden, sonst gehören sie nicht zum TCX-Schema.
     root = ET.Element("TrainingCenterDatabase", {
+        "xmlns": NS["tcx"],
         f"{{{NS['xsi']}}}schemaLocation":
         "http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2 "
         "http://www.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd"
@@ -30,7 +48,7 @@ def write_tcx(records, filename="training_output.tcx", sport_note="SkiErg Traini
     ET.SubElement(activity, "Notes").text = sport_note
 
     lap = ET.SubElement(activity, "Lap", StartTime=records[0]["timestamp"])
-    ET.SubElement(lap, "TotalTimeSeconds").text = str(len(records))
+    ET.SubElement(lap, "TotalTimeSeconds").text = str(round(total_time_seconds(records), 1))
     ET.SubElement(lap, "DistanceMeters").text = str(records[-1].get("distance", 0.0))
     ET.SubElement(lap, "Calories").text = "0"
     ET.SubElement(lap, "Intensity").text = "Active"

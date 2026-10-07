@@ -160,3 +160,16 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# ---- x-ski: lokale Daten und Zugangsdaten nicht versionieren ----
+strava_tokens.json
+src/webgui/x-ski.json
+src/webgui/configs/x-ski.example.json
+trainings/
+*.tcx
+logs/
+src/routes/*.gpx
+src/webgui/configs/x-ski.aktuell.json
+src/webgui/configs/*.json
+!src/webgui/configs/x-ski.default.json
+strava_tokens/

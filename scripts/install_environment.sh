@@ -55,3 +55,6 @@ python3 -m pip install asyncio
 python3 -m pip install PyYAML
 python3 -m pip install pysoem
 python3 -m pip install openant
+python3 -m pip install requests
+python3 -m pip install pytest
+python3 -m pip install fitdecode  # nur für die Tests (FIT-Export prüfen)
