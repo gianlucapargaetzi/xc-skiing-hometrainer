@@ -18,7 +18,7 @@ PROFILE_FIELDS = [
     ("user", "birthdate", "Geburtsdatum", "date", None, None, None, "", "", "Athlet"),
     ("user", "club", "Verein", "text", None, None, None, "", "", "Athlet"),
     ("user", "email", "E-Mail für die Trainingsdatei", "email", None, None, None, "",
-     "Nach jedem Training wird die TCX-Datei an diese Adresse geschickt.", "Athlet"),
+     "Die Trainingsdatei (FIT) wird an diese Adresse geschickt, wenn der Strava-Upload nicht klappt oder aus ist.", "Athlet"),
     ("user", "weight_kg", "Körpergewicht", "number", 30, 150, 0.5, "kg", "", "Athlet"),
     ("user", "max_hr_bpm", "Maximaler Puls", "number", 100, 230, 1, "bpm", "Grundlage der Pulszonen.", "Athlet"),
     ("user", "ftp_w", "FTP", "number", 50, 500, 1, "W", "Grundlage der Leistungszonen.", "Athlet"),

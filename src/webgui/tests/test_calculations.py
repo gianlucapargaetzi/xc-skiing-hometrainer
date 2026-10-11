@@ -1,4 +1,3 @@
-import xml.etree.ElementTree as ET
 
 import numpy as np
 import pytest
@@ -11,7 +10,6 @@ from Utils.stroke_analysis import (
     calculate_swing_efficiency_pct,
     time_weighted_mean,
 )
-from Utils.tcx_export import total_time_seconds, write_tcx
 from Utils.zones import get_hr_zone_key, get_reference_zone_key, get_spm_zone_key
 
 TARGETS = {
@@ -137,22 +135,6 @@ def test_stroke_record_timestamp_is_utc_iso():
     # t0 = 0 -> Epoch, der Zeitstempel muss also 1970-01-01T00:00:0x UTC sein
     assert rec["timestamp"].startswith("1970-01-01T00:00:0")
     assert rec["timestamp"].endswith("Z")
-
-
-# ---------------------- TCX ----------------------
-def test_tcx_total_time_is_duration(tmp_path):
-    records = [
-        {"timestamp": "2026-10-06T10:00:00.000Z", "distance": 0.0, "power": 100, "heart_rate": 120, "cadence_spm": 40},
-        {"timestamp": "2026-10-06T10:00:30.500Z", "distance": 50.0, "power": 110, "heart_rate": 125, "cadence_spm": 42},
-    ]
-    assert total_time_seconds(records) == pytest.approx(30.5)
-
-    out = tmp_path / "t.tcx"
-    write_tcx(records, filename=str(out))
-    ns = {"t": "http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"}
-    root = ET.parse(out).getroot()
-    assert root.find(".//t:Lap/t:TotalTimeSeconds", ns).text == "30.5"
-    assert len(root.findall(".//t:Trackpoint", ns)) == 2
 
 
 # ---------------------- Settings ----------------------

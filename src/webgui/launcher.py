@@ -26,8 +26,10 @@ from Utils.speed_compare import (comparison_payload, fit_overview, load_fit_reco
 SCRIPT_DIR = Path(__file__).resolve().parent
 XSKI_SCRIPT = SCRIPT_DIR / "x-ski.py"
 ROUTES_DIR = SCRIPT_DIR.parent / "routes"
-TRAININGS_DIR = SCRIPT_DIR.parents[1] / "trainings"
+# X_SKI_TRAININGS_DIR: anderer Ordner nur für Tests (damit der echte Trainingsordner unberührt bleibt)
+TRAININGS_DIR = Path(os.environ.get("X_SKI_TRAININGS_DIR") or SCRIPT_DIR.parents[1] / "trainings")
 COMPARISON_INFO_FILE = "letzter_vergleich.json"   # von x-ski.py nach einem Streckentraining geschrieben
+RESUME_MIN_REST_KM = 0.3   # «Weiterlaufen» nur anbieten, wenn bis zum Ziel noch so viel Strecke bleibt
 PORT = 5000
 # Ohne Lebenszeichen vom Browser (Startseite fragt alle 5 s nach) beendet sich x-ski. Grosszügig, weil
 # Browser Zeitgeber in Hintergrund-Tabs auf 1×/min drosseln.
@@ -138,7 +140,17 @@ def create_app(args) -> Flask:
             load_config()
         except Exception as e:
             print(f"⚠️ Konfiguration nicht lesbar: {e}")
-        routes = [route_entry(name) for name in list_route_files(ROUTES_DIR)]
+        routes = [dict(route_entry(name)) for name in list_route_files(ROUTES_DIR)]
+        # Weiterlaufen: Endpunkt des letzten Trainings auf dieser Strecke – nur wenn noch genug Strecke übrig ist
+        try:
+            resume = resume_points()
+        except Exception as e:
+            print(f"⚠️ Fortsetzungspunkte nicht bestimmt: {e}")
+            resume = {}
+        for r in routes:
+            point = resume.get(r["file"])
+            if point and "length_km" in r and 0.05 < point["km"] < r["length_km"] - RESUME_MIN_REST_KM:
+                r["resume"] = point
         return jsonify({
             "launcher": True,
             "skier_available": state["settings"].motor_rated_torque_nm > 0,
@@ -197,15 +209,16 @@ def create_app(args) -> Flask:
         return path if path.suffix.lower() == ".fit" and path.is_file() else None
 
     def info_for_file(fit: Path):
-        """Strecke und Abschnitt einer beliebigen Aufzeichnung anhand ihrer GPS-Punkte bestimmen."""
+        """Strecke und Abschnitt einer beliebigen Aufzeichnung (anhand ihrer GPS-Punkte, siehe training_info)."""
+        e = training_info(fit)
+        if e.get("error"):
+            raise ValueError(e["error"])
         info = {"fit_path": fit, "gpx_path": None, "title": "", "route_name": "",
                 "stamp": (re.search(r"\d{4}-\d{2}-\d{2}_\d{2}-\d{2}(-\d{2})?", fit.stem) or [""])[0]}
-        routes = all_routes()
-        match = match_route(load_fit_records(fit), [r for _, r in routes])
-        if match:
-            name = next(n for n, r in routes if r is match["route"])
-            info.update(gpx_path=ROUTES_DIR / name, route_name=match["route"].name.replace("_", " "),
-                        section_start_m=match["section_start_m"], route_length_m=match["route"].length_m)
+        if e.get("route_file"):
+            route = next(r for n, r in all_routes() if n == e["route_file"])
+            info.update(gpx_path=ROUTES_DIR / e["route_file"], route_name=e["route_name"],
+                        section_start_m=e["section_start_m"], route_length_m=route.length_m)
         return info
 
     @app.route("/api/vergleich")
@@ -240,7 +253,44 @@ def create_app(args) -> Flask:
         return jsonify(data)
 
     # ---------------------- Trainingsdateien wählen / laden ----------------------
-    overview_cache = {}   # Dateiname -> ((Änderungszeit, Grösse), Kurzinfo)
+    file_cache = {}   # Dateiname -> ((Änderungszeit, Grösse), Info)
+
+    def training_info(path: Path) -> dict:
+        """Kurzinfo einer Aufzeichnung inkl. erkannter Strecke und Endpunkt auf dieser Strecke (zwischengespeichert)."""
+        stat = path.stat()
+        key = (stat.st_mtime_ns, stat.st_size)
+        cached = file_cache.get(path.name)
+        if cached and cached[0] == key:
+            return cached[1]
+        try:
+            entry = fit_overview(path)
+            routes = all_routes()
+            match = match_route(load_fit_records(path), [r for _, r in routes])
+            if match:
+                name = next(n for n, r in routes if r is match["route"])
+                entry.update(route_file=name, route_name=match["route"].name.replace("_", " "),
+                             section_start_m=round(match["section_start_m"], 1),
+                             end_m=round(match["section_start_m"] + entry["distance_km"] * 1000.0, 1))
+        except Exception as e:
+            entry = {"error": str(e)}
+        file_cache[path.name] = (key, entry)
+        return entry
+
+    def training_files():
+        if not TRAININGS_DIR.is_dir():
+            return []
+        return sorted(TRAININGS_DIR.glob("*.fit"), key=lambda q: q.stat().st_mtime, reverse=True)[:80]
+
+    def resume_points() -> dict:
+        """Pro Strecke das zuletzt gelaufene Training (nach Startzeit) und wo es aufgehört hat:
+        {GPX-Datei: {"km": …, "start": Startzeit, "file": …}}. Die Strecke wird aus den GPS-Punkten der
+        Aufzeichnung erkannt, nicht aus dem Dateinamen."""
+        latest = {}
+        for path in training_files():
+            e = training_info(path)
+            if e.get("route_file") and (e["route_file"] not in latest or e["start"] > latest[e["route_file"]]["start"]):
+                latest[e["route_file"]] = {"km": round(e["end_m"] / 1000.0, 2), "start": e["start"], "file": path.name}
+        return latest
 
     @app.route("/auswertung")
     def analysis_page():
@@ -248,20 +298,7 @@ def create_app(args) -> Flask:
 
     @app.route("/api/trainings")
     def api_trainings():
-        files = []
-        if TRAININGS_DIR.is_dir():
-            for path in sorted(TRAININGS_DIR.glob("*.fit"), key=lambda q: q.stat().st_mtime, reverse=True)[:60]:
-                stat = path.stat()
-                key = (stat.st_mtime_ns, stat.st_size)
-                cached = overview_cache.get(path.name)
-                if not cached or cached[0] != key:
-                    try:
-                        entry = fit_overview(path)
-                    except Exception as e:
-                        entry = {"error": str(e)}
-                    overview_cache[path.name] = cached = (key, entry)
-                files.append({"file": path.name, **cached[1]})
-        return jsonify({"files": files})
+        return jsonify({"files": [{"file": path.name, **training_info(path)} for path in training_files()]})
 
     @app.route("/api/trainings/upload", methods=["POST"])
     def api_trainings_upload():
@@ -283,6 +320,7 @@ def create_app(args) -> Flask:
             fit_overview(target)
         except Exception as e:
             target.unlink(missing_ok=True)
+            file_cache.pop(target.name, None)
             return jsonify({"ok": False, "message": f"Die Datei ist keine lesbare FIT-Aufzeichnung: {e}"}), 400
         print(f"📥 Trainingsdatei geladen: {target.name}")
         return jsonify({"ok": True, "file": target.name})

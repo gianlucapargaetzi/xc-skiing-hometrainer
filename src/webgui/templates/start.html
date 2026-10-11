@@ -59,6 +59,7 @@
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex: 0 0 auto; }
     .tile .desc { font-size: 16px; color: var(--muted); line-height: 1.35; }
     .tile .meta { font-size: 18px; color: var(--muted); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+    .tile .resume { font-size: 16px; font-weight: 700; color: #c2410c; flex: 0 0 auto; }
     .tile .spark { margin-top: auto; width: 100%; flex: 1 1 0; min-height: 14px; max-height: 46px; }
     /* Spalte «Training»: drei Kacheln teilen sich die Höhe der beiden Streckenreihen */
     #training-col { grid-column: 1; grid-row: 2 / 4; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
@@ -196,6 +197,7 @@
           <button type="button" id="pick-end">Ziel setzen</button>
         </div>
         <button class="btn" id="sec-full" type="button">Ganze Strecke</button>
+        <button class="btn" id="sec-resume" type="button" style="display:none;border-color:var(--accent);font-weight:700"></button>
         <div id="sec-info"></div>
       </div>
     </div>
@@ -231,7 +233,7 @@
       return;
     }
     // Nur neu zeichnen, wenn sich die Strecken oder die Verfügbarkeit geändert haben
-    const sig = info.skier_available + "|" + info.routes.map((r) => r.file + ":" + r.length_km).join("|");
+    const sig = info.skier_available + "|" + info.routes.map((r) => r.file + ":" + r.length_km + ":" + (r.resume ? r.resume.km : "")).join("|");
     if (sig !== shownFiles) { shownFiles = sig; renderRoutes(); }
   }
 
@@ -263,6 +265,11 @@
       const meta = document.createElement("span"); meta.className = "meta";
       meta.textContent = r.error ? "nicht lesbar" : `${r.length_km} km · ↑ ${r.gain_m} m · ↓ ${r.loss_m} m`;
       b.append(title, meta);
+      if (r.resume) {
+        const res = document.createElement("span"); res.className = "resume";
+        res.textContent = `▶ weiter ab km ${r.resume.km.toFixed(1)}`;
+        b.append(res);
+      }
       b.insertAdjacentHTML("beforeend", sparkline(r.sparkline));
       b.addEventListener("click", () => openSection(r));
       board.appendChild(b);
@@ -399,6 +406,11 @@
     };
   }
 
+  function resumeDate(ts) {
+    const d = new Date(ts * 1000), p2 = (n) => String(n).padStart(2, "0");
+    return `Training vom ${p2(d.getDate())}.${p2(d.getMonth() + 1)}., ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  }
+
   async function openSection(meta) {
     let r;
     try {
@@ -410,6 +422,15 @@
       return;
     }
     sec.route = r; sec.meta = meta; sec.start = 0; sec.end = r.length_m; setPick("start");
+    // Weiterlaufen: dort starten, wo das letzte Training auf dieser Strecke aufgehört hat
+    const resumeBtn = document.getElementById("sec-resume");
+    if (meta.resume && meta.resume.km * 1000 < r.length_m - 200) {
+      resumeBtn.textContent = `Weiterlaufen ab km ${meta.resume.km.toFixed(1)} (${resumeDate(meta.resume.start)})`;
+      resumeBtn.style.display = "";
+      resumeBtn.onclick = () => { sec.start = meta.resume.km * 1000; sec.end = r.length_m; updateSection(); };
+    } else {
+      resumeBtn.style.display = "none";
+    }
     document.getElementById("sec-title").textContent = `Abschnitt wählen – ${meta.name}`;
     const dlg = document.getElementById("section-dialog");
     dlg.showModal();

@@ -194,3 +194,30 @@ def test_analysis_recognises_route_from_gps(client, monkeypatch, tmp_path):
     assert d["ok"] and d["route_name"] == "a"
     assert d["has_original"] is False          # das Test-GPX hat keine Zeitstempel
     assert len(d["elevation_m"]) == len(d["x_km"])
+
+
+def test_resume_point_per_route(client, monkeypatch, tmp_path):
+    """Weiterlaufen: pro Strecke zählt das zuletzt gestartete Training; am Ziel gibt es nichts fortzusetzen."""
+    from Utils.fit_export import FitRecorder, FitSample
+
+    def fit_on_route(name, t0, start_m, length_m):
+        rec = FitRecorder()
+        n = int(length_m / 3.0)
+        for i in range(n + 1):
+            d = start_m + i * 3.0
+            rec.add(FitSample(t=t0 + i, distance_m=i * 3.0, speed_m_s=3.0, heart_rate=140, cadence=50, power=40,
+                              lat=46.70 + d / 111_195.0, lon=9.80, altitude_m=1500 + d * 0.045, grade_percent=None),
+                    lap_key=None, lap_trigger=0)
+        rec.write(str(trainings / name))
+
+    c, _ = client
+    trainings = tmp_path / "trainings"
+    trainings.mkdir()
+    monkeypatch.setattr(launcher, "TRAININGS_DIR", trainings)
+    assert "resume" not in c.get("/api/launcher").get_json()["routes"][0]
+    fit_on_route("a_alt.fit", 1_791_300_000.0, 0.0, 300.0)          # älter: bis 300 m
+    fit_on_route("a_neu.fit", 1_791_400_000.0, 300.0, 300.0)        # neuer: von 300 m bis 600 m
+    route = c.get("/api/launcher").get_json()["routes"][0]          # a.gpx ist ~1.1 km lang
+    assert route["resume"]["file"] == "a_neu.fit" and route["resume"]["km"] == pytest.approx(0.6, abs=0.02)
+    fit_on_route("a_ziel.fit", 1_791_500_000.0, 600.0, 500.0)       # neuestes Training läuft bis ins Ziel
+    assert "resume" not in c.get("/api/launcher").get_json()["routes"][0]

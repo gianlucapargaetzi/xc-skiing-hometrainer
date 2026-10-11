@@ -40,7 +40,6 @@ from Utils.skier_model import (
     intensity_to_slope_percent,
 )
 from Utils.stroke_analysis import StrokeAnalyzer
-from Utils.tcx_export import write_tcx
 from Utils.fit_export import FitRecorder, FitSample
 from Utils import strava_client
 from Utils.route import Route, RoutePosition, list_route_files, resolve_route_file
@@ -815,7 +814,6 @@ class SimulationDiagnostics:
 @dataclass
 class TrainingSession:
     file_stamp: str
-    records: list = field(default_factory=list)
     stopped_by_user: bool = False
     fit: FitRecorder = field(default_factory=FitRecorder)
     title: str = "x-ski Indoor"
@@ -1290,7 +1288,6 @@ def run_training(drv: DriveM751) -> TrainingSession:
                     slope_percent=round(terrain.slope_percent, 1),
                     load_mode="skier" if skier_mode else "profile",
                 )
-                session.records.append(stroke.to_record())
 
         if getattr(ic, "stop_requested", False):
             scope.log_message("⛔ Training wurde gestoppt")
@@ -1592,7 +1589,7 @@ def training_basename(session: TrainingSession) -> str:
 
 
 def finish_session(session: TrainingSession):
-    """TCX schreiben und E-Mail senden. Fehler werden gemeldet, aber nicht weitergereicht."""
+    """FIT schreiben, zu Strava hochladen bzw. E-Mail senden. Fehler werden gemeldet, aber nicht weitergereicht."""
     s = settings
     attachments = []
     TRAININGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -1610,22 +1607,13 @@ def finish_session(session: TrainingSession):
             print(f"❌ FIT-Export fehlgeschlagen: {e}")
             scope.log_message(f"❌ FIT-Export fehlgeschlagen: {e}")
 
-    if session.records:
-        tcx_path = TRAININGS_DIR / f"{training_basename(session)}.tcx"
-        try:
-            TRAININGS_DIR.mkdir(parents=True, exist_ok=True)
-            write_tcx(session.records, filename=str(tcx_path), sport_note="SkiErg Intervalltraining")
-            attachments.append(tcx_path)
-            note = ("Anbei die FIT-Datei (für Strava: wird als Skilanglauf erkannt) und die TCX-Datei als Reserve."
-                    if fit_ok else "Anbei die TCX-Datei.")
-        except Exception as e:
-            print(f"❌ TCX-Export fehlgeschlagen: {e}")
-            scope.log_message(f"❌ TCX-Export fehlgeschlagen: {e}")
-            note = "Die TCX-Datei konnte leider nicht erstellt werden."
+    # TCX wird nicht mehr geschrieben: die FIT-Datei enthält alles (Sekundenwerte, GPS, Höhe)
+    if fit_ok:
+        note = "Anbei die FIT-Datei (für Strava: wird als Skilanglauf erkannt)."
     else:
-        scope.log_message("ℹ️ Keine Trainingsdaten – TCX wird nicht erzeugt.")
-        print("Hinweis: Keine records vorhanden – TCX-Erzeugung übersprungen.")
-        note = "Es wurden keine Zyklen aufgezeichnet, daher keine TCX-Datei."
+        scope.log_message("ℹ️ Keine Trainingsdaten – es wurde keine Datei erzeugt.")
+        print("Hinweis: Keine Messwerte vorhanden – keine Trainingsdatei.")
+        note = "Es wurden keine Messwerte aufgezeichnet, daher keine Trainingsdatei."
 
     strava_line = ""
     strava_ok = False
