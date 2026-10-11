@@ -131,3 +131,66 @@ def test_browser_heartbeat_and_quit(client, monkeypatch):
     r = c.post("/api/quit", environ_base={"REMOTE_ADDR": "127.0.0.1"})
     assert r.get_json()["ok"] is True
     assert c.post("/api/quit", environ_base={"REMOTE_ADDR": "192.168.1.20"}).status_code == 403
+
+
+def test_comparison_without_training(client, monkeypatch, tmp_path):
+    c, _ = client
+    monkeypatch.setattr(launcher, "TRAININGS_DIR", tmp_path)
+    assert c.get("/api/vergleich").status_code == 404
+    assert c.get("/api/launcher").get_json()["has_comparison"] is False
+    assert c.get("/vergleich").status_code == 200
+
+
+def _make_fit(path, seconds=400, gps=False):
+    from Utils.fit_export import FitRecorder, FitSample
+    rec = FitRecorder()
+    for i in range(seconds):
+        rec.add(FitSample(t=1_791_300_000.0 + i, distance_m=i * 3.0, speed_m_s=3.0, heart_rate=140, cadence=50, power=40,
+                          lat=46.70 + i * 2.2e-5 if gps else None, lon=9.80 if gps else None,
+                          altitude_m=1500 + i * 0.1 if gps else None, grade_percent=None), lap_key=None, lap_trigger=0)
+    rec.write(str(path))
+
+
+def test_training_list_analysis_and_upload(client, monkeypatch, tmp_path):
+    import io
+    c, _ = client
+    trainings = tmp_path / "trainings"
+    trainings.mkdir()
+    monkeypatch.setattr(launcher, "TRAININGS_DIR", trainings)
+    assert c.get("/api/trainings").get_json() == {"files": []}
+    _make_fit(trainings / "skiErg_a.fit")
+    files = c.get("/api/trainings").get_json()["files"]
+    assert [f["file"] for f in files] == ["skiErg_a.fit"]
+    assert files[0]["duration_s"] == 399 and files[0]["has_gps"] is False and files[0]["power_avg"] == 40
+
+    # ohne GPS: Auswertung nur mit dem Training, mit Kennzahlen und Zonen
+    d = c.get("/api/vergleich?fit=skiErg_a.fit").get_json()
+    assert d["ok"] and d["has_original"] is False and d["route_name"] == ""
+    assert d["summary"]["power_avg"] == 40 and "hr" in d["summary"]["zones"]
+    # kein Zugriff auf Dateien ausserhalb des Trainingsordners
+    assert c.get("/api/vergleich?fit=../x-ski.json").status_code == 404
+    assert c.get("/api/vergleich?fit=fehlt.fit").status_code == 404
+
+    # Laden von aussen: nur FIT, nur lokal, kaputte Dateien werden abgelehnt
+    local = {"REMOTE_ADDR": "127.0.0.1"}
+    good = io.BytesIO((trainings / "skiErg_a.fit").read_bytes())
+    r = c.post("/api/trainings/upload", data={"file": (good, "mein lauf.fit")}, environ_base=local)
+    assert r.get_json() == {"ok": True, "file": "mein_lauf.fit"} and (trainings / "mein_lauf.fit").exists()
+    r = c.post("/api/trainings/upload", data={"file": (io.BytesIO(b"kein fit"), "x.fit")}, environ_base=local)
+    assert r.status_code == 400 and not (trainings / "x.fit").exists()
+    r = c.post("/api/trainings/upload", data={"file": (io.BytesIO(b"<tcx/>"), "x.tcx")}, environ_base=local)
+    assert r.status_code == 400
+    r = c.post("/api/trainings/upload", data={"file": (io.BytesIO(b"x"), "y.fit")}, environ_base={"REMOTE_ADDR": "192.168.1.9"})
+    assert r.status_code == 403
+
+
+def test_analysis_recognises_route_from_gps(client, monkeypatch, tmp_path):
+    c, _ = client
+    trainings = tmp_path / "trainings"
+    trainings.mkdir()
+    monkeypatch.setattr(launcher, "TRAININGS_DIR", trainings)
+    _make_fit(trainings / "skiErg_gps.fit", seconds=300, gps=True)     # läuft auf a.gpx (46.70 -> 46.71, 9.80)
+    d = c.get("/api/vergleich?fit=skiErg_gps.fit").get_json()
+    assert d["ok"] and d["route_name"] == "a"
+    assert d["has_original"] is False          # das Test-GPX hat keine Zeitstempel
+    assert len(d["elevation_m"]) == len(d["x_km"])

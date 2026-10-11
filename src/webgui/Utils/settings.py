@@ -76,12 +76,14 @@ class Settings:
     diagonal_from_slope_percent: float = 5.0  # Auto: ab hier Diagonal (Userprofil)
     diagonal_hysteresis_percent: float = 1.0  # Auto: zurück auf Double Poling unter Schwelle − Hysterese
     diagonal_arm_share: float = 0.4           # Anteil der Arme am Vortrieb im Diagonalschritt
-    # Diagonal: Faktor auf die Vortriebsleistung (fiktiver Beinabstoss). Abgleich Sertig 13k vom 2026-10-07:
-    # bergauf ziehst du am Seil ohnehin mehr, der Faktor ist ~1 (vorher 1/Armanteil = 2.5 -> zu schnell)
-    diagonal_power_factor: float = 1.0
-    # Bergab fühlt sich der Stoss mindestens so an wie in der Ebene (Anteil 0..1); sonst wäre nur der Grundzug
-    # zu spüren und man könnte bergab keine Leistung abgeben und nicht beschleunigen
-    downhill_feel_floor: float = 1.0
+    # Diagonal: Faktor auf die Vortriebsleistung (fiktiver Beinabstoss). Abgleich Sertig 13k (2026-10-07 und
+    # 2026-10-11): bergauf ziehst du am Seil ohnehin mehr, der Faktor liegt knapp unter 1
+    # (ursprünglich 1/Armanteil = 2.5 -> viel zu schnell)
+    diagonal_power_factor: float = 0.9
+    # Bergab bleibt mindestens dieser Anteil (0..1) der Gleitreibung in der Ebene als Stosswiderstand spürbar;
+    # sonst wäre nur der Grundzug zu spüren und man könnte bergab keine Leistung abgeben und nicht beschleunigen.
+    # 1.0 war am Gerät viel zu stark, 0.5 ≈ halbe Kraft wie in der Ebene
+    downhill_feel_floor: float = 0.5
     # Gegenkraft am Zugende: der Grundzug steigt im letzten Drittel des Zugs bis auf diesen Wert, damit das
     # Seil beim Abbremsen der Hände nicht lose wird (nur spürbar, wenn die Stosskraft dort kleiner ist)
     end_pull_torque_pct: float = 15.0
@@ -170,8 +172,8 @@ class Settings:
             diagonal_hysteresis_percent=safe_float(
                 user.get("diagonal_hysteresis_percent", sim.get("diagonal_hysteresis_percent", 1.0)), 1.0),
             diagonal_arm_share=safe_float(sim.get("diagonal_arm_share", 0.4), 0.4),
-            diagonal_power_factor=safe_float(sim.get("diagonal_power_factor", 1.0), 1.0),
-            downhill_feel_floor=safe_float(sim.get("downhill_feel_floor", 1.0), 1.0),
+            diagonal_power_factor=safe_float(sim.get("diagonal_power_factor", 0.9), 0.9),
+            downhill_feel_floor=safe_float(sim.get("downhill_feel_floor", 0.5), 0.5),
             end_pull_torque_pct=safe_float(ctrl.get("end_pull_torque_pct", 15.0), 15.0),
             recovery_torque_pct=safe_float(ctrl.get("recovery_torque_pct", ctrl["min_torque_pct"]), ctrl["min_torque_pct"]),
             strava_auto_upload=bool(config.get("strava", {}).get("auto_upload", False)),

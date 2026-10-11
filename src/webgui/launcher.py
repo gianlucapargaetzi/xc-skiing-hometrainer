@@ -4,7 +4,9 @@
 # (gleicher Prozess, gleiches Log, Port 5000 wird frei) mit den passenden Kommandozeilen-Schaltern.
 
 import argparse
+import json
 import os
+import re
 import sys
 import threading
 import time
@@ -18,10 +20,14 @@ from Utils.config_manager import ConfigManager, DEFAULT_CONFIG
 from Utils.route import Route, list_route_files, resolve_route_file
 from Utils.profile_page import create_profile_blueprint
 from Utils.settings import Settings
+from Utils.speed_compare import (comparison_payload, fit_overview, load_fit_records, match_route, training_payload,
+                                 training_summary)
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 XSKI_SCRIPT = SCRIPT_DIR / "x-ski.py"
 ROUTES_DIR = SCRIPT_DIR.parent / "routes"
+TRAININGS_DIR = SCRIPT_DIR.parents[1] / "trainings"
+COMPARISON_INFO_FILE = "letzter_vergleich.json"   # von x-ski.py nach einem Streckentraining geschrieben
 PORT = 5000
 # Ohne Lebenszeichen vom Browser (Startseite fragt alle 5 s nach) beendet sich x-ski. Grosszügig, weil
 # Browser Zeitgeber in Hintergrund-Tabs auf 1×/min drosseln.
@@ -136,6 +142,7 @@ def create_app(args) -> Flask:
         return jsonify({
             "launcher": True,
             "skier_available": state["settings"].motor_rated_torque_nm > 0,
+            "has_comparison": comparison_info() is not None,
             "routes": routes,
         })
 
@@ -148,6 +155,137 @@ def create_app(args) -> Flask:
         payload = r.to_geojson_payload()
         payload["file"] = path.name
         return jsonify(payload)
+
+    # ---------------------- Tempovergleich nach dem Streckentraining ----------------------
+    def comparison_info():
+        path = TRAININGS_DIR / COMPARISON_INFO_FILE
+        if not path.exists():
+            return None
+        try:
+            info = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError:
+            return None
+        fit = TRAININGS_DIR / Path(str(info.get("fit", ""))).name
+        gpx = resolve_route_file(ROUTES_DIR, str(info.get("route_file", "")))
+        if not fit.exists() or gpx is None:
+            return None
+        info.update(fit_path=fit, gpx_path=gpx)
+        return info
+
+    @app.route("/vergleich")
+    def comparison_page():
+        return render_template("vergleich.html")
+
+    route_objects = {}   # Dateiname -> ((Änderungszeit, Grösse), Route) für die Streckenerkennung
+
+    def all_routes():
+        out = []
+        for name in list_route_files(ROUTES_DIR):
+            stat = (ROUTES_DIR / name).stat()
+            key = (stat.st_mtime_ns, stat.st_size)
+            if name not in route_objects or route_objects[name][0] != key:
+                try:
+                    route_objects[name] = (key, Route.from_gpx(ROUTES_DIR / name))
+                except Exception:
+                    continue
+            out.append((name, route_objects[name][1]))
+        return out
+
+    def training_file(name: str):
+        """Nur Dateien direkt im Trainingsordner (kein Pfad von aussen)."""
+        path = TRAININGS_DIR / Path(str(name)).name
+        return path if path.suffix.lower() == ".fit" and path.is_file() else None
+
+    def info_for_file(fit: Path):
+        """Strecke und Abschnitt einer beliebigen Aufzeichnung anhand ihrer GPS-Punkte bestimmen."""
+        info = {"fit_path": fit, "gpx_path": None, "title": "", "route_name": "",
+                "stamp": (re.search(r"\d{4}-\d{2}-\d{2}_\d{2}-\d{2}(-\d{2})?", fit.stem) or [""])[0]}
+        routes = all_routes()
+        match = match_route(load_fit_records(fit), [r for _, r in routes])
+        if match:
+            name = next(n for n, r in routes if r is match["route"])
+            info.update(gpx_path=ROUTES_DIR / name, route_name=match["route"].name.replace("_", " "),
+                        section_start_m=match["section_start_m"], route_length_m=match["route"].length_m)
+        return info
+
+    @app.route("/api/vergleich")
+    def api_comparison():
+        wanted = request.args.get("fit")
+        if wanted:
+            fit = training_file(wanted)
+            if fit is None:
+                return jsonify({"ok": False, "message": "Diese Trainingsdatei gibt es nicht."}), 404
+            try:
+                info = info_for_file(fit)
+            except Exception as e:
+                return jsonify({"ok": False, "message": f"Datei nicht lesbar: {e}"}), 400
+        else:
+            info = comparison_info()
+        if info is None:
+            return jsonify({"ok": False, "message": "Es gibt noch kein Streckentraining zum Vergleichen."}), 404
+        try:
+            if info.get("gpx_path"):
+                data = comparison_payload(info["fit_path"], info["gpx_path"], float(info.get("section_start_m") or 0.0),
+                                          float(info.get("route_length_m") or 0.0) or None)
+            else:
+                data = training_payload(info["fit_path"])      # ohne GPS/Strecke: nur das Training
+        except Exception as e:
+            return jsonify({"ok": False, "message": f"Auswertung nicht möglich: {e}"}), 400
+        try:
+            data["summary"] = training_summary(info["fit_path"], cfg_manager.get_training_targets(),
+                                               state["settings"].weight_kg)
+        except Exception as e:
+            print(f"⚠️ Kennzahlen der Auswertung nicht berechnet: {e}")
+        data.update(ok=True, title=info.get("title", ""), route_name=info.get("route_name", ""), stamp=info.get("stamp", ""))
+        return jsonify(data)
+
+    # ---------------------- Trainingsdateien wählen / laden ----------------------
+    overview_cache = {}   # Dateiname -> ((Änderungszeit, Grösse), Kurzinfo)
+
+    @app.route("/auswertung")
+    def analysis_page():
+        return render_template("auswertung.html")
+
+    @app.route("/api/trainings")
+    def api_trainings():
+        files = []
+        if TRAININGS_DIR.is_dir():
+            for path in sorted(TRAININGS_DIR.glob("*.fit"), key=lambda q: q.stat().st_mtime, reverse=True)[:60]:
+                stat = path.stat()
+                key = (stat.st_mtime_ns, stat.st_size)
+                cached = overview_cache.get(path.name)
+                if not cached or cached[0] != key:
+                    try:
+                        entry = fit_overview(path)
+                    except Exception as e:
+                        entry = {"error": str(e)}
+                    overview_cache[path.name] = cached = (key, entry)
+                files.append({"file": path.name, **cached[1]})
+        return jsonify({"files": files})
+
+    @app.route("/api/trainings/upload", methods=["POST"])
+    def api_trainings_upload():
+        if not allow_remote and request.remote_addr not in ("127.0.0.1", "::1"):
+            return jsonify({"ok": False, "message": "Dateien können nur direkt am x-ski geladen werden."}), 403
+        f = request.files.get("file")
+        if f is None or not f.filename:
+            return jsonify({"ok": False, "message": "Keine Datei gewählt."}), 400
+        name = Path(f.filename).name
+        if not name.lower().endswith(".fit"):
+            return jsonify({"ok": False, "message": "Bitte eine FIT-Datei wählen (TCX enthält kein GPS und keine Sekundenwerte)."}), 400
+        safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in name)
+        TRAININGS_DIR.mkdir(parents=True, exist_ok=True)
+        target = TRAININGS_DIR / safe
+        if target.exists():
+            target = TRAININGS_DIR / f"{target.stem}_{int(time.time())}.fit"
+        f.save(target)
+        try:
+            fit_overview(target)
+        except Exception as e:
+            target.unlink(missing_ok=True)
+            return jsonify({"ok": False, "message": f"Die Datei ist keine lesbare FIT-Aufzeichnung: {e}"}), 400
+        print(f"📥 Trainingsdatei geladen: {target.name}")
+        return jsonify({"ok": True, "file": target.name})
 
     @app.route("/start", methods=["POST"])
     def start():

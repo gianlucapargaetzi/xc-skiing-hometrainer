@@ -37,6 +37,11 @@
     body.has-tech #controls { display: none; }
     body.has-tech #message { top: 72px; }
 
+    /* Nahansicht des Höhenprofils oben rechts (−100 m … +400 m), gleich gross wie die Infobox links */
+    #near { top: 72px; right: 12px; display: none; overflow: hidden; }
+    body.has-tech #near { display: block; }
+    #near canvas { display: block; width: 100%; height: 100%; }
+
     /* Technik oben in der Mitte: gross, mit fliessendem Übergang */
     #tech-banner { position: absolute; z-index: 1001; top: 0; left: 0; right: 0; height: 60px; display: none;
       align-items: center; justify-content: center; gap: 18px; color: #fff; font-weight: 900; font-size: 38px;
@@ -119,6 +124,7 @@
       </div>
     </div>
 
+    <div id="near" class="panel"><canvas id="near-canvas"></canvas></div>
     <div id="message" class="panel"></div>
     <div id="tech-banner" aria-live="polite"><span id="tech-text"></span><div class="bar" id="tech-bar"></div></div>
     <div id="empty"><div class="panel">Keine Strecke gewählt – bitte oben rechts eine Strecke auswählen.</div></div>
@@ -354,6 +360,82 @@
     if (now - state.lastProfile >= PROFILE_INTERVAL_MS) {
       state.lastProfile = now;
       drawProfile();
+    }
+    drawNear(p);
+  }
+
+  // ---------------------- Nahansicht: 100 m zurück, 400 m voraus ----------------------
+  function drawNear(p) {
+    const win = p.window, box = document.getElementById("near"), hud = document.getElementById("hud");
+    if (!win || !box.offsetParent) return;
+    // gleich gross wie die Infobox links
+    const hr = hud.getBoundingClientRect();
+    // … aber nie breiter als der Platz rechts neben der Infobox
+    const free = document.getElementById("map-wrap").clientWidth - hr.width - 36;
+    const bw = Math.max(220, Math.min(hr.width, free));
+    if (hr.width && (Math.abs(box.offsetWidth - bw) > 1 || Math.abs(box.offsetHeight - hr.height) > 1)) {
+      box.style.width = `${Math.round(bw)}px`; box.style.height = `${Math.round(hr.height)}px`;
+    }
+    const canvas = document.getElementById("near-canvas");
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = box.clientWidth, h = box.clientHeight;
+    if (!w || !h) return;
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+    const e = win.elevation_m, sl = win.slope_percent, n = e.length;
+    const known = e.filter((v) => v !== null);
+    if (known.length < 2) return;
+    const pad = { l: 30, r: 30, t: 52, b: 30 };
+    const total = (n - 1) * win.step_m;
+    // Höhenachse: mindestens 30 m Spanne, damit flache Stücke nicht steil aussehen
+    const emin0 = Math.min(...known), emax0 = Math.max(...known);
+    const span = Math.max(emax0 - emin0, 30), emin = (emin0 + emax0) / 2 - span / 2;
+    const x = (i) => pad.l + (i * win.step_m / total) * (w - pad.l - pad.r);
+    const y = (v) => h - pad.b - ((v - emin) / span) * (h - pad.t - pad.b);
+    for (let i = 1; i < n; i++) {
+      if (e[i] === null || e[i - 1] === null) continue;
+      ctx.fillStyle = slopeColor(sl[i]);
+      ctx.beginPath();
+      ctx.moveTo(x(i - 1), h - pad.b); ctx.lineTo(x(i - 1), y(e[i - 1]));
+      ctx.lineTo(x(i), y(e[i])); ctx.lineTo(x(i), h - pad.b);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.strokeStyle = "#12324a"; ctx.lineWidth = 2;
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < n; i++) {
+      if (e[i] === null) continue;
+      if (started) ctx.lineTo(x(i), y(e[i])); else { ctx.moveTo(x(i), y(e[i])); started = true; }
+    }
+    ctx.stroke();
+    // aktuelle Position
+    const pi = (win.position_m - win.start_m) / win.step_m, px = x(pi);
+    ctx.strokeStyle = "#ff7b00"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(px, pad.t - 6); ctx.lineTo(px, h - pad.b); ctx.stroke();
+    ctx.fillStyle = "#ff7b00";
+    ctx.beginPath(); ctx.arc(px, y(p.elevation_m), 7, 0, Math.PI * 2); ctx.fill();
+    // Beschriftung: Steigung der nächsten 100 m und 400 m
+    const ahead = (m) => {
+      const j = Math.min(n - 1, Math.round(pi + m / win.step_m));
+      const i0 = Math.round(pi);
+      if (e[j] === null || e[i0] === null || j <= i0) return null;
+      return (e[j] - e[i0]) / ((j - i0) * win.step_m) * 100;
+    };
+    const fmt = (v) => (v === null ? "–" : `${v > 0 ? "+" : ""}${v.toFixed(1)} %`);
+    ctx.fillStyle = "#5b7690"; ctx.font = "600 15px sans-serif"; ctx.textAlign = "left";
+    ctx.fillText("NÄCHSTE 100 m", 14, 22);
+    ctx.textAlign = "right";
+    ctx.fillText("NÄCHSTE 400 m", w - 14, 22);
+    ctx.fillStyle = "#12324a"; ctx.font = "800 26px sans-serif";
+    ctx.fillText(fmt(ahead(400)), w - 14, 48);
+    ctx.textAlign = "left";
+    ctx.fillText(fmt(ahead(100)), 14, 48);
+    ctx.fillStyle = "#5b7690"; ctx.font = "13px sans-serif"; ctx.textAlign = "center";
+    for (const m of [-100, 0, 100, 200, 300, 400]) {
+      const xi = x(pi + m / win.step_m);
+      if (xi >= pad.l - 1 && xi <= w - pad.r + 1) ctx.fillText(m === 0 ? "jetzt" : `${m > 0 ? "+" : "−"}${Math.abs(m)} m`, xi, h - 9);
     }
   }
 

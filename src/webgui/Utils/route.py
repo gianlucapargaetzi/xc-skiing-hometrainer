@@ -130,6 +130,21 @@ class Route:
         return RoutePosition(d, lat, lon, self.elevation_at(d), 0.0 if finished else self.slope_at(d),
                              bearing, finished)
 
+    def elevation_window(self, distance_m: float, back_m: float = 100.0, ahead_m: float = 400.0) -> dict:
+        """Ausschnitt des Höhenprofils um die aktuelle Position (für die Nahansicht in der Karte):
+        Höhe und Steigung im Raster GRID_STEP_M von distance_m − back_m bis distance_m + ahead_m.
+        Ausserhalb der Strecke stehen None-Werte."""
+        d0 = min(max(distance_m, 0.0), self.length_m)
+        xs = np.arange(d0 - back_m, d0 + ahead_m + GRID_STEP_M / 2, GRID_STEP_M)
+        inside = (xs >= 0.0) & (xs <= self.length_m)
+        ele = np.interp(xs, self._grid, self._ele_grid)
+        slope = np.interp(xs, self._grid, self._slope_grid)
+        return {
+            "start_m": round(float(xs[0]), 1), "step_m": GRID_STEP_M, "position_m": round(d0, 1),
+            "elevation_m": [round(float(e), 1) if ok else None for e, ok in zip(ele, inside)],
+            "slope_percent": [round(float(v), 1) if ok else None for v, ok in zip(slope, inside)],
+        }
+
     def section(self, start_km=None, end_km=None):
         """Abschnitt [start_m, end_m] in Metern; ohne Angabe die ganze Strecke."""
         start_m = 0.0 if start_km is None else float(start_km) * 1000.0

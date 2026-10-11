@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import sys
 import time
 import argparse
@@ -991,12 +992,14 @@ def prepare_drive(drv: DriveM751, s: Settings, *, swing_length: float, dist_per_
 
 
 def feel_resistance_n(s: Settings, skier: VirtualSkier, terrain: Terrain) -> float:
-    """Widerstand für die Stosskraft: Gelände mit Fahrgefühl-Reibung; bergab mindestens wie in der Ebene
-    (Anteil downhill_feel_floor), damit man auch bergab gegen die Stöcke stossen und beschleunigen kann."""
+    """Widerstand für die Stosskraft: Gelände mit Fahrgefühl-Reibung. Bergab bleibt mindestens der Anteil
+    downhill_feel_floor der Gleitreibung in der Ebene spürbar, damit man gegen die Stöcke stossen und
+    beschleunigen kann. Der Luftwiderstand zählt bei dieser Untergrenze bewusst nicht mit: er wächst mit dem
+    Tempo im Quadrat und machte den Seilzug bergab viel zu stark (Rückmeldung 2026-10-11)."""
     ft = force_terrain(s, terrain)
     r = skier.resistance_force_n(skier.speed_m_s, ft)
-    flat = skier.resistance_force_n(skier.speed_m_s, Terrain(slope_percent=0.0, mu=ft.mu))
-    return max(r, s.downhill_feel_floor * flat)
+    flat_friction = ft.mu * skier.mass_kg * 9.81
+    return max(r, s.downhill_feel_floor * flat_friction)
 
 
 def run_training(drv: DriveM751) -> TrainingSession:
@@ -1178,6 +1181,8 @@ def run_training(drv: DriveM751) -> TrainingSession:
                     "finished": route_pos.finished,
                     "technique": technique,
                     "technique_weight": round(diag_weight, 2),
+                    # Nahansicht des Höhenprofils: 100 m zurück bis 400 m voraus
+                    "window": route.elevation_window(route_pos.distance_m),
                     "technique_choice": technique_state.get(),
                     "elapsed_s": int(session_active_elapsed(now)),
                     "paused": session_state["paused"],
@@ -1319,8 +1324,10 @@ def run_training(drv: DriveM751) -> TrainingSession:
 
         # FIT: ab dem ersten Zug jede Sekunde ein Messwert; Runden pro Intervallblock bzw. pro km.
         # GPS (virtuelle Position) nur in der Streckensimulation.
-        fit_power_sum += active_power
-        fit_power_n += 1
+        # zeitgewichtet mitteln: Zyklen im Zug dauern länger (mehr Schreibzugriffe) als im Rückzug –
+        # ein Mittel über Zyklen wäre ~15 % zu tief
+        fit_power_sum += active_power * dt_model
+        fit_power_n += dt_model
         if session_started_at is not None and now - last_clock_publish >= 1.0:
             # Trainingsuhr (ohne Pausen) für die Anzeigen
             last_clock_publish = now
@@ -1557,6 +1564,33 @@ def strava_description(session: TrainingSession) -> str:
     return "\n".join(lines)
 
 
+COMPARISON_INFO_FILE = "letzter_vergleich.json"   # im Ordner trainings/; vom Startmenü gelesen
+
+
+def save_comparison_info(session: TrainingSession, fit_path: Path):
+    """Für die Seite «Tempovergleich» im Startmenü: Datei, Strecke und Abschnitt des letzten Streckentrainings."""
+    route = route_state.route
+    if route is None or not settings.route_file:
+        return
+    try:
+        info = {"fit": fit_path.name, "route_file": settings.route_file, "route_name": route.name.replace("_", " "),
+                "section_start_m": round(route_state.section_start_m, 1), "section_end_m": round(route_state.section_end_m, 1),
+                "route_length_m": round(route.length_m, 1), "title": session.title, "stamp": session.file_stamp}
+        (TRAININGS_DIR / COMPARISON_INFO_FILE).write_text(json.dumps(info, ensure_ascii=False, indent=1), encoding="utf-8")
+    except Exception as e:
+        print(f"⚠️ Tempovergleich nicht vorbereitet: {e}")
+
+
+def training_basename(session: TrainingSession) -> str:
+    """Dateiname ohne Endung. Streckensimulation: «<Strecke>_<Datum>_<Zeit>», z.B.
+    «Sertig_Classic_13k_2026-10-11_08-53-56»; sonst wie bisher «skiErg_<Datum>_<Zeit>»."""
+    route = route_state.route
+    if route is None:
+        return f"skiErg_{session.file_stamp}"
+    name = re.sub(r"[^\w.-]+", "_", route.name, flags=re.UNICODE).strip("_.") or "Strecke"
+    return f"{name}_{session.file_stamp}"
+
+
 def finish_session(session: TrainingSession):
     """TCX schreiben und E-Mail senden. Fehler werden gemeldet, aber nicht weitergereicht."""
     s = settings
@@ -1565,18 +1599,19 @@ def finish_session(session: TrainingSession):
 
     fit_ok = False
     if session.fit.samples:
-        fit_path = TRAININGS_DIR / f"skiErg_{session.file_stamp}.fit"
+        fit_path = TRAININGS_DIR / f"{training_basename(session)}.fit"
         try:
             session.fit.write(str(fit_path))
             attachments.append(fit_path)
             fit_ok = True
             print(f"💾 FIT-Datei gespeichert als: {fit_path} ({len(session.fit.samples)} s, {len(session.fit.laps)} Runden)")
+            save_comparison_info(session, fit_path)
         except Exception as e:
             print(f"❌ FIT-Export fehlgeschlagen: {e}")
             scope.log_message(f"❌ FIT-Export fehlgeschlagen: {e}")
 
     if session.records:
-        tcx_path = TRAININGS_DIR / f"skiErg_{session.file_stamp}.tcx"
+        tcx_path = TRAININGS_DIR / f"{training_basename(session)}.tcx"
         try:
             TRAININGS_DIR.mkdir(parents=True, exist_ok=True)
             write_tcx(session.records, filename=str(tcx_path), sport_note="SkiErg Intervalltraining")
@@ -1660,6 +1695,7 @@ def api_alive():
 def api_session():
     started = session_state["started_at"]
     return jsonify({"started": started is not None, "short_s": SHORT_SESSION_S, "mode": MODE,
+                    "has_route": route_state.route is not None,
                     "elapsed_s": round(session_active_elapsed()), "paused": session_state["paused"],
                     "paused_s": round(time.time() - session_state["paused_since"]) if session_state["paused"] else 0,
                     "resume_in_s": round(max(0.0, session_state["resume_at"] - time.time()), 1)

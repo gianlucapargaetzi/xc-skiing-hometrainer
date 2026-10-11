@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>x-ski – Auswertung</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    :root { --ink: #12324a; --muted: #5b7690; --accent: #ff7b00; --line: #dbe5ee; }
+    html, body { margin: 0; min-height: 100%; }
+    body { background: #f4f8fb; color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .page { max-width: 1400px; margin: 0 auto; padding: 16px 18px 30px; display: flex; flex-direction: column; gap: 14px; }
+    .head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    h1 { font-size: 30px; margin: 0; }
+    .sub { color: var(--muted); font-size: 18px; }
+    .btn { font: inherit; font-size: 21px; min-height: 60px; padding: 8px 24px; border-radius: 14px;
+      border: 2px solid var(--line); background: #fff; color: var(--ink); font-weight: 700; cursor: pointer; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .item { background: #fff; border: 2px solid var(--line); border-radius: 16px; padding: 14px 18px; text-align: left;
+      font: inherit; color: inherit; cursor: pointer; box-shadow: 0 4px 14px rgba(18, 50, 74, 0.06);
+      display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; min-height: 96px; align-items: center; }
+    .item:active, .item:hover { border-color: var(--accent); background: #fff9f3; }
+    .item .when { font-size: 24px; font-weight: 800; }
+    .item .meta { font-size: 18px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .item .tag { font-size: 14px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: #e8eef4; color: var(--muted);
+      justify-self: end; }
+    .item .tag.gps { background: #e3f0e6; color: #2e7d32; }
+    .item .file { grid-column: 1 / -1; font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #msg { font-size: 18px; min-height: 1.3em; color: var(--muted); }
+    #msg.err { color: #b91c1c; font-weight: 600; }
+    @media (max-width: 900px) { .list { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div id="header-mount"></div>
+  <div class="page">
+    <div class="head">
+      <div><h1>Auswertung</h1><div class="sub">Trainingsdatei antippen – oder eine FIT-Datei von aussen laden.</div></div>
+      <button class="btn primary" id="upload" type="button" style="margin-left:auto">FIT-Datei laden …</button>
+      <button class="btn" id="back" type="button">Zum Startmenü</button>
+      <input type="file" id="file" accept=".fit" style="display:none" />
+    </div>
+    <div id="msg" role="status">Trainings werden geladen …</div>
+    <div class="list" id="list"></div>
+  </div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  fetch("/header?active=vergleich", { cache: "no-store" }).then((r) => r.ok ? r.text() : "")
+    .then((h) => { $("header-mount").innerHTML = h; }).catch(() => {});
+  // Lebenszeichen fürs Startmenü (ohne beendet es sich, wenn der Browser geschlossen wurde)
+  setInterval(() => fetch("/api/alive", { cache: "no-store" }).catch(() => {}), 10000);
+  $("back").addEventListener("click", () => { location.href = "/"; });
+
+  const message = (text, err = false) => { $("msg").textContent = text; $("msg").className = err ? "err" : ""; };
+  const hm = (s) => `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, "0")} h`;
+  const DAYS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+
+  async function load() {
+    let data;
+    try { data = await (await fetch("/api/trainings", { cache: "no-store" })).json(); }
+    catch (e) { message("Trainings konnten nicht geladen werden.", true); return; }
+    const list = $("list");
+    list.innerHTML = "";
+    if (!data.files.length) { message("Noch keine Trainingsdateien vorhanden."); return; }
+    message(`${data.files.length} Trainings, neueste zuerst.`);
+    for (const f of data.files) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "item";
+      if (f.error) {
+        b.innerHTML = `<span class="when">Nicht lesbar</span><span class="tag">Fehler</span><span class="file"></span>`;
+        b.disabled = true;
+      } else {
+        const d = new Date(f.start * 1000), p2 = (n) => String(n).padStart(2, "0");
+        b.innerHTML = `<span class="when">${DAYS[d.getDay()]} ${p2(d.getDate())}.${p2(d.getMonth() + 1)}.${d.getFullYear()} · ${p2(d.getHours())}:${p2(d.getMinutes())}</span>` +
+          `<span class="tag ${f.has_gps ? "gps" : ""}">${f.has_gps ? "Strecke" : "ohne Strecke"}</span>` +
+          `<span class="meta">${hm(f.duration_s)} · ${f.distance_km.toFixed(2)} km` +
+          (f.power_avg ? ` · Ø ${f.power_avg} W` : "") + (f.hr_avg ? ` · Ø ${f.hr_avg} bpm` : "") + `</span><span></span>` +
+          `<span class="file"></span>`;
+        b.addEventListener("click", () => { location.href = `/vergleich?fit=${encodeURIComponent(f.file)}`; });
+      }
+      b.querySelector(".file").textContent = f.file;
+      list.appendChild(b);
+    }
+  }
+
+  $("upload").addEventListener("click", () => $("file").click());
+  $("file").addEventListener("change", async () => {
+    const file = $("file").files[0];
+    if (!file) return;
+    message(`«${file.name}» wird geladen …`);
+    const body = new FormData(); body.append("file", file);
+    try {
+      const res = await fetch("/api/trainings/upload", { method: "POST", body });
+      const data = await res.json();
+      if (!res.ok || !data.ok) { message(data.message || "Datei konnte nicht geladen werden.", true); return; }
+      location.href = `/vergleich?fit=${encodeURIComponent(data.file)}`;
+    } catch (e) { message("Keine Verbindung zum x-ski.", true); }
+    finally { $("file").value = ""; }
+  });
+  load();
+})();
+</script>
+</body>
+</html>

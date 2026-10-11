@@ -60,8 +60,13 @@
     .tile .desc { font-size: 16px; color: var(--muted); line-height: 1.35; }
     .tile .meta { font-size: 18px; color: var(--muted); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
     .tile .spark { margin-top: auto; width: 100%; flex: 1 1 0; min-height: 14px; max-height: 46px; }
-    #t-profile { grid-column: 1; grid-row: 2; }
-    #t-interval { grid-column: 1; grid-row: 3; }
+    /* Spalte «Training»: drei Kacheln teilen sich die Höhe der beiden Streckenreihen */
+    #training-col { grid-column: 1; grid-row: 2 / 4; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+    #training-col .tile { flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: 48px 1fr; column-gap: 14px;
+      row-gap: 2px; align-content: center; padding: 10px 18px; }
+    #training-col .tile .icon { grid-row: 1 / 3; align-self: center; }
+    #training-col .tile .desc { font-size: 15px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden; }
 
     dialog { margin: auto; border: none; border-radius: 20px; padding: 0; width: min(1180px, calc(100vw - 32px));
       box-shadow: 0 20px 60px rgba(18, 50, 74, 0.35); color: var(--ink); }
@@ -107,7 +112,8 @@
     #error:empty { display: none; }
 
     @media (max-height: 760px) and (min-width: 901px) {
-      #t-profile .icon, #t-interval .icon { display: none; }
+      #training-col .tile { grid-template-columns: 1fr; }
+      #training-col .tile .icon { display: none; }
     }
     @media (max-width: 900px) {
       /* Schmaler Bildschirm: alles untereinander */
@@ -146,25 +152,34 @@
       <div class="group-head" id="routes-head">
         <h2>Strecken</h2>
         <span id="routes-note"></span>
+
         <div class="pager" id="pager">
           <button type="button" id="page-prev" aria-label="Vorherige Strecken">‹</button>
           <span id="page-label"></span>
           <button type="button" id="page-next" aria-label="Weitere Strecken">›</button>
         </div>
       </div>
-      <button class="tile" id="t-profile" type="button">
+      <div id="training-col">
+        <button class="tile" id="t-profile" type="button">
         <span class="icon" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
           <path d="M8 48 A24 24 0 0 1 56 48"/><path d="M32 48 L44 30"/><circle cx="32" cy="48" r="4" fill="currentColor"/>
           <path d="M14 34 L18 36"/><path d="M32 24 L32 28"/><path d="M50 34 L46 36"/></svg></span>
         <span class="title">Belastungsprofil</span>
         <span class="desc">Freies Training: Die Kraft pro Stoss stellst du mit + und − selbst ein.</span>
-      </button>
-      <button class="tile" id="t-interval" type="button">
+        </button>
+        <button class="tile" id="t-interval" type="button">
         <span class="icon" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="32" cy="36" r="22"/><path d="M26 6 L38 6"/><path d="M32 6 L32 14"/><path d="M32 36 L42 26"/><path d="M50 16 L54 12"/></svg></span>
         <span class="title">Intervall</span>
         <span class="desc">Ein Intervallprogramm (.xciv) gibt die Belastung über die Zeit vor.</span>
-      </button>
+        </button>
+        <button class="tile" id="t-analyse" type="button">
+          <span class="icon" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 56 L56 56"/><path d="M8 56 L8 8"/><path d="M14 44 L26 30 L36 38 L52 16"/></svg></span>
+          <span class="title">Auswertung</span>
+          <span class="desc">Trainingsdatei wählen oder laden und analysieren.</span>
+        </button>
+      </div>
     </div>
     <div id="error" role="alert"></div>
   </div>
@@ -474,6 +489,8 @@
     overlay.style.display = "none";
     document.getElementById("error").textContent = "x-ski ist nicht gestartet – bitte die Konsole prüfen.";
   }
+
+  document.getElementById("t-analyse").addEventListener("click", () => { location.href = "/auswertung"; });
 
   // ---------------------- Beenden ----------------------
   window.xskiQuit = async () => {

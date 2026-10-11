@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>x-ski – Auswertung</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    :root { --ink: #12324a; --muted: #5b7690; --accent: #ff7b00; --line: #dbe5ee; --orig: #1f6fd6; --train: #d6362b; }
+    html, body { margin: 0; min-height: 100%; }
+    body { display: flex; flex-direction: column; background: #f4f8fb; color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .page { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 14px 18px 16px; }
+    .head { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+    h1 { font-size: 30px; margin: 0; }
+    .sub { color: var(--muted); font-size: 18px; }
+    .btn { font: inherit; font-size: 21px; min-height: 60px; padding: 8px 24px; border-radius: 14px; margin-left: auto;
+      border: 2px solid var(--accent); background: var(--accent); color: #fff; font-weight: 800; cursor: pointer; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .stat { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 10px 18px; min-width: 150px; }
+    .stat .l { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .stat .v { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.15; }
+    .stat .v small { font-size: 16px; font-weight: 600; color: var(--muted); }
+    .dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 8px; vertical-align: -1px; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px;
+      box-shadow: 0 6px 24px rgba(18, 50, 74, 0.06); }
+    #chart-card { height: 430px; flex: 0 0 auto; display: flex; flex-direction: column; position: relative; }
+    h2 { font-size: 18px; margin: 2px 4px 8px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .zones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .zrow { display: grid; grid-template-columns: 130px 150px 1fr 150px; align-items: center; gap: 10px;
+      font-size: 17px; padding: 3px 4px; font-variant-numeric: tabular-nums; }
+    .zrow .rng { color: var(--muted); font-size: 15px; }
+    .zrow .bar { height: 18px; background: #eef2f6; border-radius: 4px; overflow: hidden; }
+    .zrow .bar > div { height: 100%; border-radius: 4px; }
+    .zrow .val { text-align: right; }
+    @media (max-width: 1100px) { .zones { grid-template-columns: 1fr; } }
+    .legend { display: flex; gap: 26px; font-size: 18px; font-weight: 700; padding: 2px 6px 6px; flex-wrap: wrap; }
+    #chart-wrap { flex: 1 1 auto; min-height: 0; position: relative; }
+    #chart { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+    #tip { position: absolute; display: none; pointer-events: none; background: #12324a; color: #fff; border-radius: 10px;
+      padding: 8px 12px; font-size: 16px; line-height: 1.45; white-space: nowrap; z-index: 5; }
+    table { border-collapse: collapse; font-size: 18px; }
+    th, td { text-align: right; padding: 6px 16px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+    th:first-child, td:first-child { text-align: left; }
+    th { color: var(--muted); font-size: 14px; text-transform: uppercase; letter-spacing: .04em; }
+    #msg { font-size: 20px; color: var(--muted); padding: 30px; }
+  </style>
+</head>
+<body>
+  <div id="header-mount"></div>
+  <div class="page">
+    <div class="head">
+      <div><h1 id="title">Auswertung</h1><div class="sub" id="sub"></div></div>
+      <button class="btn" id="list" type="button" style="background:#fff;color:var(--ink);border-color:var(--line)">Andere Datei</button>
+      <button class="btn" id="back" type="button" style="margin-left:0">Zum Startmenü</button>
+    </div>
+    <div class="row" id="stats"></div>
+    <div class="card" id="chart-card">
+      <div class="legend">
+        <span><span class="dot" style="background:var(--orig)"></span>Original (GPX)</span>
+        <span><span class="dot" style="background:var(--train)"></span>Training</span>
+        <span style="color:var(--muted);font-weight:600">Tempo gleitend über 300 m · unten das Höhenprofil</span>
+      </div>
+      <div id="chart-wrap"><canvas id="chart"></canvas><div id="tip"></div><div id="msg">Daten werden geladen …</div></div>
+    </div>
+    <div class="card" id="terrain-card" style="display:none"><h2>Tempo nach Gelände</h2><table id="terrain"></table></div>
+    <div class="row" id="stats2"></div>
+    <div class="zones" id="zones"></div>
+  </div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const ORIG = "#1f6fd6", TRAIN = "#d6362b", INK = "#12324a", MUTED = "#5b7690", GRID = "#dbe5ee";
+  let data = null, hover = null;
+
+  fetch("/header?active=vergleich", { cache: "no-store" }).then((r) => r.ok ? r.text() : "")
+    .then((h) => { $("header-mount").innerHTML = h; }).catch(() => {});
+  // Lebenszeichen fürs Startmenü (ohne beendet es sich, wenn der Browser geschlossen wurde)
+  setInterval(() => fetch("/api/alive", { cache: "no-store" }).catch(() => {}), 10000);
+  $("back").addEventListener("click", () => { location.href = "/"; });
+  $("list").addEventListener("click", () => { location.href = "/auswertung"; });
+
+  const hms = (s) => `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, "0")}:${String(Math.round(s) % 60).padStart(2, "0")}`;
+  const stat = (label, value, unit = "", color = null) =>
+    `<div class="stat"><div class="l">${color ? `<span class="dot" style="background:${color}"></span>` : ""}${label}</div>` +
+    `<div class="v">${value}<small> ${unit}</small></div></div>`;
+
+  function geometry(w, h) {
+    const pad = { l: 58, r: 18, t: 12, b: 34 };
+    const eleH = Math.max(46, Math.round((h - pad.t - pad.b) * 0.2)), gap = 14;
+    const plotH = h - pad.t - pad.b - eleH - gap;
+    const vs = [...data.v_train, ...data.v_orig].filter((v) => v !== null);
+    const vmax = Math.ceil((Math.max(...vs) * 1.08) / 5) * 5;
+    const xmax = data.x_km[data.x_km.length - 1];
+    return { pad, eleH, gap, plotH, vmax, xmax,
+      x: (km) => pad.l + (km / xmax) * (w - pad.l - pad.r),
+      y: (v) => pad.t + plotH - (v / vmax) * plotH };
+  }
+
+  function draw() {
+    const canvas = $("chart"), dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!data || !w || !h) return;
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr); ctx.clearRect(0, 0, w, h);
+    const g = geometry(w, h), { pad, plotH } = g;
+
+    // Raster und Achsen (zurückhaltend)
+    ctx.font = "14px sans-serif"; ctx.fillStyle = MUTED; ctx.strokeStyle = GRID; ctx.lineWidth = 1;
+    ctx.textAlign = "right";
+    for (let v = 0; v <= g.vmax; v += g.vmax > 30 ? 10 : 5) {
+      ctx.beginPath(); ctx.moveTo(pad.l, g.y(v)); ctx.lineTo(w - pad.r, g.y(v)); ctx.stroke();
+      ctx.fillText(`${v}`, pad.l - 8, g.y(v) + 5);
+    }
+    ctx.save(); ctx.translate(16, pad.t + plotH / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = "center";
+    ctx.fillText("Tempo [km/h]", 0, 0); ctx.restore();
+    ctx.textAlign = "center";
+    const stepKm = g.xmax > 30 ? 5 : g.xmax > 8 ? 1 : 0.5;
+    for (let km = 0; km <= g.xmax + 1e-6; km += stepKm) ctx.fillText(`${km} km`, g.x(km), h - 10);
+
+    // Höhenprofil unten (eigene Fläche, keine zweite Skala im Tempo-Diagramm)
+    const e = data.elevation_m, eTop = pad.t + plotH + g.gap;
+    if (e.length) {
+      const emin = Math.min(...e), espan = Math.max(Math.max(...e) - emin, 20);
+      const ey = (v) => eTop + g.eleH - ((v - emin) / espan) * g.eleH;
+      ctx.fillStyle = "#e2e8ee";
+      ctx.beginPath(); ctx.moveTo(g.x(0), eTop + g.eleH);
+      data.x_km.forEach((km, i) => ctx.lineTo(g.x(km), ey(e[i])));
+      ctx.lineTo(g.x(g.xmax), eTop + g.eleH); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = MUTED; ctx.textAlign = "right"; ctx.font = "12px sans-serif";
+      ctx.fillText(`${Math.round(emin + espan)} m`, pad.l - 8, eTop + 10);
+      ctx.fillText(`${Math.round(emin)} m`, pad.l - 8, eTop + g.eleH);
+    }
+
+    // Linien
+    const line = (vals, color) => {
+      ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineJoin = "round"; ctx.beginPath();
+      let on = false;
+      vals.forEach((v, i) => {
+        if (v === null) { on = false; return; }
+        const px = g.x(data.x_km[i]), py = g.y(Math.min(v, g.vmax));
+        if (on) ctx.lineTo(px, py); else { ctx.moveTo(px, py); on = true; }
+      });
+      ctx.stroke();
+    };
+    if (data.has_original) line(data.v_orig, ORIG);
+    line(data.v_train, TRAIN);
+
+    // Fadenkreuz
+    if (hover !== null) {
+      const px = g.x(data.x_km[hover]);
+      ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(px, pad.t); ctx.lineTo(px, eTop + g.eleH); ctx.stroke();
+      for (const [vals, color] of [[data.v_orig, ORIG], [data.v_train, TRAIN]]) {
+        const v = vals[hover];
+        if (v === null || v === undefined) continue;
+        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(px, g.y(Math.min(v, g.vmax)), 7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = color; ctx.beginPath(); ctx.arc(px, g.y(Math.min(v, g.vmax)), 5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+
+  function onPoint(ev) {
+    if (!data) return;
+    const rect = $("chart").getBoundingClientRect(), g = geometry(rect.width, rect.height);
+    const km = ((ev.clientX - rect.left - g.pad.l) / (rect.width - g.pad.l - g.pad.r)) * g.xmax;
+    let best = 0;
+    data.x_km.forEach((x, i) => { if (Math.abs(x - km) < Math.abs(data.x_km[best] - km)) best = i; });
+    hover = best;
+    const tip = $("tip"), vo = data.v_orig[best], vt = data.v_train[best];
+    tip.innerHTML = `<b>km ${data.x_km[best].toFixed(1)}</b>${data.elevation_m.length ? ` · ${Math.round(data.elevation_m[best])} m` : ""}<br>` +
+      (data.has_original ? `<span class="dot" style="background:${ORIG}"></span>Original ${vo == null ? "–" : vo.toFixed(1)} km/h<br>` : "") +
+      `<span class="dot" style="background:${TRAIN}"></span>Training ${vt == null ? "–" : vt.toFixed(1)} km/h`;
+    tip.style.display = "block";
+    const tx = g.x(data.x_km[best]);
+    tip.style.left = `${Math.min(Math.max(8, tx + 14), rect.width - tip.offsetWidth - 8)}px`;
+    tip.style.top = "8px";
+    draw();
+  }
+  $("chart").addEventListener("pointermove", onPoint);
+  $("chart").addEventListener("pointerdown", onPoint);
+  $("chart").addEventListener("pointerleave", () => { hover = null; $("tip").style.display = "none"; draw(); });
+  window.addEventListener("resize", draw);
+
+  async function load() {
+    let res, d;
+    // ?fit=… = frei gewählte Datei (aus «Auswertung»), sonst das letzte Streckentraining
+    const fit = new URLSearchParams(location.search).get("fit");
+    try { res = await fetch("/api/vergleich" + (fit ? `?fit=${encodeURIComponent(fit)}` : ""), { cache: "no-store" }); d = await res.json(); }
+    catch (e) { $("msg").textContent = "Vergleich konnte nicht geladen werden."; return; }
+    if (!res.ok || !d.ok) { $("msg").textContent = d.message || "Kein Vergleich vorhanden."; return; }
+    data = d;
+    $("msg").style.display = "none";
+    $("title").textContent = `Auswertung – ${d.route_name || "Training ohne Strecke"}`;
+    if (!d.elevation_m.length) document.querySelector(".legend span:last-child").textContent = "Tempo gleitend über 300 m";
+    const st = String(d.stamp || "").match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})/);
+    $("sub").textContent = (st ? `Training vom ${st[3]}.${st[2]}.${st[1]}, ${st[4]}:${st[5]} Uhr` : "") +
+      (d.has_original ? "" : d.route_name ? " · Das GPX hat keine Zeitstempel – es gibt kein Original-Tempo zum Vergleichen."
+                                          : " · Keine Strecke erkannt (kein GPS oder unbekannte Strecke) – nur das Training.");
+    const vAvg = (s) => (d.distance_km / (s / 3600)).toFixed(1);
+    let html = stat("Distanz", d.distance_km.toFixed(2), "km") +
+      stat("Zeit Training", hms(d.time_train_s), "", TRAIN) + stat("Ø Training", vAvg(d.time_train_s), "km/h", TRAIN);
+    if (d.has_original && d.time_orig_s) {
+      const diff = d.time_train_s - d.time_orig_s;
+      html += stat("Zeit Original", hms(d.time_orig_s), "", ORIG) + stat("Ø Original", vAvg(d.time_orig_s), "km/h", ORIG) +
+        stat("Differenz", `${diff > 0 ? "+" : "−"}${hms(Math.abs(diff))}`, diff > 0 ? "langsamer" : "schneller");
+    }
+    $("stats").innerHTML = html;
+    if (d.terrain && d.terrain.length) {
+      const f = (v) => (v == null ? "–" : v.toFixed(1));
+      $("terrain").innerHTML = `<tr><th>Gelände</th><th>Steigung</th><th>km</th>` +
+        (d.has_original ? `<th>Original km/h</th>` : "") + `<th>Training km/h</th>` + (d.has_original ? `<th>Training / Original</th>` : "") + `</tr>` +
+        d.terrain.map((t) => `<tr><td>${t.name}</td><td>${t.range}</td><td>${t.km.toFixed(1)}</td>` +
+          (d.has_original ? `<td>${f(t.v_orig)}</td>` : "") + `<td>${f(t.v_train)}</td>` +
+          (d.has_original ? `<td>${t.v_orig && t.v_train ? (t.v_train / t.v_orig * 100).toFixed(0) + " %" : "–"}</td>` : "") + `</tr>`).join("");
+      $("terrain-card").style.display = "";
+    }
+    renderSummary(d.summary);
+    draw();
+  }
+
+  // ---------------------- Kennzahlen und Zeit pro Zone ----------------------
+  const ZONE_COLORS = ["#9aa9b8", "#7fa8c9", "#5fa777", "#e0b400", "#e87a1c", "#d6362b", "#8e1b14"];
+  function renderSummary(s) {
+    if (!s) return;
+    const v = (x, digits = 0) => (x === null || x === undefined ? "–" : Number(x).toFixed(digits));
+    $("stats2").innerHTML =
+      stat("Höhenmeter", `↑ ${v(s.ascent_m)}`, `m · ↓ ${v(s.descent_m)} m`) +
+      stat("Puls Ø / max", `${v(s.hr_avg)} / ${v(s.hr_max)}`, "bpm") +
+      stat("Leistung Ø / max", `${v(s.power_avg)} / ${v(s.power_max)}`, "W") +
+      stat("Leistung pro kg", v(s.watt_per_kg, 2), "W/kg") +
+      stat("Kadenz Ø / max", `${v(s.cadence_avg)} / ${v(s.cadence_max)}`, "spm") +
+      stat("Tempo max", v(s.speed_max_kmh, 1), "km/h") +
+      stat("Arbeit am Seil", v(s.work_kj), "kJ") +
+      stat("Stösse", v(s.strokes), `· ${v(s.m_per_stroke, 2)} m pro Stoss`) +
+      stat("Effizienz", v(s.watt_per_bpm, 3), "W pro Pulsschlag") +
+      stat("Entkopplung", `${s.decoupling_pct > 0 ? "+" : ""}${v(s.decoupling_pct, 1)}`, "% (2. gegen 1. Hälfte)");
+    const titles = { hr: "Zeit pro Pulszone", cadence: "Zeit pro Kadenzzone", power: "Zeit pro Leistungszone", pace: "Zeit pro Pace-Zone" };
+    const ms = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+    $("zones").innerHTML = Object.keys(titles).filter((k) => s.zones && s.zones[k]).map((k) => {
+      const rows = s.zones[k], max = Math.max(...rows.map((r) => r.pct), 1);
+      return `<div class="card"><h2>${titles[k]}</h2>` + rows.map((r) => {
+        const idx = r.zone.startsWith("unter") ? 0 : r.zone.startsWith("über") ? 6 : Number(r.zone[1]);
+        return `<div class="zrow"><span><b>${r.zone}</b></span><span class="rng">${r.range}</span>` +
+          `<span class="bar"><div style="width:${(r.pct / max) * 100}%;background:${ZONE_COLORS[idx] || ZONE_COLORS[0]}"></div></span>` +
+          `<span class="val">${ms(r.seconds)} min · ${r.pct.toFixed(0)} %</span></div>`;
+      }).join("") + `</div>`;
+    }).join("");
+  }
+  load();
+})();
+</script>
+</body>
+</html>

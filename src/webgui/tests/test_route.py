@@ -94,3 +94,14 @@ def test_route_section(tmp_path):
     assert p.finished and p.distance_m == pytest.approx(3000.0) and p.slope_percent == 0.0
     # Steigung im Abschnitt kommt von der richtigen Stelle (ab 2 km: 5 %)
     assert r.section_position(start, end, 1500.0).slope_percent == pytest.approx(5.0, abs=0.2)
+
+
+def test_far_beyond_route_end_stays_at_finish(tmp_path):
+    """Über das Ziel hinaus weiterlaufen: Position bleibt am Endpunkt, Steigung 0, kein Fehler."""
+    r = Route.from_gpx(_write_gpx(tmp_path / "test.gpx"))
+    end = r.position_at(r.length_m)
+    for extra in (0.0, 1.0, 500.0, 50_000.0, 1e9):
+        p = r.section_position(0.0, r.length_m, r.length_m + extra)
+        assert p.finished and p.slope_percent == 0.0
+        assert p.distance_m == pytest.approx(r.length_m)
+        assert (p.lat, p.lon, p.elevation_m) == (end.lat, end.lon, end.elevation_m)

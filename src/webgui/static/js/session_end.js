@@ -43,14 +43,14 @@
     });
   }
 
-  async function backToMenu(saving) {
+  async function backToMenu(saving, next = "/") {
     layer(`<div style="font-size:26px;font-weight:800">${saving ? "Training wird gespeichert …" : "Training beendet"}</div>
       <div id="xski-end-sub" style="font-size:19px;margin-top:10px;color:#5b7690">Antrieb ist abgeschaltet – zurück zum Startmenü …</div>`);
     for (let i = 0; i < 240; i++) {            // Strava-Upload kann bis ~1 min dauern
       await new Promise((r) => setTimeout(r, 1000));
       try {
         const r = await fetch("/api/launcher", { cache: "no-store" });
-        if (r.ok) { top.location.href = "/"; return; }
+        if (r.ok) { top.location.href = next; return; }
       } catch (e) { /* x-ski schliesst gerade */ }
     }
     const sub = doc.getElementById("xski-end-sub");
@@ -162,6 +162,7 @@
     }
     const bar = doc.getElementById("xski-pause-bar");
     if (bar) bar.remove();
-    backToMenu(save && info.started);
+    // nach einem gespeicherten Streckentraining zuerst den Tempovergleich zeigen
+    backToMenu(save && info.started, save && info.started && info.has_route ? "/vergleich" : "/");
   };
 })();

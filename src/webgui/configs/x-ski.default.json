@@ -67,11 +67,11 @@
     "route_file": "Sertig Classic 21k.gpx",
     "route_slope_factor": 1.0,
     "equipment_kg": 3.0,
-    "power_scale": 2.95,
+    "power_scale": 2.6,
     "feel_mu": 0.02,
     "diagonal_arm_share": 0.4,
-    "diagonal_power_factor": 1.0,
-    "downhill_feel_floor": 1.0
+    "diagonal_power_factor": 0.9,
+    "downhill_feel_floor": 0.5
   },
   "traccar": {
     "enabled": true,
