@@ -2,6 +2,7 @@
 """x-ski.py mit simuliertem Antrieb und simuliertem Nutzer starten (für Tests ohne Maschine).
 
 Webserver auf Port 5097 – NIE 5000 (dort läuft das echte x-ski). Keine E-Mail, kein Strava, kein Traccar,
+kein Tracking-Chat (ausser mit SIM_CHAT=1),
 keine Rückkehr ins Startmenü; Trainingsdateien landen im angegebenen Ordner.
 
     .venv/bin/python tools/sim_xski.py <ausgabeordner> [Sekunden] -- --mode skier --route "Sertig Classic 13k.gpx"
@@ -21,6 +22,8 @@ cfg = json.loads((WEBGUI / "x-ski.json").read_text())
 cfg.setdefault("traccar", {})["enabled"] = False
 cfg.setdefault("strava", {})["auto_upload"] = False
 cfg["user"]["email"] = ""
+if os.environ.get("SIM_CHAT") != "1":
+    cfg.setdefault("chat", {})["enabled"] = False     # keine Meldungen an den echten Tracking-Chat
 (OUT / "cfg.json").write_text(json.dumps(cfg))
 sys.path.insert(0, str(WEBGUI)); os.chdir(WEBGUI)
 sys.argv = ["x-ski.py", "--no-browser", "--host", "127.0.0.1", "--config", str(OUT / "cfg.json"), *extra]

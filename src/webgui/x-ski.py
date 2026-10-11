@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from threading import Event, Lock, Thread
+from typing import Optional
 
 import numpy as np
 from flask import jsonify, render_template, request
@@ -41,7 +42,7 @@ from Utils.skier_model import (
 )
 from Utils.stroke_analysis import StrokeAnalyzer
 from Utils.fit_export import FitRecorder, FitSample
-from Utils import strava_client
+from Utils import chat_notify, strava_client
 from Utils.route import Route, RoutePosition, list_route_files, resolve_route_file
 from Utils.profile_page import create_profile_blueprint, update_active_profile
 from Utils.rope_calibration import RopeCalibration
@@ -817,12 +818,19 @@ class TrainingSession:
     stopped_by_user: bool = False
     fit: FitRecorder = field(default_factory=FitRecorder)
     title: str = "x-ski Indoor"
+    summary_png: Optional[Path] = None      # Zusammenfassung als Bild (nach dem Speichern)
+    summary_text: str = ""                  # Kurzfassung für die Schlussmeldung im Tracking-Chat
+    strava_url: str = ""
     technique_seconds: dict = field(default_factory=dict)
 
 
 # Laufendes Training: Start, Pause und Stop-Entscheid (save: None = normal speichern, False = verwerfen)
 session_state = {"started_at": None, "save": None, "paused": False, "paused_since": None, "paused_total": 0.0,
-                 "resume_at": None}
+                 "resume_at": None, "chat_started": False}
+
+
+def chat_sender_name(s: Settings) -> str:
+    return f"{s.firstname} {s.lastname}".strip() or "x-ski"
 session_lock = Lock()
 
 
@@ -1129,6 +1137,10 @@ def run_training(drv: DriveM751) -> TrainingSession:
             just_started_clock = True
             session_started_at = now
             session_state["started_at"] = now
+            if skier_mode and route_state.route is not None and s.chat_enabled and chat_notify.configured():
+                # Tracking-Chat: Start melden (im Hintergrund, hält die Regelschleife nicht auf)
+                chat_notify.send_async(chat_notify.start_text(), chat_sender_name(s))
+                session_state["chat_started"] = True
 
             if hasattr(ic, "active"):
                 ic.active = True
@@ -1588,6 +1600,35 @@ def training_basename(session: TrainingSession) -> str:
     return f"{name}_{session.file_stamp}"
 
 
+def build_summary(session: TrainingSession, fit_path: Path):
+    """Zusammenfassung des Trainings: Bild (PNG neben der FIT-Datei) und Kurztext. Fehler stören das Speichern nicht."""
+    try:
+        from Utils.speed_compare import comparison_payload, training_payload, training_summary
+        from Utils.summary_image import render_summary_png
+        s, route = settings, route_state.route
+        gpx = resolve_route_file(ROUTES_DIR, s.route_file) if route is not None and s.route_file else None
+        data = (comparison_payload(fit_path, gpx, route_state.section_start_m, route.length_m) if gpx is not None
+                else training_payload(fit_path))
+        summary = training_summary(fit_path, s.training_targets, s.weight_kg)
+        when = datetime.strptime(session.file_stamp, "%Y-%m-%d_%H-%M-%S").strftime("%d.%m.%Y, %H:%M")
+        png = fit_path.with_suffix(".png")
+        render_summary_png(png, data, summary, session.title.replace("x-ski Indoor", "x-ski"),
+                           f"{s.firstname} {s.lastname}".strip() + f" · {when}")
+        session.summary_png = png
+        dur = summary["duration_s"]
+        parts = [f"{summary['distance_km']:.2f} km in {dur // 3600}:{dur // 60 % 60:02d}:{dur % 60:02d}"]
+        if summary.get("ascent_m"):
+            parts.append(f"↑ {summary['ascent_m']} m")
+        if summary.get("hr_avg"):
+            parts.append(f"Ø {summary['hr_avg']} bpm")
+        if summary.get("power_avg"):
+            parts.append(f"Ø {summary['power_avg']} W")
+        session.summary_text = " · ".join(parts)
+        print(f"🖼️ Zusammenfassung gespeichert: {png}")
+    except Exception as e:
+        print(f"⚠️ Zusammenfassung nicht erstellt: {e}")
+
+
 def finish_session(session: TrainingSession):
     """FIT schreiben, zu Strava hochladen bzw. E-Mail senden. Fehler werden gemeldet, aber nicht weitergereicht."""
     s = settings
@@ -1603,6 +1644,9 @@ def finish_session(session: TrainingSession):
             fit_ok = True
             print(f"💾 FIT-Datei gespeichert als: {fit_path} ({len(session.fit.samples)} s, {len(session.fit.laps)} Runden)")
             save_comparison_info(session, fit_path)
+            build_summary(session, fit_path)
+            if session.summary_png is not None:
+                attachments.append(session.summary_png)     # geht mit, falls eine E-Mail verschickt wird
         except Exception as e:
             print(f"❌ FIT-Export fehlgeschlagen: {e}")
             scope.log_message(f"❌ FIT-Export fehlgeschlagen: {e}")
@@ -1631,6 +1675,7 @@ def finish_session(session: TrainingSession):
                 strava_ok = True
             elif result.get("url"):
                 strava_line = f"Strava: {result['url']}"
+                session.strava_url = result["url"]
                 strava_ok = True
             else:
                 strava_line = "Strava: Upload angenommen, wird noch verarbeitet."
@@ -1772,6 +1817,27 @@ def watch_browser():
         os._exit(0)
 
 
+def chat_end(session: Optional[TrainingSession] = None):
+    """Tracking-Chat: Ende melden – nur wenn auch der Start gemeldet wurde, und nur einmal.
+    Nach einem gespeicherten Training: das Bild der Zusammenfassung mit «Training beendet.», Kurzfassung und
+    Strava-Link als Unterschrift (eine Meldung). Ohne Bild oder wenn der Bildversand scheitert: nur der Text."""
+    if not session_state["chat_started"]:
+        return
+    session_state["chat_started"] = False
+    name, lines, image = chat_sender_name(settings), [chat_notify.END_TEXT], None
+    if session is not None and session_state["save"] is not False:
+        lines += [x for x in (session.summary_text, session.strava_url) if x]
+        image = session.summary_png
+
+    def send():
+        text = "\n".join(lines)
+        if image is None or not chat_notify.send_image(image, name, text):
+            chat_notify.send(text, name)
+    t = Thread(target=send, name="chat-end", daemon=True)
+    t.start()
+    t.join(timeout=chat_notify.TIMEOUT_S + chat_notify.MEDIA_TIMEOUT_S + 2)
+
+
 def training_thread():
     session = None
     try:
@@ -1786,6 +1852,8 @@ def training_thread():
     finally:
         # Antrieb in jedem Fall abschalten – auch bei Fehlern oder Stopp über das Webinterface
         drive.shutdown()
+        if not (session is not None and session.stopped_by_user):
+            chat_end()     # Abbruch (Sicherheitsschalter, Fehler): Ende sofort melden
 
     if session is not None and session.stopped_by_user:
         try:
@@ -1795,6 +1863,7 @@ def training_thread():
             else:
                 finish_session(session)
         finally:
+            chat_end(session)     # nach dem Speichern (bzw. Verwerfen) das Ende melden
             # Antrieb ist aus – zurück ins Startmenü, dort ist ein komplett neuer Start möglich.
             # War der Browser zu, wird x-ski ganz beendet.
             if browser_alive["gone"]:

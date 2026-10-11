@@ -91,6 +91,9 @@ class Settings:
     # Rückzug (Seil nach dem Stoss zurückholen): Drehmoment in %; Standard = Grundzug min_torque_pct
     recovery_torque_pct: float = 30.0
 
+    # Tracking-Chat: Start und Ende der Streckensimulation melden (Zugangsdaten in .env)
+    chat_enabled: bool = False
+
     # Strava: FIT nach dem Training automatisch hochladen
     strava_auto_upload: bool = False
     strava_athlete_id: int = 0          # Strava-Konto dieses Profils (0 = nicht verbunden)
@@ -176,6 +179,7 @@ class Settings:
             downhill_feel_floor=safe_float(sim.get("downhill_feel_floor", 0.5), 0.5),
             end_pull_torque_pct=safe_float(ctrl.get("end_pull_torque_pct", 15.0), 15.0),
             recovery_torque_pct=safe_float(ctrl.get("recovery_torque_pct", ctrl["min_torque_pct"]), ctrl["min_torque_pct"]),
+            chat_enabled=bool(config.get("chat", {}).get("enabled", False)),
             strava_auto_upload=bool(config.get("strava", {}).get("auto_upload", False)),
             strava_athlete_id=int(config.get("strava", {}).get("athlete_id") or 0),
             route_file=str(sim.get("route_file", "") or ""),

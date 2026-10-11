@@ -39,6 +39,9 @@ PROFILE_FIELDS = [
      "Hände gespannt bleibt. Wirkt nur, wenn die Stosskraft dort kleiner ist. 15 % ≈ 16 N.", "Training"),
     ("strava", "auto_upload", "Nach dem Training automatisch zu Strava hochladen", "checkbox", None, None, None, "",
      "Als Skilanglauf mit Titel und Beschreibung (ohne Indoor-Markierung, damit Strava Karte und Höhenmeter zeigt). Dafür muss x-ski unten mit Strava verbunden sein.", "Strava"),
+    ("chat", "enabled", "Start und Ende der Streckensimulation im Tracking-Chat melden", "checkbox", None, None, None, "",
+     "Beim ersten Zug geht «Training gestartet. Folge mir unter: …» mit dem Live-Link raus, am Schluss «Training beendet.». "
+     "Der Absender ist dein Name.", "Live-Tracking"),
     ("user", "mu", "Gleitreibung Ski", "number", 0.01, 0.1, 0.001, "",
      "Kleiner = besser gleitender Ski. Gemessen auf deinen GPS-Läufen mit Wachsski: 0.037.", "Ski & Technik"),
     ("simulation", "equipment_kg", "Ausrüstung", "number", 0, 20, 0.5, "kg",
