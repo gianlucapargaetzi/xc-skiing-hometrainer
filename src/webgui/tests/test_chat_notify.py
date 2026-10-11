@@ -62,3 +62,17 @@ def test_rejected_and_unreachable_are_reported_not_raised(configured, monkeypatc
         raise chat_notify.requests.ConnectionError("kein Netz")
     monkeypatch.setattr(chat_notify.requests, "post", boom)
     assert chat_notify.send("x") is False and chat_notify.send_image(png) is False
+
+
+def test_image_is_retried_once_on_server_error(configured, monkeypatch, tmp_path):
+    monkeypatch.setattr(chat_notify, "MEDIA_RETRY_WAIT_S", 0.0)
+    png = tmp_path / "a.png"; png.write_bytes(b"x")
+    answers = [FakeResponse(502, "Senden fehlgeschlagen."), FakeResponse()]
+    monkeypatch.setattr(chat_notify.requests, "post", lambda *a, **k: answers.pop(0))
+    assert chat_notify.send_image(png) is True and answers == []
+    answers = [FakeResponse(502), FakeResponse(502), FakeResponse()]
+    monkeypatch.setattr(chat_notify.requests, "post", lambda *a, **k: answers.pop(0))
+    assert chat_notify.send_image(png) is False and len(answers) == 1      # höchstens zwei Versuche
+    answers = [FakeResponse(413, "zu gross"), FakeResponse()]
+    monkeypatch.setattr(chat_notify.requests, "post", lambda *a, **k: answers.pop(0))
+    assert chat_notify.send_image(png) is False and len(answers) == 1      # Ablehnung (4xx) wird nicht wiederholt

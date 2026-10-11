@@ -5,6 +5,7 @@
 # Senden läuft im Hintergrund und darf das Training nie aufhalten; Fehler werden nur gemeldet.
 
 import threading
+import time
 from typing import Optional
 
 import requests
@@ -17,6 +18,7 @@ DEFAULT_FOLLOW_URL = "https://tracking.gps-live.ch/s/{sk}"
 TIMEOUT_S = 15
 MEDIA_TIMEOUT_S = 45
 MEDIA_MAX_BYTES = 15 * 1024 * 1024      # der Server lehnt grössere Bilder mit 413 ab
+MEDIA_RETRY_WAIT_S = 3.0
 
 
 def _config() -> Optional[dict]:
@@ -66,14 +68,19 @@ def send_image(path, name: str = "x-ski", text: str = "") -> bool:
         print(f"⚠️ Tracking-Chat: Bild zu gross ({path.stat().st_size // 1024} kB, erlaubt sind 15 MB)")
         return False
     mime = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}.get(path.suffix.lower(), "image/png")
-    try:
-        with open(path, "rb") as f:
-            r = requests.post(cfg["media_url"], params={"device_id": cfg["device_id"], "sk": cfg["sk"]},
-                              data={"name": name, **({"text": text} if text else {})},
-                              files={"file": (path.name, f, mime)}, timeout=MEDIA_TIMEOUT_S)
-    except requests.RequestException as e:
-        print(f"⚠️ Tracking-Chat nicht erreichbar (Bild): {type(e).__name__}")
-        return False
+    r = None
+    for attempt in (1, 2):      # ein zweiter Versuch: der Server lieferte nach einem Neustart vereinzelt 502
+        try:
+            with open(path, "rb") as f:
+                r = requests.post(cfg["media_url"], params={"device_id": cfg["device_id"], "sk": cfg["sk"]},
+                                  data={"name": name, **({"text": text} if text else {})},
+                                  files={"file": (path.name, f, mime)}, timeout=MEDIA_TIMEOUT_S)
+        except requests.RequestException as e:
+            print(f"⚠️ Tracking-Chat nicht erreichbar (Bild): {type(e).__name__}")
+            return False
+        if r.status_code < 500 or attempt == 2:
+            break
+        time.sleep(MEDIA_RETRY_WAIT_S)
     if r.status_code >= 300:
         print(f"⚠️ Tracking-Chat hat das Bild abgelehnt: HTTP {r.status_code} {r.text[:120]}")
         return False
