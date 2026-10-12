@@ -57,7 +57,7 @@
     <div class="row" id="stats"></div>
     <div class="card" id="chart-card">
       <div class="legend">
-        <span><span class="dot" style="background:var(--orig)"></span>Original (GPX)</span>
+        <span id="legend-orig"><span class="dot" style="background:var(--orig)"></span>Original (GPX)</span>
         <span><span class="dot" style="background:var(--train)"></span>Training</span>
         <span style="color:var(--muted);font-weight:600">Tempo gleitend über 300 m · unten das Höhenprofil</span>
       </div>
@@ -88,7 +88,7 @@
     `<div class="v">${value}<small> ${unit}</small></div></div>`;
 
   function geometry(w, h) {
-    const pad = { l: 58, r: 18, t: 12, b: 34 };
+    const pad = { l: 58, r: 18, t: (data.waypoints || []).length ? 22 : 12, b: 34 };
     const eleH = Math.max(46, Math.round((h - pad.t - pad.b) * 0.2)), gap = 14;
     const plotH = h - pad.t - pad.b - eleH - gap;
     const vs = [...data.v_train, ...data.v_orig].filter((v) => v !== null);
@@ -133,6 +133,16 @@
       ctx.fillStyle = MUTED; ctx.textAlign = "right"; ctx.font = "12px sans-serif";
       ctx.fillText(`${Math.round(emin + espan)} m`, pad.l - 8, eTop + 10);
       ctx.fillText(`${Math.round(emin)} m`, pad.l - 8, eTop + g.eleH);
+    }
+
+    // Verpflegungsposten: senkrechte Marken mit Namen (oben), durch Tempo und Höhenprofil
+    ctx.font = "600 12px sans-serif"; ctx.textAlign = "center";
+    let lastLabelX = -100;
+    for (const wp of data.waypoints || []) {
+      const wx = g.x(wp.km), col = wp.food ? "#b91c1c" : MUTED;
+      ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
+      ctx.beginPath(); ctx.moveTo(wx, pad.t + 4); ctx.lineTo(wx, eTop + g.eleH); ctx.stroke(); ctx.setLineDash([]);
+      if (wx - lastLabelX > 78) { ctx.fillStyle = col; ctx.fillText(wp.name, Math.min(Math.max(wx, pad.l + 36), w - pad.r - 36), pad.t + 1); lastLabelX = wx; }
     }
 
     // Linien
@@ -193,6 +203,7 @@
     if (!res.ok || !d.ok) { $("msg").textContent = d.message || "Kein Vergleich vorhanden."; return; }
     data = d;
     $("msg").style.display = "none";
+    $("legend-orig").style.display = d.has_original ? "" : "none";
     $("title").textContent = `Auswertung – ${d.route_name || "Training ohne Strecke"}`;
     if (!d.elevation_m.length) document.querySelector(".legend span:last-child").textContent = "Tempo gleitend über 300 m";
     const st = String(d.stamp || "").match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})/);

@@ -97,6 +97,27 @@ def segments(sim, real, seg_m, section_start_m: float = 0.0, route_length_m: Opt
     return rows
 
 
+def load_waypoints(gpx_path, section_start_m: float, length_m: float) -> List[dict]:
+    """Verpflegungsposten der Strecke («<Strecke>.posten.json») im gelaufenen Abschnitt:
+    [{"name", "km"}] mit km ab Trainingsbeginn."""
+    import json
+    from pathlib import Path
+    gpx_path = Path(gpx_path)
+    try:
+        raw = json.loads(gpx_path.with_name(gpx_path.stem + ".posten.json").read_text(encoding="utf-8")).get("posten", [])
+    except (FileNotFoundError, ValueError, AttributeError):
+        return []
+    out = []
+    for w in raw:
+        try:
+            d = float(w["km"]) * 1000.0 - section_start_m
+        except (KeyError, TypeError, ValueError):
+            continue
+        if 0.0 <= d <= length_m:
+            out.append({"name": str(w.get("name", "Posten")), "km": round(d / 1000.0, 2), "food": bool(w.get("verpflegung", True))})
+    return sorted(out, key=lambda w: w["km"])
+
+
 def comparison_payload(fit_path, gpx_path, section_start_m: float = 0.0, route_length_m: Optional[float] = None,
                        step_m: float = 100.0, window_m: float = 300.0) -> dict:
     """Daten für die Seite «Tempovergleich»: Tempo über die Strecke (gleitend über window_m) für Original und
@@ -142,6 +163,7 @@ def comparison_payload(fit_path, gpx_path, section_start_m: float = 0.0, route_l
         "time_orig_s": round(value_at(real, rb) - value_at(real, ra)) if timed else None,
         "x_km": xs, "v_train": v_train, "v_orig": v_orig if timed else [], "elevation_m": ele,
         "terrain": terrain,
+        "waypoints": load_waypoints(gpx_path, section_start_m, length),
     }
 
 

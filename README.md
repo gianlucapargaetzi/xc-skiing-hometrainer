@@ -151,6 +151,14 @@ m · dv/dt = F_vortrieb − µ·m·g·cosθ − m·g·sinθ − ½·ρ·CdA·v²
   Nahprofil −100 m bis +400 m oben rechts, ganzes Höhenprofil unten.
 - **Über das Ziel hinaus** bleibt die Position am Endpunkt stehen (Steigung 0); das Training läuft weiter,
   bis du Stop drückst.
+- **Verpflegungsposten**: Liegt neben dem GPX eine Datei `<Strecke>.posten.json`, erscheinen die Posten auf
+  der Karte, in allen Höhenprofilen, in der Auswertung und im Zusammenfassungsbild; die Infobox zeigt den
+  nächsten Posten mit Distanz. `km` ist die Distanz auf der GPX-Strecke (bei Hin- und Rückweg kommt derselbe
+  Ort zweimal vor), `info`, `offiziell_km` und `verpflegung: false` (z. B. Wendepunkt) sind optional:
+  ```json
+  {"posten": [{"name": "Brändön", "km": 14.53, "offiziell_km": 15},
+              {"name": "Granudden", "km": 70.72, "info": "warme Mahlzeit"}]}
+  ```
 
 Die Modellwerte sind am 7. und 11.10.2026 mit zwei Läufen auf der Sertig Classic 13k gegen den echten
 GPS-Lauf abgestimmt worden (siehe `tools/compare_gpx.py`).
@@ -217,6 +225,7 @@ Freilauf-Messungen (z. B. gebremster Griff) werden verworfen und der Schritt mus
 | Ort | Inhalt | im Git |
 |---|---|---|
 | `src/routes/*.gpx` | Strecken | nein |
+| `src/routes/*.posten.json` | Verpflegungsposten zu einer Strecke | ja |
 | `src/intervals/*.xciv` | Intervallprogramme (YAML) | ja |
 | `src/webgui/configs/`, `src/webgui/x-ski.json` | Profile, aktives Profil | nur die Vorlage |
 | `trainings/` | `<Strecke>_<Datum>_<Zeit>.fit` bzw. `skiErg_<Datum>_<Zeit>.fit`, dazu `.png`; `letzter_vergleich.json` | nein |

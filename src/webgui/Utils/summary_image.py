@@ -65,7 +65,7 @@ def render_summary_png(path, data: dict, summary: Optional[dict], title: str, su
         ax.plot(x, [v if v is not None else float("nan") for v in data["v_orig"]], color=ORIG, linewidth=2.2, label="Original (GPX)")
     ax.plot(x, [v if v is not None else float("nan") for v in data.get("v_train") or []], color=TRAIN, linewidth=2.2, label="Training")
     ax.set_ylabel("Tempo [km/h]", color=INK); ax.set_ylim(bottom=0)
-    ax.legend(loc="lower right", bbox_to_anchor=(1.0, 1.0), frameon=False, fontsize=12, ncol=2)
+    ax.legend(loc="lower right", bbox_to_anchor=(1.0, 1.07 if data.get("waypoints") else 1.0), frameon=False, fontsize=12, ncol=2)
     ele = data.get("elevation_m") or []
     if ele:
         axe.fill_between(x, ele, min(ele), color="#cfd9e3")
@@ -73,6 +73,16 @@ def render_summary_png(path, data: dict, summary: Optional[dict], title: str, su
     axe.set_xlabel("Strecke [km]", color=INK)
     if x:
         ax.set_xlim(0, x[-1])
+    # Verpflegungsposten als gestrichelte Marken mit Namen
+    last_x = None
+    for wp in data.get("waypoints") or []:
+        col = "#b91c1c" if wp.get("food", True) else MUTED
+        for a in (ax, axe):
+            a.axvline(wp["km"], color=col, linewidth=0.9, linestyle=(0, (4, 3)), zorder=1)
+        if x and (last_x is None or wp["km"] - last_x > x[-1] * 0.045):
+            ax.annotate(wp["name"], (wp["km"], 1.0), xycoords=("data", "axes fraction"), xytext=(0, 3),
+                        textcoords="offset points", ha="center", va="bottom", fontsize=9, color=col, fontweight="bold")
+            last_x = wp["km"]
     for a in (ax, axe):
         a.grid(axis="y", color=GRID, linewidth=0.8); a.set_axisbelow(True); a.tick_params(colors=MUTED)
         for side in ("top", "right"):

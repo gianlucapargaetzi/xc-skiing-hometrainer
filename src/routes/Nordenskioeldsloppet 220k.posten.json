@@ -1,0 +1,102 @@
+{
+ "quelle": "Streckenkarte Nordenskiöldsloppet (offizielle Kilometer, auf die GPX-Länge umgerechnet)",
+ "posten": [
+  {
+   "name": "Brändön",
+   "km": 14.53,
+   "offiziell_km": 15
+  },
+  {
+   "name": "Pelnibäcken",
+   "km": 28.77,
+   "offiziell_km": 29
+  },
+  {
+   "name": "Ragalvisjiegge",
+   "km": 43.08,
+   "offiziell_km": 43
+  },
+  {
+   "name": "Bälkasgårrå",
+   "km": 56.89,
+   "offiziell_km": 57,
+   "info": "Kleidersack, Wachsservice"
+  },
+  {
+   "name": "Granudden",
+   "km": 70.72,
+   "offiziell_km": 71,
+   "info": "warme Mahlzeit"
+  },
+  {
+   "name": "Tjåmotis",
+   "km": 85.03,
+   "offiziell_km": 86
+  },
+  {
+   "name": "Sågudden",
+   "km": 96.9,
+   "offiziell_km": 98
+  },
+  {
+   "name": "Wendepunkt",
+   "km": 107.2,
+   "offiziell_km": 110,
+   "verpflegung": false
+  },
+  {
+   "name": "Njavve",
+   "km": 109.56,
+   "offiziell_km": 111,
+   "info": "warme Mahlzeit, Kleidersack, Wachsservice"
+  },
+  {
+   "name": "Sågudden",
+   "km": 117.63,
+   "offiziell_km": 119
+  },
+  {
+   "name": "Tjåmotis",
+   "km": 129.45,
+   "offiziell_km": 131
+  },
+  {
+   "name": "Granudden",
+   "km": 143.77,
+   "offiziell_km": 145,
+   "info": "warme Mahlzeit"
+  },
+  {
+   "name": "Bälkasgårrå",
+   "km": 157.59,
+   "offiziell_km": 159,
+   "info": "Kleidersack, Wachsservice"
+  },
+  {
+   "name": "Ragalvisjiegge",
+   "km": 171.39,
+   "offiziell_km": 173
+  },
+  {
+   "name": "Pelnibäcken",
+   "km": 185.71,
+   "offiziell_km": 188
+  },
+  {
+   "name": "Purkijaur",
+   "km": 197.41,
+   "offiziell_km": 200,
+   "info": "warme Mahlzeit"
+  },
+  {
+   "name": "Brändön",
+   "km": 202.07,
+   "offiziell_km": 205
+  },
+  {
+   "name": "Skabramåive",
+   "km": 208.27,
+   "offiziell_km": 211
+  }
+ ]
+}

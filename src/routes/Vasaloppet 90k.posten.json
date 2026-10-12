@@ -1,0 +1,42 @@
+{
+ "quelle": "Offizielle Stationen des Vasaloppet (Kilometer ab Start, auf die GPX-Länge umgerechnet)",
+ "posten": [
+  {
+   "name": "Smågan",
+   "km": 11.27,
+   "offiziell_km": 11,
+   "info": "nur Sportgetränk und Wasser"
+  },
+  {
+   "name": "Mångsbodarna",
+   "km": 24.59,
+   "offiziell_km": 24
+  },
+  {
+   "name": "Risberg",
+   "km": 35.86,
+   "offiziell_km": 35
+  },
+  {
+   "name": "Evertsberg",
+   "km": 48.15,
+   "offiziell_km": 47,
+   "info": "Halbzeit, Bergpreis"
+  },
+  {
+   "name": "Oxberg",
+   "km": 63.52,
+   "offiziell_km": 62
+  },
+  {
+   "name": "Hökberg",
+   "km": 72.74,
+   "offiziell_km": 71
+  },
+  {
+   "name": "Eldris",
+   "km": 82.99,
+   "offiziell_km": 81
+  }
+ ]
+}

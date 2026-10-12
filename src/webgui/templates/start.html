@@ -385,7 +385,7 @@
     const ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr); ctx.clearRect(0, 0, w, h);
     const r = sec.route, d = r.profile.distance_m, e = r.profile.elevation_m;
     const emin = Math.min(...e), emax = Math.max(...e), span = Math.max(emax - emin, 20);
-    const pad = { l: 8, r: 8, t: 10, b: 18 };
+    const pad = { l: 8, r: 8, t: (r.waypoints || []).length ? 16 : 10, b: 18 };
     const x = (v) => pad.l + v / r.length_m * (w - pad.l - pad.r);
     const y = (v) => h - pad.b - (v - emin) / span * (h - pad.t - pad.b);
     for (let i = 1; i < d.length; i++) {
@@ -395,8 +395,18 @@
       ctx.lineTo(x(d[i]), y(e[i])); ctx.lineTo(x(d[i]), h - pad.b); ctx.closePath(); ctx.fill();
     }
     ctx.fillStyle = "#5b7690"; ctx.font = "11px sans-serif"; ctx.textAlign = "center";
-    const step = r.length_m > 30000 ? 5 : r.length_m > 8000 ? 2 : 1;
+    const step = r.length_m > 150000 ? 20 : r.length_m > 60000 ? 10 : r.length_m > 30000 ? 5 : r.length_m > 8000 ? 2 : 1;
     for (let km = 0; km * 1000 <= r.length_m; km += step) ctx.fillText(`${km} km`, x(km * 1000), h - 4);
+    // Verpflegungsposten
+    ctx.font = "600 10px sans-serif";
+    let lastLabelX = -100;
+    for (const wp of r.waypoints || []) {
+      const wx = x(wp.distance_m), col = wp.food ? "#b91c1c" : "#5b7690";
+      ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(wx, pad.t + 2); ctx.lineTo(wx, y(wp.elevation_m)); ctx.stroke();
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(wx, y(wp.elevation_m), 3.5, 0, Math.PI * 2); ctx.fill();
+      if (wx - lastLabelX > 62) { ctx.fillText(wp.name, Math.min(Math.max(wx, 34), w - 34), pad.t); lastLabelX = wx; }
+    }
+    ctx.fillStyle = "#5b7690"; ctx.font = "11px sans-serif";
     for (const [v, col] of [[sec.start, "#16a34a"], [sec.end, "#111827"]]) {
       ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(x(v), pad.t - 6); ctx.lineTo(x(v), h - pad.b); ctx.stroke();
     }

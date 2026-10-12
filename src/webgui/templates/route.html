@@ -51,6 +51,13 @@
     #tech-banner .bar { position: absolute; left: 0; bottom: 0; height: 6px; background: rgba(255, 255, 255, .85);
       transition: width .6s; }
     #slope-value.up { color: #c2410c; }
+    /* nächster Verpflegungsposten: eigene Zeile unter den Werten */
+    #next-way { grid-column: 1 / -1; display: none; font-size: 22px; font-weight: 700; padding-top: 8px;
+      border-top: 1px solid #dbe5ee; }
+    #next-way .label { font-size: 15px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+      margin-right: 10px; }
+    #next-way b { font-size: 28px; font-variant-numeric: tabular-nums; margin-left: 10px; }
+    .way-label { font-size: 14px; font-weight: 700; padding: 2px 7px; }
     .diag { display: none; margin-left: 4px; padding: 1px 6px; border-radius: 6px; background: #c2410c; color: #fff;
       font-size: 10px; letter-spacing: .04em; }
     .diag.dp { background: #1d4ed8; }
@@ -113,6 +120,7 @@
       <div class="metric"><div class="label">Distanz</div><div class="value" id="distance">–<small>km</small></div></div>
       <div class="metric"><div class="label">bis Ziel</div><div class="value" id="remaining">–<small>km</small></div></div>
       <div class="metric"><div class="label">Höhe</div><div class="value" id="elevation">–<small>m</small></div></div>
+      <div id="next-way"><span class="label">Nächster Posten</span><span id="next-way-name"></span><b id="next-way-dist"></b></div>
     </div>
 
     <div id="controls" class="panel">
@@ -158,7 +166,7 @@
 
   // ---------------------- Karte (2D, Leaflet) ----------------------
   let map = null, routeCasing = null, routeLine = null, doneLine = null, skier = null, startMarker = null, finishMarker = null;
-  let europeLayer = null, swissLayer = null;
+  let europeLayer = null, swissLayer = null, wayMarkers = [];
 
   function initMap() {
     if (typeof L === "undefined") {
@@ -224,6 +232,16 @@
       .bindTooltip("Start").addTo(map);
     finishMarker = L.circleMarker(latlngs[latlngs.length - 1], { radius: 6, color: "#fff", weight: 2, fillColor: "#111827", fillOpacity: 1 })
       .bindTooltip("Ziel").addTo(map);
+    // Verpflegungsposten (Hin- und Rückweg liegen am selben Ort: pro Ort nur ein Punkt)
+    wayMarkers.forEach((m) => m.remove()); wayMarkers = [];
+    const seen = new Set();
+    for (const wp of r.waypoints || []) {
+      if (wp.distance_m < s0 || wp.distance_m > s1 || seen.has(wp.name)) continue;
+      seen.add(wp.name);
+      wayMarkers.push(L.circleMarker([wp.lat, wp.lon], { radius: 8, color: "#fff", weight: 3, fillColor: wp.food ? "#b91c1c" : "#5b7690", fillOpacity: 1 })
+        .bindTooltip(wp.name + (wp.info ? ` – ${wp.info}` : ""), { permanent: true, direction: "right", offset: [10, 0], className: "way-label" })
+        .addTo(map));
+    }
     skier.setLatLng(latlngs[0]).addTo(map).bringToFront();
 
     // In der Schweiz automatisch die swisstopo-Winterkarte
@@ -330,6 +348,12 @@
     slopeEl.className = "value " + (p.slope_percent > 1 ? "up" : p.slope_percent < -1 ? "down" : "");
     setText("slope-value", (p.slope_percent > 0 ? "+" : "") + p.slope_percent.toFixed(1), "%");
     showTechniqueBanner(p);
+    const nw = p.next_waypoint, nwEl = document.getElementById("next-way");
+    nwEl.style.display = nw ? "block" : "none";
+    if (nw) {
+      document.getElementById("next-way-name").textContent = nw.name;
+      document.getElementById("next-way-dist").textContent = nw.ahead_m >= 1000 ? `${(nw.ahead_m / 1000).toFixed(1)} km` : `${Math.round(nw.ahead_m / 10) * 10} m`;
+    }
     if (p.technique_choice) showTechnique(p.technique_choice);
     const s0 = p.section_start_m || 0, s1 = p.section_end_m || p.length_m;
     setText("distance", (Math.max(0, p.distance_m - s0) / 1000).toFixed(2), "km");
@@ -410,6 +434,15 @@
       if (started) ctx.lineTo(x(i), y(e[i])); else { ctx.moveTo(x(i), y(e[i])); started = true; }
     }
     ctx.stroke();
+    // Verpflegungsposten im Fenster
+    for (const wp of (state.route && state.route.waypoints) || []) {
+      const wi = (wp.distance_m - win.start_m) / win.step_m;
+      if (wi < 0 || wi > n - 1) continue;
+      ctx.strokeStyle = "#b91c1c"; ctx.lineWidth = 2.5; ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(x(wi), pad.t); ctx.lineTo(x(wi), h - pad.b); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = "#b91c1c"; ctx.font = "700 14px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText(wp.name, Math.min(Math.max(x(wi), 60), w - 60), pad.t + 14);
+    }
     // aktuelle Position
     const pi = (win.position_m - win.start_m) / win.step_m, px = x(pi);
     ctx.strokeStyle = "#ff7b00"; ctx.lineWidth = 3;
@@ -492,8 +525,21 @@
     ctx.fillText(`${Math.round(emax)} m`, pad.l - 6, y(emax) + 4);
     ctx.fillText(`${Math.round(emin)} m`, pad.l - 6, y(emin) + 4);
     ctx.textAlign = "center";
-    const stepKm = r.length_m > 30000 ? 5 : r.length_m > 8000 ? 2 : 1;
+    const stepKm = r.length_m > 150000 ? 20 : r.length_m > 60000 ? 10 : r.length_m > 30000 ? 5 : r.length_m > 8000 ? 2 : 1;
     for (let km = 0; km * 1000 <= r.length_m; km += stepKm) ctx.fillText(`${km} km`, x(km * 1000), h - 6);
+
+    // Verpflegungsposten im Abschnitt
+    ctx.textAlign = "center"; ctx.font = "600 10px sans-serif";
+    let lastLabelX = -100;
+    for (const wp of r.waypoints || []) {
+      if (wp.distance_m < s0 || wp.distance_m > s1) continue;
+      const wx = x(wp.distance_m);
+      ctx.strokeStyle = wp.food ? "#b91c1c" : "#5b7690"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(wx, pad.t); ctx.lineTo(wx, y(wp.elevation_m)); ctx.stroke();
+      ctx.fillStyle = wp.food ? "#b91c1c" : "#5b7690";
+      ctx.beginPath(); ctx.arc(wx, y(wp.elevation_m), 3.5, 0, Math.PI * 2); ctx.fill();
+      if (wx - lastLabelX > 62) { ctx.fillText(wp.name, Math.min(Math.max(wx, pad.l + 30), w - pad.r - 30), pad.t - 3); lastLabelX = wx; }
+    }
 
     if (state.last) {
       const px = x(Math.min(state.last.distance_m, r.length_m));

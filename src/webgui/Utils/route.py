@@ -1,5 +1,6 @@
 # Utils/route.py – GPX-Strecke: Position, Höhe und Steigung entlang der gefahrenen Distanz
 
+import json
 import math
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, replace
@@ -104,7 +105,41 @@ class Route:
         if not lats:
             raise ValueError(f"{path.name}: keine Trackpunkte mit Höhenangabe gefunden.")
 
-        return cls(path.stem, lats, lons, eles)
+        route = cls(path.stem, lats, lons, eles)
+        route.waypoints = route._load_waypoints(path)
+        return route
+
+    WAYPOINT_SUFFIX = ".posten.json"     # Begleitdatei neben dem GPX: Verpflegungsposten nach Streckenkilometer
+
+    def _load_waypoints(self, gpx_path: Path) -> list:
+        """Posten aus «<Strecke>.posten.json»: {"posten": [{"name": …, "km": …, "info": …, "offiziell_km": …}]}.
+        km ist die Distanz auf dieser GPX-Strecke – nötig, weil derselbe Ort auf Hin- und Rückweg zweimal vorkommt.
+        Fehlt die Datei oder ist sie fehlerhaft, gibt es einfach keine Posten."""
+        path = gpx_path.with_name(gpx_path.stem + self.WAYPOINT_SUFFIX)
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8")).get("posten", [])
+        except (FileNotFoundError, ValueError, AttributeError):
+            return []
+        out = []
+        for w in raw:
+            try:
+                d = float(w["km"]) * 1000.0
+            except (KeyError, TypeError, ValueError):
+                continue
+            if not (0.0 <= d <= self.length_m):
+                continue
+            pos = self.position_at(d)
+            out.append({"name": str(w.get("name", "Posten")), "distance_m": round(d, 1), "lat": pos.lat, "lon": pos.lon,
+                        "elevation_m": round(pos.elevation_m, 1), "info": str(w.get("info", "")),
+                        "official_km": w.get("offiziell_km"), "food": bool(w.get("verpflegung", True))})
+        return sorted(out, key=lambda w: w["distance_m"])
+
+    def next_waypoint(self, distance_m: float, end_m: Optional[float] = None) -> Optional[dict]:
+        """Nächster Posten vor uns (bis end_m): {"name", "ahead_m", "info"} oder None."""
+        for w in getattr(self, "waypoints", []):
+            if w["distance_m"] > distance_m + 1.0 and (end_m is None or w["distance_m"] <= end_m):
+                return {"name": w["name"], "ahead_m": round(w["distance_m"] - distance_m, 1), "info": w["info"]}
+        return None
 
     # ---------------------- Abfragen ----------------------
     def slope_at(self, distance_m: float) -> float:
@@ -187,6 +222,7 @@ class Route:
                 "slope_percent": [round(float(x), 1) for x in self._slope_grid[::pstep]],
             },
             "bbox": [float(self._lon.min()), float(self._lat.min()), float(self._lon.max()), float(self._lat.max())],
+            "waypoints": list(getattr(self, "waypoints", [])),
         }
 
 

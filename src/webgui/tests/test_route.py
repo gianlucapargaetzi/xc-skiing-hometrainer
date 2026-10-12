@@ -105,3 +105,25 @@ def test_far_beyond_route_end_stays_at_finish(tmp_path):
         assert p.finished and p.slope_percent == 0.0
         assert p.distance_m == pytest.approx(r.length_m)
         assert (p.lat, p.lon, p.elevation_m) == (end.lat, end.lon, end.elevation_m)
+
+
+def test_waypoints_from_sidecar_file(tmp_path):
+    """Verpflegungsposten aus «<Strecke>.posten.json»: nach Streckenkilometer, sortiert, mit Ort und Höhe."""
+    import json
+    gpx = _write_gpx(tmp_path / "test.gpx")
+    assert Route.from_gpx(gpx).waypoints == []                     # ohne Begleitdatei keine Posten
+    (tmp_path / "test.posten.json").write_text(json.dumps({"posten": [
+        {"name": "B", "km": 3.0, "info": "warme Mahlzeit"}, {"name": "A", "km": 1.0},
+        {"name": "zu weit", "km": 99}, {"name": "kaputt"}, {"name": "Wende", "km": 2.0, "verpflegung": False}]}), encoding="utf-8")
+    r = Route.from_gpx(gpx)
+    assert [w["name"] for w in r.waypoints] == ["A", "Wende", "B"]
+    assert r.waypoints[0]["distance_m"] == 1000.0 and r.waypoints[2]["info"] == "warme Mahlzeit"
+    assert r.waypoints[1]["food"] is False
+    assert r.waypoints[0]["lat"] == pytest.approx(r.position_at(1000.0).lat)
+    assert r.next_waypoint(0.0) == {"name": "A", "ahead_m": 1000.0, "info": ""}
+    assert r.next_waypoint(1000.0)["name"] == "Wende"               # am Posten selbst zählt der nächste
+    assert r.next_waypoint(2500.0, end_m=2800.0) is None            # Posten hinter dem Abschnittsziel zählen nicht
+    assert r.next_waypoint(3500.0) is None
+    assert [w["name"] for w in r.to_geojson_payload()["waypoints"]] == ["A", "Wende", "B"]
+    (tmp_path / "test.posten.json").write_text("kein json", encoding="utf-8")
+    assert Route.from_gpx(gpx).waypoints == []                      # fehlerhafte Datei stört die Strecke nicht

@@ -1193,6 +1193,8 @@ def run_training(drv: DriveM751) -> TrainingSession:
                     "technique_weight": round(diag_weight, 2),
                     # Nahansicht des Höhenprofils: 100 m zurück bis 400 m voraus
                     "window": route.elevation_window(route_pos.distance_m),
+                    # nächster Verpflegungsposten auf der Strecke (falls für die Strecke hinterlegt)
+                    "next_waypoint": route.next_waypoint(route_pos.distance_m, route_state.section_end_m),
                     "technique_choice": technique_state.get(),
                     "elapsed_s": int(session_active_elapsed(now)),
                     "paused": session_state["paused"],
