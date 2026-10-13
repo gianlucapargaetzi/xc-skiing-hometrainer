@@ -16,6 +16,7 @@ from typing import List, Optional
 
 from flask import Flask, jsonify, render_template, request
 
+from Utils.access import install_access_control, is_local
 from Utils.config_manager import ConfigManager, DEFAULT_CONFIG
 from Utils.route import Route, list_route_files, resolve_route_file
 from Utils.profile_page import create_profile_blueprint
@@ -78,12 +79,18 @@ def create_app(args) -> Flask:
         state["settings"] = Settings.from_config(config, cfg_manager.get_training_targets())
 
     load_config()
+    allow_remote = os.environ.get("X_SKI_ALLOW_REMOTE_CONFIG", "0") == "1"
     starting = threading.Event()
     alive = {"until": time.monotonic() + BROWSER_TIMEOUT_S}   # Frist bis zum nächsten Lebenszeichen
     app.config["XSKI_ALIVE"] = alive
 
+    # Steuern nur am Gerät (siehe Utils/access.py) – zuerst registriert, damit die Sperre zuerst greift
+    install_access_control(app, allow_remote=allow_remote)
+
     @app.before_request
     def browser_seen():
+        if not is_local():
+            return      # nur der Browser am Gerät hält x-ski am Leben, Zuschauer nicht
         grace = STRAVA_CONNECT_GRACE_S if request.path == "/strava/connect" else BROWSER_TIMEOUT_S
         alive["until"] = max(alive["until"], time.monotonic() + grace)
 
@@ -99,7 +106,6 @@ def create_app(args) -> Flask:
         threading.Timer(0.5, lambda: os._exit(0)).start()
         return jsonify({"ok": True})
 
-    allow_remote = os.environ.get("X_SKI_ALLOW_REMOTE_CONFIG", "0") == "1"
     app.register_blueprint(create_profile_blueprint(cfg_manager, on_saved=load_config, allow_remote=allow_remote))
 
     @app.route("/")

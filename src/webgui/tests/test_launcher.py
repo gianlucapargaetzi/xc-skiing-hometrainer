@@ -221,3 +221,64 @@ def test_resume_point_per_route(client, monkeypatch, tmp_path):
     assert route["resume"]["file"] == "a_neu.fit" and route["resume"]["km"] == pytest.approx(0.6, abs=0.02)
     fit_on_route("a_ziel.fit", 1_791_500_000.0, 600.0, 500.0)       # neuestes Training läuft bis ins Ziel
     assert "resume" not in c.get("/api/launcher").get_json()["routes"][0]
+
+
+# ---------------------- Zuschauer: nur ansehen, dem Gerät folgen ----------------------
+REMOTE = {"REMOTE_ADDR": "192.168.1.50"}
+LOCAL = {"REMOTE_ADDR": "127.0.0.1"}
+
+
+def test_remote_browser_cannot_control(client, monkeypatch):
+    c, started = client
+    monkeypatch.setattr(launcher.os, "_exit", lambda code: pytest.fail("darf nicht beenden"))
+    # ansehen geht
+    assert c.get("/", environ_base=REMOTE).status_code == 200
+    assert c.get("/api/launcher", environ_base=REMOTE).status_code == 200
+    assert c.get("/api/role", environ_base=REMOTE).get_json() == {"control": False}
+    assert c.get("/api/role", environ_base=LOCAL).get_json() == {"control": True}
+    # steuern nicht: jede ändernde Anfrage wird abgelehnt
+    for path, body in (("/start", {"mode": "profile"}), ("/start", {"mode": "skier", "route": "a.gpx"}), ("/api/quit", {}),
+                       ("/api/profiles/activate", {"file": "x"}), ("/api/profiles/new", {"name": "x"}),
+                       ("/api/profile", {"values": {}}), ("/api/screen", {"path": "/profil"})):
+        r = c.post(path, json=body, environ_base=REMOTE)
+        assert r.status_code == 403 and r.get_json()["ok"] is False, path
+    assert started == []
+
+
+def test_viewer_follows_screen_of_local_browser(client):
+    c, _ = client
+    # Startmenü = kein Training: Zuschauer warten und erfahren nicht, welche Seite am Gerät offen ist
+    c.post("/api/screen", json={"path": "/profil"}, environ_base=LOCAL)
+    assert c.get("/api/screen", environ_base=REMOTE).get_json() == {"path": None, "training": False}
+
+    # Trainingsprogramm: Zuschauer folgen der Seite des Geräts
+    from flask import Flask
+    from Utils.access import install_access_control
+    app = Flask(__name__)
+    install_access_control(app, training=True)
+    t = app.test_client()
+    assert t.get("/api/screen", environ_base=REMOTE).get_json() == {"path": None, "training": True}   # noch nichts gemeldet
+    assert t.post("/api/screen", json={"path": "/strecke"}, environ_base=LOCAL).get_json() == {"ok": True}
+    assert t.get("/api/screen", environ_base=REMOTE).get_json() == {"path": "/strecke", "training": True}
+    # fremde Adressen werden nicht übernommen, Zuschauer können nichts melden
+    t.post("/api/screen", json={"path": "https://example.org/"}, environ_base=LOCAL)
+    t.post("/api/screen", json={"path": "//example.org/"}, environ_base=LOCAL)
+    assert t.post("/api/screen", json={"path": "/sic"}, environ_base=REMOTE).status_code == 403
+    assert t.get("/api/screen", environ_base=REMOTE).get_json()["path"] == "/strecke"
+
+
+def test_only_local_browser_keeps_app_alive(client):
+    c, _ = client
+    alive = c.application.config["XSKI_ALIVE"]
+    alive["until"] = 0.0
+    c.get("/api/alive", environ_base=REMOTE)
+    c.get("/", environ_base=REMOTE)
+    assert alive["until"] == 0.0                       # Zuschauer verlängern die Frist nicht
+    c.get("/api/alive", environ_base=LOCAL)
+    assert alive["until"] > 0.0
+
+
+def test_every_page_loads_viewer_script():
+    templates = Path(launcher.__file__).parent / "templates"
+    for page in templates.glob("*.html"):
+        assert "/static/js/viewer.js" in page.read_text(encoding="utf-8"), page.name

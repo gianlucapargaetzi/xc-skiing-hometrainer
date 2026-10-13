@@ -217,8 +217,13 @@ Freilauf-Messungen (z. B. gebremster Griff) werden verworfen und der Schritt mus
 - Grenzen: Die Kalibrierung testet und schlägt höchstens 40 % für Grundzug und Rückzug und 3000 rpm vor.
   Von Hand lassen sich im Profil bis 60 % eintragen.
 - Motor und Bremswiderstand werden überwacht (Warnung ab 75 % Auslastung, alle 30 s im Log).
-- Einstellungen ändern, Profile laden, Dateien hochladen und Beenden sind nur direkt am Gerät erlaubt
-  (ausser mit `X_SKI_ALLOW_REMOTE_CONFIG=1`).
+- **Steuern nur am Gerät**: Nur der Browser direkt am x-ski (localhost) kann steuern. Jede ändernde Anfrage
+  von einem anderen Gerät wird vom Server abgelehnt (`Utils/access.py`), ausser mit
+  `X_SKI_ALLOW_REMOTE_CONFIG=1`.
+- **Zuschauer**: Ein zweiter Browser im Netz (`http://<adresse-des-pi>:5000/`) sieht ohne Training nur
+  «Warten auf Training». Während eines Trainings zeigt er automatisch dieselbe Seite wie der Browser am
+  Gerät, mit gesperrten Bedienelementen und dem Hinweis «Nur Ansicht». Zuschauer halten x-ski nicht am
+  Leben: schliesst der Browser am Gerät, beendet sich x-ski wie gewohnt.
 
 ## Dateien und Ordner
 

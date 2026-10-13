@@ -18,7 +18,7 @@ from threading import Event, Lock, Thread
 from typing import Optional
 
 import numpy as np
-from flask import jsonify, render_template, request
+from flask import jsonify, redirect, render_template, request
 
 from BasicWebGUI import Backend
 from HardwareController.DriveM751 import DriveM751
@@ -43,6 +43,7 @@ from Utils.skier_model import (
 from Utils.stroke_analysis import StrokeAnalyzer
 from Utils.fit_export import FitRecorder, FitSample
 from Utils import chat_notify, strava_client
+from Utils.access import install_access_control, is_local
 from Utils.route import Route, RoutePosition, list_route_files, resolve_route_file
 from Utils.profile_page import create_profile_blueprint, update_active_profile
 from Utils.rope_calibration import RopeCalibration
@@ -95,7 +96,6 @@ LOCAL_ONLY_PATHS = {
     "/api/profile",
     "/api/profiles/activate",
     "/api/profiles/new",
-    "/api/calibration",
 }
 ALLOW_REMOTE_CONFIG = os.environ.get("X_SKI_ALLOW_REMOTE_CONFIG", "0") == "1"
 
@@ -354,6 +354,17 @@ def get_controller_status():
 
 # ---------------------- Web-Routen ----------------------
 # /dashboard, /sic, /iic, /simple und /interval werden von BasicWebGUI.Backend registriert.
+
+# Steuern nur am Gerät: alle ändernden Anfragen von anderen Geräten werden abgelehnt (siehe Utils/access.py).
+# Zuerst registriert, damit die Sperre vor allen anderen Prüfungen greift.
+install_access_control(app, allow_remote=ALLOW_REMOTE_CONFIG, training=True)
+
+
+@app.route("/")
+def root_page():
+    # z.B. ein Zuschauer, der nur die Adresse des x-ski öffnet: zur laufenden Ansicht
+    return redirect(START_PAGE.replace("http://localhost:5000", "") or "/sic")
+
 
 @app.before_request
 def restrict_config_changes_to_localhost():
@@ -1794,6 +1805,8 @@ browser_alive = {"until": time.monotonic() + BROWSER_TIMEOUT_S, "gone": False}
 
 @app.before_request
 def browser_seen():
+    if not is_local():
+        return      # nur der Browser am Gerät hält x-ski am Leben, Zuschauer nicht
     grace = STRAVA_CONNECT_GRACE_S if request.path == "/strava/connect" else BROWSER_TIMEOUT_S
     browser_alive["until"] = max(browser_alive["until"], time.monotonic() + grace)
 

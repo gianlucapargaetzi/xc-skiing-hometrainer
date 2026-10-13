@@ -26,7 +26,8 @@ if os.environ.get("SIM_CHAT") != "1":
     cfg.setdefault("chat", {})["enabled"] = False     # keine Meldungen an den echten Tracking-Chat
 (OUT / "cfg.json").write_text(json.dumps(cfg))
 sys.path.insert(0, str(WEBGUI)); os.chdir(WEBGUI)
-sys.argv = ["x-ski.py", "--no-browser", "--host", "127.0.0.1", "--config", str(OUT / "cfg.json"), *extra]
+HOST = os.environ.get("SIM_HOST", "127.0.0.1")     # SIM_HOST=0.0.0.0: auch aus dem Netz erreichbar (Zuschauer testen)
+sys.argv = ["x-ski.py", "--no-browser", "--host", HOST, "--config", str(OUT / "cfg.json"), *extra]
 
 
 class StubBLE:
@@ -96,7 +97,7 @@ xski.TRAININGS_DIR = OUT
 xski.send_training_email = lambda **kw: print("(E-Mail übersprungen)")
 xski.restart_launcher = lambda: print("(Rückkehr ins Startmenü übersprungen)")
 xski.browser_alive["until"] = time.monotonic() + 10 * 3600
-threading.Thread(target=lambda: xski.app.run(host="127.0.0.1", port=PORT, debug=False, use_reloader=False), daemon=True).start()
+threading.Thread(target=lambda: xski.app.run(host=HOST, port=PORT, debug=False, use_reloader=False), daemon=True).start()
 threading.Thread(target=xski.calibration_thread if xski.MODE == "calib" else xski.training_thread, daemon=True).start()
 print(f"Simulation läuft {HOLD_S:.0f} s auf http://127.0.0.1:{PORT}/", flush=True)
 time.sleep(HOLD_S)
