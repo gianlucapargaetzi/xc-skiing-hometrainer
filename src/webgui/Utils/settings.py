@@ -61,7 +61,7 @@ class Settings:
     drive_motor_rated_torque_nm: float = 1.27
     drive_motor_max_torque_pct: float = 300.0
     drive_counts_per_rev: int = 16777216
-    drive_directions: tuple = (1, -1)
+    drive_directions: tuple = (1, 1)
     drive_sto_wired: bool = False
     drive_cycle_ms: float = 10.0
     drive_dc_sync: bool = False
@@ -174,7 +174,7 @@ class Settings:
             drive_motor_max_torque_pct=max(50.0, min(safe_float(drive["motor_max_torque_pct"], 300.0), 350.0)),
             drive_counts_per_rev=max(1, int(safe_float(drive["counts_per_rev"], 16777216))),
             drive_directions=(-1 if safe_float(drive["direction_1"], 1) < 0 else 1,
-                              -1 if safe_float(drive["direction_2"], -1) < 0 else 1),
+                              -1 if safe_float(drive["direction_2"], 1) < 0 else 1),
             drive_sto_wired=bool(drive["sto_wired"]),
             drive_cycle_ms=max(2.0, min(safe_float(drive["cycle_ms"], 10.0), 20.0)),
             drive_dc_sync=bool(drive["dc_sync"]),

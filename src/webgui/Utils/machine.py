@@ -13,7 +13,7 @@ DRIVE_DEFAULTS = {
     "motor_max_torque_pct": 300.0,  # delta_b3: Grenze pro Motor in % des Nennmoments (Motor kann 350 %)
     "counts_per_rev": 16777216,     # delta_b3: Positionseinheiten pro Umdrehung (E-Getriebe 1:1)
     "direction_1": 1,               # delta_b3: Drehrichtung Motor 1 (1 oder -1)
-    "direction_2": -1,              # delta_b3: Drehrichtung Motor 2 (gespiegelt eingebaut)
+    "direction_2": 1,               # delta_b3: Drehrichtung Motor 2 (gleich eingebaut wie Motor 1)
     "sto_wired": False,             # delta_b3: Sicherheitsschalter an CN10 angeschlossen
     "cycle_ms": 10.0,               # delta_b3: Takt von EtherCAT und Regelschleife
     "dc_sync": False,               # delta_b3: Distributed Clocks (nur falls der Antrieb es verlangt)
