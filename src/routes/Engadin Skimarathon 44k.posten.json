@@ -1,0 +1,35 @@
+{
+ "quelle": "Offizieller Streckenplan Engadin Skimarathon 2026 (Kilometer auf die GPX-Länge umgerechnet)",
+ "posten": [
+  {
+   "name": "Silvaplana (Surlej)",
+   "km": 12.5,
+   "offiziell_km": 12,
+   "info": "Wasser, Isostar, Tee, Riegel, Banane, Schokolade"
+  },
+  {
+   "name": "Pontresina",
+   "km": 22.6,
+   "offiziell_km": 20,
+   "info": "Wasser, Isostar, Tee, Bouillon, Riegel, Banane, Schokolade"
+  },
+  {
+   "name": "Bever",
+   "km": 31.24,
+   "offiziell_km": 30,
+   "info": "Wasser, Isostar, Tee, Bouillon, Riegel, Banane, Schokolade"
+  },
+  {
+   "name": "La Punt",
+   "km": 35.4,
+   "offiziell_km": 34,
+   "info": "Wasser, Isostar, Tee, Bouillon, Riegel, Banane, Schokolade"
+  },
+  {
+   "name": "Zuoz",
+   "km": 38.53,
+   "offiziell_km": 37,
+   "info": "Wasser, Isostar, Tee, Bouillon, Riegel, Banane, Schokolade"
+  }
+ ]
+}

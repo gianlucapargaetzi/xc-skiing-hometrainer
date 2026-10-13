@@ -1,0 +1,29 @@
+{
+ "quelle": "Postenorte gemäss ladiagonela.ch (ohne Kilometerangaben); Lage auf der Strecke aus der Geografie geschätzt",
+ "posten": [
+  {
+   "name": "Langlaufzentrum Celerina",
+   "km": 8.66
+  },
+  {
+   "name": "St. Moritz",
+   "km": 14.95
+  },
+  {
+   "name": "Langlaufzentrum Celerina",
+   "km": 27.83
+  },
+  {
+   "name": "Bever",
+   "km": 33.15
+  },
+  {
+   "name": "Zuoz",
+   "km": 43.39
+  },
+  {
+   "name": "S-chanf",
+   "km": 47.73
+  }
+ ]
+}

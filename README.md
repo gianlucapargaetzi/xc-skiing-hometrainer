@@ -266,6 +266,7 @@ Werkzeuge in `tools/` (jeweils mit `.venv/bin/python` aus dem Projektordner star
 |---|---|
 | `sim_xski.py <ordner> [sekunden] -- --mode …` | x-ski mit simuliertem Antrieb und simuliertem Nutzer auf Port 5097; keine E-Mail, kein Strava, kein Traccar, Chat nur mit `SIM_CHAT=1` |
 | `screenshot.py <url> <bild.png> <breite,höhe> [schritte]` | Seite in Chromium laden, optional JavaScript ausführen, Bild speichern |
+| `add_elevation.py <gpx>` | Höhen in ein GPX ohne Höhenangaben eintragen (Schweiz, Geländemodell von swisstopo); ohne Höhe ist eine Strecke «nicht lesbar» |
 | `compare_gpx.py <fit> <gpx> [--png bild.png]` | Aufzeichnung abschnittsweise mit dem echten Lauf vergleichen |
 | `replay_fit.py <fit> <gpx> --power-scale … [--target-min …] [--out …]` | Aufzeichnung mit anderen Modellwerten neu auf die Strecke rechnen |
 
