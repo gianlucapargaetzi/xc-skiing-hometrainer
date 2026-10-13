@@ -109,23 +109,60 @@ def test_stroke_analyzer_cadence_power_and_efficiency():
     analyzer = StrokeAnalyzer(swing_start_mm=650, swing_end_mm=1650)
     results = _simulate_strokes(analyzer, n_strokes=5)
 
-    # Richtungswechsel zu Beginn von Zug 2..5; der erste startet nur die Zeitmessung
-    assert len(results) == 4
+    # jeder Zug wird erkannt, sobald das Seil 150 mm herausgezogen ist; der erste startet nur die Zeitmessung
+    assert len(results) == 5
     assert results[0] is None
     strokes = [r for r in results if r is not None]
-    assert len(strokes) == 3
+    assert len(strokes) == 4
     for s in strokes:
         assert s.cadence_spm == 50  # 60 / 1.2 s
         assert s.duration_s == pytest.approx(1.2)
         assert s.mean_power_w == pytest.approx(120.0, rel=0.1)  # 300 W * 40 %
         assert s.swing_efficiency_pct == pytest.approx(40.0, abs=5.0)
 
-    assert analyzer.stroke_count == 3
+    assert analyzer.stroke_count == 4
     for s in strokes:
         assert s.distance_m == pytest.approx(6.0, abs=0.15)  # 5 m/s * 1.2 s
         assert s.pace_s500 == 100
     assert analyzer.total_distance_m == pytest.approx(strokes[-1].total_distance_m)
     assert strokes[-1].timestamp.tzinfo is not None
+
+
+def _stroke_positions(wobble_at=None, wobble_mm=60.0, steps=60):
+    """Positionen eines Zyklus (700 -> 1600 -> 700 mm); wobble_at = Schritt, bei dem das Seil kurz zuckt."""
+    out = []
+    for i in range(steps):
+        half = steps // 2
+        pos = 700 + 900 * (i / half) if i < half else 1600 - 900 * ((i - half) / half)
+        if wobble_at is not None and wobble_at <= i < wobble_at + 2:
+            pos += wobble_mm if i >= half else -wobble_mm     # Rückweg: kurzer Gegenzug; Zug: kurzes Zurückzucken
+        out.append(pos)
+    return out
+
+
+def test_short_wobbles_do_not_count_as_strokes():
+    """Kleine Gegenbewegungen (Umgreifen, Umkehrpunkt) teilen einen Zyklus nicht mehr – keine Kadenz-Ausreisser."""
+    analyzer, t, cadences = StrokeAnalyzer(650, 1650), 0.0, []
+    for n in range(8):
+        wobble = {2: 45, 4: 10, 6: 52}.get(n)      # Zuckungen im Rückweg (45, 52) und im Zug (10)
+        for pos in _stroke_positions(wobble):
+            # speed absichtlich immer «Zug/Rückweg» nach Position unbekannt -> die Erkennung darf sie nicht brauchen
+            if analyzer.add_sample(t, pos, 0.0, -100.0, 60, 80):
+                r = analyzer.close_cycle(t, 150, TARGETS, 0.0)
+                if r is not None:
+                    cadences.append(r.cadence_spm)
+            t += 0.02
+    assert cadences == [50] * 7                       # 8 Züge, der erste startet die Zeitmessung; 60 / 1.2 s
+    ignored = analyzer.pop_ignored_reversals()
+    assert [phase for phase, _, _ in ignored] == ["Rückweg", "Zug", "Rückweg"]
+    assert all(15 <= travel <= 80 for _, travel, _ in ignored)      # 60 mm Gegenbewegung minus der laufende Weg
+    assert analyzer.pop_ignored_reversals() == []
+
+
+def test_small_movements_alone_are_no_strokes():
+    analyzer = StrokeAnalyzer(650, 1650)
+    for i in range(500):                              # Seil pendelt um ±50 mm
+        assert analyzer.add_sample(i * 0.02, 900 + 50 * ((i // 10) % 2), 0.0, 0.0, 60, 80) is False
 
 
 def test_stroke_record_timestamp_is_utc_iso():

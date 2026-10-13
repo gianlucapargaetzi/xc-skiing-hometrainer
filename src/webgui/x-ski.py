@@ -1097,6 +1097,11 @@ def run_training(drv: DriveM751) -> TrainingSession:
         if loop_timer.tick():
             diagnostics.report(skier, terrain, force_planner if skier_mode else None)
             thermal.report()
+            ignored = analyzer.pop_ignored_reversals()
+            if ignored:
+                # Kurzbewegungen, die früher als eigener Zug gezählt hätten (Kadenz-Ausreisser)
+                where = ", ".join(f"{phase} {travel:.0f} mm bei {pos:.0f} mm" for phase, travel, pos in ignored[:6])
+                print(f"   Ignorierte Kurzbewegungen: {len(ignored)} ({where}{' …' if len(ignored) > 6 else ''})")
         drv.service_watchdog()
         just_started_clock = False
         s = settings  # min/max-Torque, Zonen, Schnee und Steigung wirken live nach einem Reload

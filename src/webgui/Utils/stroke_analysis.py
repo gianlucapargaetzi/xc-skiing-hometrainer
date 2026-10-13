@@ -8,8 +8,12 @@ import numpy as np
 
 from Utils.zones import get_reference_zone_key
 
-# Richtungserkennung mit Deadband (robuster für erste Züge)
-SPEED_DEADBAND = 2.0
+# Ein Zug zählt erst, wenn das Seil seit dem letzten Umkehrpunkt so weit eingelaufen und danach wieder so weit
+# herausgezogen wurde. Kleine Zuckungen (Umgreifen, Umkehrpunkt) teilten vorher echte Zyklen und ergaben
+# Kadenz-Ausreisser nach oben (Auswertung 12./13.10.2026: alle 1–2 min). Ein normaler Zug hat rund 900 mm.
+MIN_STROKE_TRAVEL_MM = 150.0
+# Gegenbewegungen ab diesem Weg (aber unter MIN_STROKE_TRAVEL_MM) werden fürs Log gezählt
+IGNORED_REPORT_MM = 15.0
 # Lücken zwischen zwei Messpunkten über diesem Wert werden nicht integriert
 MAX_SAMPLE_GAP_S = 0.25
 MAX_VALID_SPM = 100
@@ -193,17 +197,25 @@ class StrokeResult:
 
 class StrokeAnalyzer:
     """
-    Sammelt die Messpunkte eines Zyklus und wertet ihn aus, sobald die Bewegungsrichtung
-    von "Seil wird eingezogen" (speed > 0) auf "Zug" (speed < 0) wechselt.
+    Sammelt die Messpunkte eines Zyklus und wertet ihn aus, sobald ein neuer Zug beginnt.
 
-    Der erste Richtungswechsel startet nur die Zeitmessung (der Teilzug davor wird verworfen).
+    Ein neuer Zug wird über den Weg erkannt (MIN_STROKE_TRAVEL_MM), nicht über die Richtung allein:
+    erst muss das Seil vom äussersten Punkt um diesen Weg eingelaufen sein («Rückweg»), dann vom innersten
+    Punkt wieder um diesen Weg herausgezogen werden. Der Beginn wird damit bei jedem Zug um denselben
+    Weg später erkannt – die Zyklusdauer bleibt korrekt.
+
+    Der erste erkannte Zug startet nur die Zeitmessung (der Teilzug davor wird verworfen).
     """
 
     def __init__(self, swing_start_mm: float, swing_end_mm: float):
         self.swing_start_mm = swing_start_mm
         self.swing_end_mm = swing_end_mm
 
-        self._old_dir = False
+        self._returning = True            # True = Seil läuft ein (Rückweg), False = Zug
+        self._wobble_mm = 0.0             # grösste Gegenbewegung seit dem letzten Umkehrpunkt
+        self._extreme_mm: Optional[float] = None   # innerster (Rückweg) bzw. äusserster (Zug) Punkt seit dem Wechsel
+        # Diagnose: Gegenbewegungen, die früher als eigener Zug gezählt hätten: (Phase, Weg mm, Position mm)
+        self.ignored_reversals: List[Tuple[str, float, float]] = []
         self._cycle_start_t: Optional[float] = None
         self._cycle_start_distance_m = 0.0
         self._zero_power_start_t: Optional[float] = None
@@ -230,7 +242,7 @@ class StrokeAnalyzer:
     def add_sample(self, t: float, pos_mm: float, speed: float, raw_power: float,
                    applied_torque_pct: float, controller_torque_pct: float) -> bool:
         """Messpunkt hinzufügen. Gibt True zurück, wenn damit ein Zyklus abgeschlossen ist
-        (dann close_cycle() aufrufen)."""
+        (dann close_cycle() aufrufen). speed wird für die Zugerkennung nicht mehr verwendet (nur noch der Weg)."""
         if raw_power < 0:
             active_power = abs(raw_power)
             if self._zero_power_start_t is not None:
@@ -248,16 +260,36 @@ class StrokeAnalyzer:
         self._raw_power.append(raw_power)
         self._time_s.append(t)
 
-        if speed > SPEED_DEADBAND:
-            actual_dir = True
-        elif speed < -SPEED_DEADBAND:
-            actual_dir = False
+        # Zug über den Weg erkennen (pos_mm wächst beim Herausziehen)
+        if self._extreme_mm is None:
+            self._extreme_mm = pos_mm
+        cycle_complete = False
+        if self._returning:
+            if pos_mm < self._extreme_mm:
+                self._note_ignored("Rückweg", pos_mm)          # kurzer Gegenzug, dann lief das Seil weiter ein
+                self._extreme_mm = pos_mm
+            self._wobble_mm = max(self._wobble_mm, pos_mm - self._extreme_mm)
+            if pos_mm >= self._extreme_mm + MIN_STROKE_TRAVEL_MM:
+                cycle_complete, self._returning, self._extreme_mm, self._wobble_mm = True, False, pos_mm, 0.0
         else:
-            actual_dir = self._old_dir
-
-        cycle_complete = self._old_dir and not actual_dir
-        self._old_dir = actual_dir
+            if pos_mm > self._extreme_mm:
+                self._note_ignored("Zug", pos_mm)              # Seil zuckte im Zug kurz zurück, dann weiter gezogen
+                self._extreme_mm = pos_mm
+            self._wobble_mm = max(self._wobble_mm, self._extreme_mm - pos_mm)
+            if pos_mm <= self._extreme_mm - MIN_STROKE_TRAVEL_MM:
+                self._returning, self._extreme_mm, self._wobble_mm = True, pos_mm, 0.0
         return cycle_complete
+
+    def _note_ignored(self, phase: str, pos_mm: float):
+        """Gegenbewegung unter MIN_STROKE_TRAVEL_MM merken (ab IGNORED_REPORT_MM), dann zurücksetzen."""
+        if self._wobble_mm >= IGNORED_REPORT_MM:
+            self.ignored_reversals.append((phase, round(self._wobble_mm), round(pos_mm)))
+        self._wobble_mm = 0.0
+
+    def pop_ignored_reversals(self) -> List[Tuple[str, float, float]]:
+        """Seit dem letzten Aufruf ignorierte Kurzbewegungen [(Phase, Weg mm, Position mm)] – fürs Log."""
+        out, self.ignored_reversals = self.ignored_reversals, []
+        return out
 
     @property
     def last_active_power_w(self) -> float:
