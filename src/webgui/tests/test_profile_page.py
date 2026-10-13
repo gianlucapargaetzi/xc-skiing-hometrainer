@@ -85,3 +85,22 @@ def test_list_activate_and_new_profile(env):
     assert c.post("/api/profiles/new", json={"name": "Skating Ski"}).status_code == 400
     assert c.post("/api/profiles/new", json={"name": "  "}).status_code == 400
     assert len(saved) == 2
+
+
+def test_drive_selection_is_saved_for_the_machine_not_the_profile(env, monkeypatch):
+    client, tmp, _ = env
+    monkeypatch.setenv("X_SKI_MACHINE_FILE", str(tmp / "maschine.json"))
+    data = client.get("/api/profile").get_json()
+    assert data["values"]["drive.type"] == "m751" and data["values"]["drive.axes"] == 1
+    field = next(f for f in data["fields"] if f["key"] == "type" and f["section"] == "drive")
+    assert [o["value"] for o in field["options"]] == ["m751", "delta_b3"]
+
+    r = client.post("/api/profile", json={"values": {"drive.type": "delta_b3", "drive.axes": "2"}},
+                    environ_base={"REMOTE_ADDR": "127.0.0.1"})
+    assert r.get_json()["ok"]
+    assert json.loads((tmp / "maschine.json").read_text())["drive"] == {"type": "delta_b3", "axes": 2}
+    assert "type" not in json.loads((tmp / "x-ski.json").read_text())["drive"]      # Profil bleibt unberührt
+    assert client.get("/api/profile").get_json()["values"]["drive.axes"] == 2
+
+    r = client.post("/api/profile", json={"values": {"drive.type": "siemens"}}, environ_base={"REMOTE_ADDR": "127.0.0.1"})
+    assert r.status_code == 400

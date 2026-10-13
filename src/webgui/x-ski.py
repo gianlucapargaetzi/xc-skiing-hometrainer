@@ -21,7 +21,7 @@ import numpy as np
 from flask import jsonify, redirect, render_template, request
 
 from BasicWebGUI import Backend
-from HardwareController.DriveM751 import DriveM751
+from HardwareController.factory import create_drive
 from IntensityController.IntervallIntensityController import IntervallIntensityController
 from IntensityController.SimpleIntensityController import SimpleIntensityController
 from ValueHandler.Scope import Scope
@@ -958,7 +958,7 @@ def technique_factors(s: Settings, diagonal_weight: float):
     return 1.0 - w * (1.0 - s.diagonal_arm_share), 1.0 + w * (s.diagonal_power_factor - 1.0)
 
 
-def prepare_drive(drv: DriveM751, s: Settings, *, swing_length: float, dist_per_rev: float,
+def prepare_drive(drv, s: Settings, *, swing_length: float, dist_per_rev: float,
                   start_torque_pct: float, start_speed_rpm: float, log=None) -> dict:
     """Antrieb vorbereiten (Strombegrenzung, Motorschutz, STO, Endlage) und freigeben.
     Gibt die Positionen in Encoder-Inkrementen zurück (65536 pro Umdrehung)."""
@@ -970,12 +970,7 @@ def prepare_drive(drv: DriveM751, s: Settings, *, swing_length: float, dist_per_
     drv.set_forward_direction(0)
     drv.set_watchdog_enabled(False)
     drv.set_current_limit(s.current_limit)
-    # Bei Motor-Überlast (Pr 04.019 = 100 %) Strom begrenzen statt mitten im Stoss abschalten
-    mode = drv.set_thermal_protection_mode(DriveM751.THERMAL_MODE_MOTOR_LIMIT)
-    if mode == DriveM751.THERMAL_MODE_MOTOR_LIMIT:
-        print("🌡️ Motorschutz: Strom begrenzen statt abschalten (Pr 04.016 = 1)")
-    else:
-        print(f"⚠️ Pr 04.016 konnte nicht gesetzt werden (gelesen: {mode}) – Motorschutz schaltet bei Überlast ab")
+    print(drv.configure_protection())
 
     log("Bitte Seil 50 cm herausziehen, dann Sicherheitsschalter auslösen")
     drv.wait_for_sto_off()
@@ -1019,7 +1014,7 @@ def feel_resistance_n(s: Settings, skier: VirtualSkier, terrain: Terrain) -> flo
     return max(r, s.downhill_feel_floor * flat_friction)
 
 
-def run_training(drv: DriveM751) -> TrainingSession:
+def run_training(drv) -> TrainingSession:
     global current_gui_intensity
 
     ic = active_ic
@@ -1442,7 +1437,7 @@ def api_calibration():
     return jsonify({"ok": True})
 
 
-def run_calibration(drv: DriveM751):
+def run_calibration(drv):
     """Geführter Seilzug-Test: der Ablauf (RopeCalibration) gibt Drehmoment und Drehzahlgrenze vor,
     die Schleife misst die Seilposition. Grenzen: Grundzug/Rückzug ≤ 40 %, Drehzahl ≤ 3000 rpm."""
     global calibration
@@ -1893,12 +1888,7 @@ def training_thread():
 
 
 if __name__ == "__main__":
-    drive = DriveM751(
-        host=settings.drive_host,
-        port=settings.drive_port,
-        unit_id=settings.drive_unit_id,
-        max_torque_pct=settings.max_torque_pct,
-    )
+    drive = create_drive(settings)
     scope = Scope(
         max_hr_bpm=settings.max_hr_bpm,
         ftp_w=settings.ftp_w,

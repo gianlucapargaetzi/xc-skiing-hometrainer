@@ -127,6 +127,34 @@ Nur in der Datei bzw. über die Konfigurationsseite einstellbar (Abschnitt `simu
 | `max_rope_force_n`, `max_force_step_n` | 180, 30 | Obergrenze der Stosskraft und Änderung pro Stoss |
 | `route_slope_factor` | 1.0 | dämpft oder verstärkt die Steigung der Strecke |
 
+### Antrieb der Maschine (ein oder zwei Motoren)
+
+Welcher Antrieb eingebaut ist, steht nicht im Profil, sondern gilt für die ganze Maschine
+(`src/webgui/maschine.json`, wird nicht versioniert). Umgestellt wird im Profil-Formular unter **Maschine**;
+die Änderung wirkt beim nächsten Trainingsstart.
+
+| Einstellung | Antrieb | Verbindung |
+|---|---|---|
+| Nidec Digitax HD M751 (Standard) | ein Motor, beide Seile auf einer Trommel | Modbus TCP |
+| Delta ASDA-B3A-E, 1 oder 2 Motoren | ASD-B3A-0421-E mit ECM-B3M-C20604 (400 W) | EtherCAT (`pysoem`) |
+
+Die Regelschleife kennt nur eine gemeinsame Schnittstelle (`HardwareController/factory.py`): Drehmoment in
+Prozent des Bezugsdrehmoments (`simulation.motor_rated_torque_nm`, Summe über alle Seile), Position in
+65536 Schritten pro Umdrehung, Drehzahl in rpm. Grundzug, Rückzug und Stosskraft bedeuten deshalb mit
+beiden Antrieben dasselbe. Mit zwei Motoren bekommt jeder die halbe Kraft; die Regelung sieht den Mittelwert
+beider Seile. Eine getrennte Regelung pro Arm (Diagonalschritt) ist noch nicht gebaut.
+
+**Der Delta-Treiber (`DriveDeltaB3.py`) ist nach dem Handbuch geschrieben und nur mit einem simulierten Bus
+getestet – an der Hardware noch nicht.** Vor dem ersten Betrieb zu klären:
+
+- Python braucht das Recht für EtherCAT:
+  `sudo setcap cap_net_raw,cap_net_admin+ep $(readlink -f .venv/bin/python)`
+- Der Netzwerkanschluss (`interface`, Standard `eth0`) gehört dann dem EtherCAT; der M751 hängt heute am selben Anschluss.
+- Weitere Werte in `maschine.json` unter `drive` (Standardwerte in `Utils/machine.py`): `counts_per_rev`,
+  `motor_max_torque_pct`, `cycle_ms`, `dc_sync`.
+- Die Drehzahlgrenze beim Rückzug macht die Software (Drehmoment wird über der Grenze zurückgenommen).
+- Ohne angeschlossenen Sicherheitsschalter («STO angeschlossen» aus) nur auf dem Tisch ohne Seil testen.
+
 ## Streckensimulation
 
 Ein virtueller Skifahrer (`Utils/skier_model.py`) läuft die GPX-Strecke ab:

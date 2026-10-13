@@ -7,9 +7,11 @@ from typing import Callable, Optional
 
 from flask import Blueprint, jsonify, redirect, render_template, request
 
-from Utils import strava_client
+from Utils import machine, strava_client
 
 from Utils.settings import Settings
+
+MACHINE_GROUP = "Maschine"
 
 # (Abschnitt, Schlüssel, Bezeichnung, Typ, min, max, Schritt, Einheit, Hilfetext, Gruppe)
 PROFILE_FIELDS = [
@@ -50,18 +52,45 @@ PROFILE_FIELDS = [
      "Technik «Auto»: ab dieser Steigung Diagonalschritt.", "Ski & Technik"),
     ("user", "diagonal_hysteresis_percent", "Zurück auf Double Poling", "number", 0, 5, 0.5, "% darunter",
      "Erst wenn die Steigung um so viel tiefer ist, wird wieder auf Double Poling gewechselt.", "Ski & Technik"),
+
+    # Abschnitt «drive»: gilt für die Maschine, nicht für das Profil (maschine.json, siehe Utils/machine.py)
+    ("drive", "type", "Antrieb", "select", None, None, None, "",
+     "Gilt für alle Profile und wirkt beim nächsten Trainingsstart. Der Delta-Antrieb ist vorbereitet, "
+     "aber an der Maschine noch nicht erprobt.", MACHINE_GROUP),
+    ("drive", "axes", "Anzahl Motoren", "select", None, None, None, "",
+     "Nur Delta. Mit zwei Motoren hat jede Seite ihr eigenes Seil; beide bekommen dieselbe Kraft "
+     "(je die Hälfte), die Anzeige zeigt den Mittelwert.", MACHINE_GROUP),
+    ("drive", "direction_1", "Drehrichtung Motor 1", "select", None, None, None, "",
+     "Nur Delta. Umkehren, wenn der Motor das Seil beim Kalibrieren abwickelt statt aufwickelt.", MACHINE_GROUP),
+    ("drive", "direction_2", "Drehrichtung Motor 2", "select", None, None, None, "", "", MACHINE_GROUP),
+    ("drive", "sto_wired", "Sicherheitsschalter (STO) am Delta-Antrieb angeschlossen", "checkbox", None, None, None, "",
+     "Aus = Brücke ab Werk im Stecker CN10: nur für den Test auf dem Tisch ohne Seil.", MACHINE_GROUP),
 ]
+
+# Auswahlfelder: (Wert, Anzeige)
+FIELD_OPTIONS = {
+    "drive.type": list(machine.DRIVE_TYPES.items()),
+    "drive.axes": [(1, "1 Motor"), (2, "2 Motoren (links / rechts)")],
+    "drive.direction_1": [(1, "normal"), (-1, "umgekehrt")],
+    "drive.direction_2": [(1, "normal"), (-1, "umgekehrt")],
+}
 
 
 def _field_meta():
-    return [dict(section=s, key=k, label=lb, type=t, min=mn, max=mx, step=st, unit=u, help=h, group=g)
+    return [dict(section=s, key=k, label=lb, type=t, min=mn, max=mx, step=st, unit=u, help=h, group=g,
+                 options=[{"value": v, "label": text} for v, text in FIELD_OPTIONS.get(f"{s}.{k}", [])])
             for s, k, lb, t, mn, mx, st, u, h, g in PROFILE_FIELDS]
 
 
 def _parse(field, raw):
-    _, key, label, ftype, mn, mx, _, _, _, _ = field
+    section, key, label, ftype, mn, mx, _, _, _, _ = field
     if ftype == "checkbox":
         return raw in (True, "true", "1", 1, "on")
+    if ftype == "select":
+        for value, _text in FIELD_OPTIONS[f"{section}.{key}"]:
+            if str(raw) == str(value):
+                return value
+        raise ValueError(f"{label}: ungültige Auswahl.")
     if ftype != "number":
         return str(raw or "").strip()
     try:
@@ -180,6 +209,7 @@ def create_profile_blueprint(cfg_manager, on_saved: Optional[Callable[[], None]]
     def get_profile():
         cfg = json.loads(json.dumps(cfg_manager.DEFAULT_CONFIG))
         cfg_manager.deep_update(cfg, read_active())
+        cfg["drive"] = machine.drive_config(cfg.get("drive"))
         values = {f"{s}.{k}": cfg.get(s, {}).get(k) for s, k, *_ in PROFILE_FIELDS}
         return jsonify({"fields": _field_meta(), "values": values})
 
@@ -264,10 +294,15 @@ def create_profile_blueprint(cfg_manager, on_saved: Optional[Callable[[], None]]
         values = data.get("values", {})
         try:
             raw_cfg = read_active()
+            machine_drive = {}
             for field in PROFILE_FIELDS:
                 section, key = field[0], field[1]
                 ident = f"{section}.{key}"
-                if ident in values:
+                if ident not in values:
+                    continue
+                if section == "drive":
+                    machine_drive[key] = _parse(field, values[ident])    # Maschine, nicht Profil
+                else:
                     raw_cfg.setdefault(section, {})[key] = _parse(field, values[ident])
 
             # Gesamte Konfiguration prüfen, bevor etwas geschrieben wird
@@ -280,6 +315,10 @@ def create_profile_blueprint(cfg_manager, on_saved: Optional[Callable[[], None]]
         # Ist die aktive Datei gleich einer Datei im Ordner configs/, wird diese mitgeführt,
         # damit die Konfigurationsseite und «Aktivieren» denselben Stand haben.
         mirror = write_active(raw_cfg)
+        changed = {k: v for k, v in machine_drive.items() if machine.drive_config(raw_cfg.get("drive")).get(k) != v}
+        if changed:
+            machine.save_drive(changed)
+            print(f"⚙️ Maschine: Antrieb geändert {changed}")
 
         message = "Profil gespeichert." + notify_saved()
         print(f"👤 {message}")

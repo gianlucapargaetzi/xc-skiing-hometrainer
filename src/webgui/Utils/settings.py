@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
+from Utils import machine
+
 # top_position = 2100 mm muss innerhalb des darstellbaren / validierbaren Bereichs liegen
 MAX_TRAVEL_MM = 2500
 
@@ -52,6 +54,17 @@ class Settings:
     drive_host: str = "127.0.0.1"
     drive_port: int = 502
     drive_unit_id: int = 1
+    # Antrieb der Maschine (maschine.json, siehe Utils/machine.py); delta_b3 = Delta ASDA-B3A-E über EtherCAT
+    drive_type: str = "m751"
+    drive_axes: int = 1
+    drive_interface: str = "eth0"
+    drive_motor_rated_torque_nm: float = 1.27
+    drive_motor_max_torque_pct: float = 300.0
+    drive_counts_per_rev: int = 16777216
+    drive_directions: tuple = (1, -1)
+    drive_sto_wired: bool = False
+    drive_cycle_ms: float = 10.0
+    drive_dc_sync: bool = False
 
     # BLE FTMS (MyWhoosh)
     ble_enabled: bool = True
@@ -118,7 +131,7 @@ class Settings:
         swing = config["swing_torque"]
         ctrl = config["control"]
         user = config["user"]
-        drive = config["drive"]
+        drive = machine.drive_config(config["drive"])
         ble = config.get("mywhoosh_ble", {})
         ant = config.get("ant_hr_sensor", {})
         sim = config.get("simulation", {})
@@ -154,6 +167,17 @@ class Settings:
             drive_host=drive["host"],
             drive_port=drive["port"],
             drive_unit_id=drive["unit_id"],
+            drive_type=str(drive["type"]),
+            drive_axes=2 if int(safe_float(drive["axes"], 1)) == 2 and drive["type"] == "delta_b3" else 1,
+            drive_interface=str(drive["interface"]),
+            drive_motor_rated_torque_nm=safe_float(drive["motor_rated_torque_nm"], 1.27),
+            drive_motor_max_torque_pct=max(50.0, min(safe_float(drive["motor_max_torque_pct"], 300.0), 350.0)),
+            drive_counts_per_rev=max(1, int(safe_float(drive["counts_per_rev"], 16777216))),
+            drive_directions=(-1 if safe_float(drive["direction_1"], 1) < 0 else 1,
+                              -1 if safe_float(drive["direction_2"], -1) < 0 else 1),
+            drive_sto_wired=bool(drive["sto_wired"]),
+            drive_cycle_ms=max(2.0, min(safe_float(drive["cycle_ms"], 10.0), 20.0)),
+            drive_dc_sync=bool(drive["dc_sync"]),
             ble_enabled=bool(ble.get("enabled", True)),
             ble_name=ble.get("device_name", "x-ski FTMS"),
             ble_adapter=ble.get("adapter", "hci0"),

@@ -120,6 +120,13 @@ class DriveM751:
         self._write(REG_THERMAL_PROTECTION_MODE, int(mode))
         return self._read1(REG_THERMAL_PROTECTION_MODE)
 
+    def configure_protection(self) -> str:
+        """Bei Motor-Überlast (Pr 04.019 = 100 %) Strom begrenzen statt mitten im Stoss abschalten."""
+        mode = self.set_thermal_protection_mode(self.THERMAL_MODE_MOTOR_LIMIT)
+        if mode == self.THERMAL_MODE_MOTOR_LIMIT:
+            return "🌡️ Motorschutz: Strom begrenzen statt abschalten (Pr 04.016 = 1)"
+        return f"⚠️ Pr 04.016 konnte nicht gesetzt werden (gelesen: {mode}) – Motorschutz schaltet bei Überlast ab"
+
     def set_speed(self, speed: float):
         self._write(REG_SPEED_REF, int(speed * 10))
 

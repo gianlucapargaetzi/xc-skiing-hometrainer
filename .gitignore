@@ -174,3 +174,6 @@ src/webgui/configs/*.json
 !src/webgui/configs/x-ski.default.json
 strava_tokens/
 src/routes/*.orig
+
+# x-ski: Einstellungen der Maschine (welcher Antrieb eingebaut ist)
+src/webgui/maschine.json

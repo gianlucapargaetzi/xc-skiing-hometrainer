@@ -18,7 +18,7 @@
     .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; }
     .field label { display: block; font-weight: 700; font-size: 15px; margin-bottom: 5px; }
     .field .row { display: flex; align-items: center; gap: 8px; }
-    .field input { width: 100%; box-sizing: border-box; font: inherit; font-size: 17px; padding: 9px 11px;
+    .field input, .field select { width: 100%; box-sizing: border-box; font: inherit; font-size: 17px; padding: 9px 11px;
       border: 1px solid #c9d6e2; border-radius: 9px; background: #fff; color: var(--ink); }
     .field input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
     .field .unit { color: var(--muted); white-space: nowrap; font-size: 14px; }
@@ -80,8 +80,14 @@
         const wrap = document.createElement("div"); wrap.className = "field";
         const label = document.createElement("label"); label.htmlFor = id; label.textContent = f.label;
         const row = document.createElement("div"); row.className = "row";
-        const input = document.createElement("input");
-        input.id = id; input.name = id; input.type = f.type;
+        const input = document.createElement(f.type === "select" ? "select" : "input");
+        input.id = id; input.name = id;
+        if (f.type === "select") {
+          for (const o of f.options) {
+            const opt = document.createElement("option"); opt.value = o.value; opt.textContent = o.label;
+            input.appendChild(opt);
+          }
+        } else input.type = f.type;
         if (f.type === "checkbox") {
           input.style.width = "28px"; input.style.height = "28px";
           input.checked = data.values[id] === true;
