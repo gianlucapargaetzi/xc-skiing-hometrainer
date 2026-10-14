@@ -165,7 +165,7 @@ class Route:
         return RoutePosition(d, lat, lon, self.elevation_at(d), 0.0 if finished else self.slope_at(d),
                              bearing, finished)
 
-    def elevation_window(self, distance_m: float, back_m: float = 100.0, ahead_m: float = 400.0) -> dict:
+    def elevation_window(self, distance_m: float, back_m: float = 500.0, ahead_m: float = 1000.0) -> dict:
         """Ausschnitt des Höhenprofils um die aktuelle Position (für die Nahansicht in der Karte):
         Höhe und Steigung im Raster GRID_STEP_M von distance_m − back_m bis distance_m + ahead_m.
         Ausserhalb der Strecke stehen None-Werte."""

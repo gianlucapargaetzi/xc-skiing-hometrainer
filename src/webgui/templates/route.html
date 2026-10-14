@@ -37,7 +37,7 @@
     body.has-tech #controls { display: none; }
     body.has-tech #message { top: 72px; }
 
-    /* Nahansicht des Höhenprofils oben rechts (−100 m … +400 m), gleich gross wie die Infobox links */
+    /* Nahansicht des Höhenprofils oben rechts (−500 m … +1000 m), gleich gross wie die Infobox links */
     #near { top: 72px; right: 12px; display: none; overflow: hidden; }
     body.has-tech #near { display: block; }
     #near canvas { display: block; width: 100%; height: 100%; }
@@ -388,7 +388,7 @@
     drawNear(p);
   }
 
-  // ---------------------- Nahansicht: 100 m zurück, 400 m voraus ----------------------
+  // ---------------------- Nahansicht: 500 m zurück, 1000 m voraus ----------------------
   function drawNear(p) {
     const win = p.window, box = document.getElementById("near"), hud = document.getElementById("hud");
     if (!win || !box.offsetParent) return;
@@ -449,7 +449,7 @@
     ctx.beginPath(); ctx.moveTo(px, pad.t - 6); ctx.lineTo(px, h - pad.b); ctx.stroke();
     ctx.fillStyle = "#ff7b00";
     ctx.beginPath(); ctx.arc(px, y(p.elevation_m), 7, 0, Math.PI * 2); ctx.fill();
-    // Beschriftung: Steigung der nächsten 100 m und 400 m
+    // Beschriftung: Steigung der nächsten 100 m und 500 m
     const ahead = (m) => {
       const j = Math.min(n - 1, Math.round(pi + m / win.step_m));
       const i0 = Math.round(pi);
@@ -460,15 +460,15 @@
     ctx.fillStyle = "#5b7690"; ctx.font = "600 15px sans-serif"; ctx.textAlign = "left";
     ctx.fillText("NÄCHSTE 100 m", 14, 22);
     ctx.textAlign = "right";
-    ctx.fillText("NÄCHSTE 400 m", w - 14, 22);
+    ctx.fillText("NÄCHSTE 500 m", w - 14, 22);
     ctx.fillStyle = "#12324a"; ctx.font = "800 26px sans-serif";
-    ctx.fillText(fmt(ahead(400)), w - 14, 48);
+    ctx.fillText(fmt(ahead(500)), w - 14, 48);
     ctx.textAlign = "left";
     ctx.fillText(fmt(ahead(100)), 14, 48);
     ctx.fillStyle = "#5b7690"; ctx.font = "13px sans-serif"; ctx.textAlign = "center";
-    for (const m of [-100, 0, 100, 200, 300, 400]) {
+    for (const m of [-500, -250, 0, 250, 500, 750, 1000]) {
       const xi = x(pi + m / win.step_m);
-      if (xi >= pad.l - 1 && xi <= w - pad.r + 1) ctx.fillText(m === 0 ? "jetzt" : `${m > 0 ? "+" : "−"}${Math.abs(m)} m`, xi, h - 9);
+      if (xi >= pad.l - 1 && xi <= w - pad.r + 1) ctx.fillText(m === 0 ? "jetzt" : (Math.abs(m) >= 1000 ? `+${m / 1000} km` : `${m > 0 ? "+" : "−"}${Math.abs(m)} m`), xi, h - 9);
     }
   }
 

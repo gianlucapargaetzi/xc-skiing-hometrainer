@@ -176,7 +176,7 @@ m · dv/dt = F_vortrieb − µ·m·g·cosθ − m·g·sinθ − ½·ρ·CdA·v²
   aktuelle Technik, die Tasten unten legen sie fest (Auto / Double Poling / Diagonal).
 - **Tasten + / −** verschieben die Steigung zusätzlich (100 % = Strecke wie sie ist).
 - **Anzeige**: Karte (in der Schweiz swisstopo-Winterkarte, sonst OpenTopoMap), Infobox oben links,
-  Nahprofil −100 m bis +400 m oben rechts, ganzes Höhenprofil unten.
+  Nahprofil −500 m bis +1000 m oben rechts, ganzes Höhenprofil unten.
 - **Über das Ziel hinaus** bleibt die Position am Endpunkt stehen (Steigung 0); das Training läuft weiter,
   bis du Stop drückst.
 - **Verpflegungsposten**: Liegt neben dem GPX eine Datei `<Strecke>.posten.json`, erscheinen die Posten auf
