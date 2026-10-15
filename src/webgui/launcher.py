@@ -68,6 +68,12 @@ def build_xski_argv(mode: str, route: Optional[str], *, config_path: Optional[st
     return argv
 
 
+def power_off():
+    """Raspberry Pi herunterfahren (sudo ohne Passwort ist auf dem Pi eingerichtet)."""
+    import subprocess
+    subprocess.Popen(["sudo", "-n", "/usr/bin/systemctl", "poweroff"])
+
+
 def create_app(args) -> Flask:
     app = Flask(__name__, template_folder=str(SCRIPT_DIR / "templates"), static_folder=str(SCRIPT_DIR / "static"))
     cfg_manager = ConfigManager(script_dir=SCRIPT_DIR, active_filename="x-ski.json", config_dirname="configs",
@@ -105,6 +111,24 @@ def create_app(args) -> Flask:
             return jsonify({"ok": False, "message": "x-ski kann nur direkt am Gerät beendet werden."}), 403
         print("🛑 x-ski wird beendet (Kachel «Beenden»).", flush=True)
         threading.Timer(0.5, lambda: os._exit(0)).start()
+        return jsonify({"ok": True})
+
+    @app.route("/api/shutdown", methods=["POST"])
+    def api_shutdown():
+        """Kachel «Ausschalten»: x-ski beenden und den Raspberry Pi herunterfahren (nur am Gerät, nicht während
+        ein Training startet)."""
+        if not allow_remote and request.remote_addr not in ("127.0.0.1", "::1"):
+            return jsonify({"ok": False, "message": "Ausschalten geht nur direkt am Gerät."}), 403
+        if starting.is_set():
+            return jsonify({"ok": False, "message": "Ein Training startet gerade."}), 409
+        print("⏻ Raspberry Pi wird heruntergefahren (Kachel «Ausschalten»).", flush=True)
+        release_hr()
+
+        def off():
+            power_off()
+            time.sleep(2)
+            os._exit(0)
+        threading.Timer(1.0, off).start()
         return jsonify({"ok": True})
 
     # Pulsgurt im Startmenü: erst wenn die Profilseite danach fragt (der ANT-Stick gehört dann dem Startmenü,

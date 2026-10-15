@@ -533,6 +533,22 @@
     setTimeout(() => window.close(), 800);
   };
 
+  // ---------------------- Ausschalten (Raspberry Pi herunterfahren) ----------------------
+  window.xskiShutdown = async () => {
+    if (!confirm("x-ski beenden und den Raspberry Pi ausschalten?")) return;
+    let res = null;
+    try { res = await fetch("/api/shutdown", { method: "POST" }); } catch (e) { /* fährt schon herunter */ }
+    if (res && !res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.message || `Ausschalten nicht möglich (${res.status}).`);
+      return;
+    }
+    document.body.innerHTML = '<div style="display:grid;place-items:center;height:100vh;font:700 30px sans-serif;' +
+      'color:#12324a;text-align:center;background:#f4f8fb">Der Raspberry Pi fährt herunter …<br>' +
+      '<span style="font-size:20px;font-weight:400;line-height:1.5">Den Strom erst ausschalten, wenn die grüne Lampe ' +
+      'am Pi nicht mehr blinkt (ca. 20 s).</span></div>';
+  };
+
   // ---------------------- Profil ----------------------
   const PROFILES_PER_PAGE = 3;   // Spalte 4: «Bearbeiten» / «Neu»
   let profilePage = 0, profileData = { profiles: [], active: null };

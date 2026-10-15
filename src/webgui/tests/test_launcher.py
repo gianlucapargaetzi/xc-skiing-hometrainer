@@ -133,6 +133,20 @@ def test_browser_heartbeat_and_quit(client, monkeypatch):
     assert c.post("/api/quit", environ_base={"REMOTE_ADDR": "192.168.1.20"}).status_code == 403
 
 
+def test_shutdown_only_on_device(client, monkeypatch):
+    c, _ = client
+    calls = []
+    monkeypatch.setattr(launcher, "power_off", lambda: calls.append("off"))
+    monkeypatch.setattr(launcher.os, "_exit", lambda code: calls.append(("exit", code)))
+    monkeypatch.setattr(launcher.threading, "Timer", lambda delay, fn: type("T", (), {"start": lambda self: fn()})())
+    monkeypatch.setattr(launcher.time, "sleep", lambda s: None)
+    assert "Ausschalten" in c.get("/header?active=start").get_data(as_text=True)
+    assert c.post("/api/shutdown", environ_base={"REMOTE_ADDR": "192.168.1.20"}).status_code == 403
+    assert calls == []
+    assert c.post("/api/shutdown", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_json()["ok"] is True
+    assert calls == ["off", ("exit", 0)]
+
+
 def test_comparison_without_training(client, monkeypatch, tmp_path):
     c, _ = client
     monkeypatch.setattr(launcher, "TRAININGS_DIR", tmp_path)
