@@ -533,6 +533,28 @@
     setTimeout(() => window.close(), 800);
   };
 
+  // ---------------------- Neu starten ----------------------
+  window.xskiRestart = async () => {
+    if (!confirm("x-ski neu starten?")) return;
+    let res = null;
+    try { res = await fetch("/api/restart", { method: "POST" }); } catch (e) { /* startet schon neu */ }
+    if (res && !res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.message || `Neu starten nicht möglich (${res.status}).`);
+      return;
+    }
+    document.body.innerHTML = '<div style="display:grid;place-items:center;height:100vh;font:700 30px sans-serif;' +
+      'color:#12324a;text-align:center;background:#f4f8fb">x-ski startet neu …</div>';
+    await new Promise((r) => setTimeout(r, 2500));
+    for (let i = 0; i < 60; i++) {
+      try { const r = await fetch("/api/launcher", { cache: "no-store" }); if (r.ok) { location.href = "/"; return; } }
+      catch (e) { /* noch nicht bereit */ }
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    document.body.innerHTML = '<div style="display:grid;place-items:center;height:100vh;font:700 26px sans-serif;' +
+      'color:#b91c1c;text-align:center">x-ski ist nicht wieder gestartet – bitte über das Desktop-Symbol starten.</div>';
+  };
+
   // ---------------------- Ausschalten (Raspberry Pi herunterfahren) ----------------------
   window.xskiShutdown = async () => {
     if (!confirm("x-ski beenden und den Raspberry Pi ausschalten?")) return;

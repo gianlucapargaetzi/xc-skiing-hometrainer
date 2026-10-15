@@ -30,10 +30,13 @@
     {% if show_route %}
     <a href="/strecke" title="Strecke mit Karte" class="nav-link {% if active == 'strecke' %}nav-active{% endif %}">Strecke</a>
     <a href="/sic" title="Training ohne Karte" class="nav-link {% if active == 'dual' %}nav-active{% endif %}">Training</a>
+    {% if show_3d %}
+    <a href="/3d" title="Strecke in 3D (braucht ein Gerät mit 3D-Grafik)" class="nav-link" target="_top">3D</a>
+    {% endif %}
     {% endif %}
     <a href="/profil" title="Profil" class="nav-link {% if active == 'profil' %}nav-active{% endif %}" target="_top">Profil</a>
     {% if show_quit %}
-    <button type="button" class="quit-tile" onclick="window.xskiQuit && window.xskiQuit()">Beenden</button>
+    <button type="button" class="quit-tile" onclick="window.xskiRestart && window.xskiRestart()">Neu starten</button>
     <button type="button" class="quit-tile" onclick="window.xskiShutdown && window.xskiShutdown()">Ausschalten</button>
     {% endif %}
     {% if show_config is not defined or show_config %}

@@ -30,6 +30,9 @@
     #view { position: absolute; right: 12px; bottom: calc(146px + env(safe-area-inset-bottom)); font: inherit; font-size: 17px;
       font-weight: 700; padding: 10px 16px; border-radius: 12px; border: none; background: rgba(255,255,255,.92); color: var(--ink);
       box-shadow: 0 6px 20px rgba(18,50,74,.2); cursor: pointer; }
+    #back2d { position: absolute; right: 12px; bottom: calc(196px + env(safe-area-inset-bottom)); font-size: 17px;
+      font-weight: 700; padding: 10px 16px; border-radius: 12px; background: rgba(255,255,255,.92); color: var(--ink);
+      text-decoration: none; box-shadow: 0 6px 20px rgba(18,50,74,.2); }
     #paused { position: absolute; left: 50%; top: 42%; transform: translate(-50%,-50%); padding: 14px 30px; font-size: 40px;
       font-weight: 900; color: #fff; background: rgba(18,50,74,.85); border-radius: 18px; display: none; }
     #wait { position: absolute; inset: 0; display: grid; place-items: center; background: #f4f8fb; text-align: center; z-index: 10; }
@@ -52,6 +55,7 @@
   <div id="next" class="panel"><div class="lbl">Nächster Posten</div><div class="name" id="next-name"></div><div id="next-dist"></div></div>
   <div id="paused">PAUSE</div>
   <button id="view" type="button">Übersicht</button>
+  <a id="back2d" href="/strecke" style="display:none">◀ 2D</a>
   <div id="profile" class="panel"><canvas id="prof"></canvas></div>
   <div id="wait"><div><h1>Warten auf Training …</h1><p>Sobald am x-ski eine Streckensimulation läuft, erscheint sie hier in 3D.</p></div></div>
 
@@ -108,7 +112,11 @@
       "box-shadow:0 0 0 2px #ff7b00,0 4px 12px rgba(0,0,0,.4)";
     map.skier = new maplibregl.Marker({ element: dot }).setLngLat(center).addTo(map);
     map.on("dragstart", () => setFollow(false));
-    map.on("error", (e) => console.warn("Karte:", e && e.error ? e.error.message : e));
+    map.on("error", (e) => {
+      const msg = e && e.error ? (e.error.message || String(e.error)) : String(e);
+      console.warn("Karte:", msg);
+      (window.xskiErrors = window.xskiErrors || []).push(msg);
+    });
     window.xskiMap = map;          // zum Nachsehen in der Browser-Konsole
   }
 
@@ -141,9 +149,22 @@
   function smoothBearing(target) {
     if (bearing === null) return (bearing = target);
     let diff = ((target - bearing + 540) % 360) - 180;
-    bearing = (bearing + 0.12 * diff + 360) % 360;       // ruhige Kamera, keine Sprünge in Kurven
+    bearing = (bearing + 0.04 * diff + 360) % 360;       // ruhige Kamera, keine Sprünge in Kurven (pro Bild)
     return bearing;
   }
+
+  let camTarget = null, camPos = null, lastFrame = 0;
+  function cameraLoop(t) {
+    requestAnimationFrame(cameraLoop);
+    if (!follow || !map || !camTarget || t - lastFrame < 33) return;     // ~30 Bilder/s reichen
+    lastFrame = t;
+    const k = 0.15;                                                     // weich zur gemeldeten Position
+    camPos = camPos ? [camPos[0] + k * (camTarget.pos[0] - camPos[0]), camPos[1] + k * (camTarget.pos[1] - camPos[1])]
+                    : camTarget.pos.slice();
+    const b = smoothBearing(bearingTo(camPos, camTarget.ahead));
+    map.jumpTo({ center: camPos, bearing: b, pitch: FOLLOW.pitch, zoom: FOLLOW.zoom });
+  }
+  requestAnimationFrame(cameraLoop);
 
   function setFollow(on) {
     follow = on;
@@ -160,7 +181,7 @@
     const r = await (await fetch("/api/route", { cache: "no-store" })).json();
     if (!r.active) return false;
     if (routeFile === r.file && map) return true;
-    route = r; routeFile = r.file; bearing = null;
+    route = r; routeFile = r.file; bearing = null; camPos = null; camTarget = null;
     if (map) { map.remove(); map = null; }
     createMap(r.coordinates[0]);
     return true;
@@ -183,11 +204,9 @@
     document.getElementById("wait").style.display = "none";
     const pos = [p.lon, p.lat];
     map.skier.setLngLat(pos);
-    if (follow) {
-      const ahead = pointAt(Math.min(p.distance_m + 150, route.length_m));
-      const b = smoothBearing(bearingTo(pos, ahead));
-      map.easeTo({ center: pos, bearing: b, pitch: FOLLOW.pitch, zoom: FOLLOW.zoom, duration: 300, easing: (t) => t });
-    }
+    // Kamera: Ziel setzen; nachgeführt wird Bild für Bild mit jumpTo (siehe cameraLoop). easeTo bei jeder
+    // Positionsmeldung liess die Karte mit Gelände leer bleiben (Kamera dauernd «in Bewegung»).
+    camTarget = { pos, ahead: pointAt(Math.min(p.distance_m + 150, route.length_m)) };
     if (Date.now() - lastDriven > 1000 && map.getSource("driven")) {
       lastDriven = Date.now();
       map.getSource("driven").setData(line(drivenCoords(p.section_start_m || 0, p.distance_m)));
@@ -248,6 +267,11 @@
       routeFile = null;
     }
   }, 2000);
+
+  // Das Steuergerät braucht den Weg zurück zu den Bedienelementen (Pause, Stop …)
+  fetch("/api/role", { cache: "no-store" }).then((r) => r.json()).then((r) => {
+    if (r.control) document.getElementById("back2d").style.display = "block";
+  }).catch(() => {});
 
   // Ohne WebGL keine 3D-Karte: klar sagen statt leer bleiben
   const probe = document.createElement("canvas");

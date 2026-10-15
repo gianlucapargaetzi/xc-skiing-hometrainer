@@ -69,8 +69,10 @@ Im Startmenü:
 - **Training**: Belastungsprofil, Intervall, Auswertung.
 - **Strecken**: eine Kachel pro GPX-Datei in `src/routes/`. Antippen öffnet die Abschnittswahl (Start und
   Ziel auf der Karte oder im Höhenprofil setzen, «Weiterlaufen ab km …», «Ganze Strecke»).
-- **Beenden** oben rechts schliesst x-ski. Ohne Lebenszeichen vom Browser beendet sich x-ski nach 90 s selbst
-  (ein laufendes Training wird dabei wie mit Stop beendet und ab 5 min gespeichert).
+- **Neu starten** oben rechts startet x-ski neu (z. B. nach einem Update); die Anmeldung bleibt.
+  **Ausschalten** beendet x-ski und fährt den Raspberry Pi herunter. Ohne Lebenszeichen vom Browser am Pi bzw.
+  vom Steuergerät beendet sich x-ski nach 90 s selbst (ein laufendes Training wird dabei wie mit Stop beendet
+  und ab 5 min gespeichert).
 
 Jedes Training beginnt gleich: Seil 50 cm herausziehen, Sicherheitsschalter auslösen und wieder einschalten,
 Griffe langsam zum oberen Anschlag führen. Die Uhr startet mit dem ersten Zug.
@@ -277,13 +279,18 @@ Freilauf-Messungen (z. B. gebremster Griff) werden verworfen und der Schritt mus
 - Grenzen: Die Kalibrierung testet und schlägt höchstens 40 % für Grundzug und Rückzug und 3000 rpm vor.
   Von Hand lassen sich im Profil bis 60 % eintragen.
 - Motor und Bremswiderstand werden überwacht (Warnung ab 75 % Auslastung, alle 30 s im Log).
-- **Steuern nur am Gerät**: Nur der Browser direkt am x-ski (localhost) kann steuern. Jede ändernde Anfrage
-  von einem anderen Gerät wird vom Server abgelehnt (`Utils/access.py`), ausser mit
+- **Steuern mit PIN**: Gesteuert wird von genau einem Gerät – dem ersten, das den PIN eingibt (Standard 1234,
+  ändern auf der Seite «Maschine»). Auch der Browser am Pi braucht nach jedem Start von x-ski einmal den PIN
+  («Mit PIN steuern»). Jedes andere Gerät ist ohne PIN Zuschauer und kann mit dem PIN die Steuerung übernehmen
+  (mit Rückfrage; ohne Rückfrage, wenn das Steuergerät 2 min still war). Nach 5 falschen PIN ist das Gerät 1 min
+  gesperrt. Am Pi selbst gehen Pause und Stop immer, auch ohne PIN. Die Anmeldung gilt bis zum nächsten
+  Start von x-ski (Datei `/dev/shm/x-ski-access.json`), Wechsel Startmenü ↔ Training und «Neu starten»
+  behalten sie. Der Server lehnt jede ändernde Anfrage von Zuschauern ab (`Utils/access.py`), ausser mit
   `X_SKI_ALLOW_REMOTE_CONFIG=1`.
-- **Zuschauer**: Ein zweiter Browser im Netz (`http://<adresse-des-pi>:5000/`) sieht ohne Training nur
-  «Warten auf Training». Während eines Trainings zeigt er automatisch dieselbe Seite wie der Browser am
-  Gerät, mit gesperrten Bedienelementen und dem Hinweis «Nur Ansicht». Zuschauer halten x-ski nicht am
-  Leben: schliesst der Browser am Gerät, beendet sich x-ski wie gewohnt.
+- **Zuschauer**: sehen ohne Training nur «Warten auf Training». Während eines Trainings zeigen sie automatisch
+  dieselbe Seite wie das Steuergerät, mit gesperrten Bedienelementen. Die 3D-Ansicht `/3d` bleibt stehen und
+  folgt nicht. Auf Geräten, die nicht der Pi sind, steht in der Kopfzeile ein Link «3D»; das Steuergerät kommt
+  dort mit «◀ 2D» zurück zu den Bedienelementen.
 
 ## Dateien und Ordner
 

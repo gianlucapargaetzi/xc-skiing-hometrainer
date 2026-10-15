@@ -12,6 +12,39 @@ from Utils.profile_page import MACHINE_FIELDS, _field_meta, _parse
 from Utils.settings import Settings
 
 MIN_PASSWORD_LEN = 4
+DEFAULT_PIN = "1234"          # gilt, bis auf der Seite «Maschine» ein eigener PIN festgelegt wird
+
+
+def _machine_data() -> dict:
+    try:
+        return json.loads(machine.machine_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def pin_set() -> bool:
+    """Es gibt immer einen PIN (Standard 1234)."""
+    return True
+
+
+def pin_is_default() -> bool:
+    return not _machine_data().get("pin_hash")
+
+
+def check_pin(pin: str) -> bool:
+    stored = _machine_data().get("pin_hash")
+    if not stored:
+        return pin == DEFAULT_PIN
+    return check_password_hash(stored, pin)
+
+
+def _save_key(key: str, value: str):
+    path = machine.machine_path()
+    data = _machine_data()
+    data[key] = value
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    tmp.replace(path)
 
 
 def _password_hash() -> str:
@@ -51,13 +84,14 @@ def create_machine_blueprint(cfg_manager, on_saved=None, allow_remote: bool = Fa
     def get_machine():
         values, _ = current_values()
         return jsonify({"fields": _field_meta(MACHINE_FIELDS), "values": values,
-                        "password_set": bool(_password_hash()),
+                        "password_set": bool(_password_hash()), "pin_default": pin_is_default(),
                         "locked": locked_reason() if locked_reason else None})
 
     @bp.route("/api/maschine", methods=["POST"])
     def save_machine():
-        if not allow_remote and request.remote_addr not in ("127.0.0.1", "::1"):
-            return jsonify({"ok": False, "message": "Maschinendaten können nur direkt am x-ski geändert werden."}), 403
+        from Utils.access import can_control
+        if not can_control(allow_remote):
+            return jsonify({"ok": False, "message": "Maschinendaten kann nur das Steuergerät ändern."}), 403
         reason = locked_reason() if locked_reason else None
         if reason:
             return jsonify({"ok": False, "message": reason}), 409
@@ -71,6 +105,9 @@ def create_machine_blueprint(cfg_manager, on_saved=None, allow_remote: bool = Fa
         elif len(password) < MIN_PASSWORD_LEN:
             return jsonify({"ok": False, "message": f"Bitte zuerst ein Passwort festlegen "
                                                     f"(mindestens {MIN_PASSWORD_LEN} Zeichen)."}), 400
+        new_pin = str(data.get("new_pin", "") or "").strip()
+        if new_pin and not (new_pin.isdigit() and 4 <= len(new_pin) <= 8):
+            return jsonify({"ok": False, "message": "Der PIN braucht 4 bis 8 Ziffern."}), 400
         new_password = str(data.get("new_password", "") or "")
         if new_password and len(new_password) < MIN_PASSWORD_LEN:
             return jsonify({"ok": False, "message": f"Das neue Passwort braucht mindestens {MIN_PASSWORD_LEN} Zeichen."}), 400
@@ -96,6 +133,9 @@ def create_machine_blueprint(cfg_manager, on_saved=None, allow_remote: bool = Fa
         if new_password:
             _save_password_hash(generate_password_hash(new_password))
             print("🔒 Maschine: Passwort geändert")
+        if new_pin:
+            _save_key("pin_hash", generate_password_hash(new_pin))
+            print("🔑 Maschine: PIN für die Steuerung geändert")
         values_now, _ = current_values()
         changed = {}
         for section, vals in updates.items():
@@ -111,6 +151,6 @@ def create_machine_blueprint(cfg_manager, on_saved=None, allow_remote: bool = Fa
             except Exception as e:
                 return jsonify({"ok": True, "message": f"Gespeichert (nicht übernommen: {e})."})
         return jsonify({"ok": True, "message": "Gespeichert – gilt ab dem nächsten Trainingsstart."
-                                               if changed else "Gespeichert (keine Änderung)."})
+                                               if changed else ("PIN geändert." if new_pin else "Gespeichert (keine Änderung).")})
 
     return bp

@@ -16,7 +16,7 @@ from typing import List, Optional
 
 from flask import Flask, jsonify, render_template, request
 
-from Utils.access import install_access_control, is_local
+from Utils.access import can_control, install_access_control, is_controller, is_local, reset_access
 from Utils.config_manager import ConfigManager, DEFAULT_CONFIG
 from Utils.route import Route, list_route_files, resolve_route_file
 from Utils.profile_page import create_profile_blueprint
@@ -96,8 +96,8 @@ def create_app(args) -> Flask:
 
     @app.before_request
     def browser_seen():
-        if not is_local():
-            return      # nur der Browser am Gerät hält x-ski am Leben, Zuschauer nicht
+        if not (is_local() or is_controller()):
+            return      # Browser am Gerät und Steuergerät halten x-ski am Leben, Zuschauer nicht
         grace = STRAVA_CONNECT_GRACE_S if request.path == "/strava/connect" else BROWSER_TIMEOUT_S
         alive["until"] = max(alive["until"], time.monotonic() + grace)
 
@@ -107,18 +107,41 @@ def create_app(args) -> Flask:
 
     @app.route("/api/quit", methods=["POST"])
     def api_quit():
-        if not allow_remote and request.remote_addr not in ("127.0.0.1", "::1"):
-            return jsonify({"ok": False, "message": "x-ski kann nur direkt am Gerät beendet werden."}), 403
+        if not can_control(allow_remote):
+            return jsonify({"ok": False, "message": "x-ski kann nur das Steuergerät beenden."}), 403
         print("🛑 x-ski wird beendet (Kachel «Beenden»).", flush=True)
         threading.Timer(0.5, lambda: os._exit(0)).start()
+        return jsonify({"ok": True})
+
+    @app.route("/api/restart", methods=["POST"])
+    def api_restart():
+        """Kachel «Neu starten»: x-ski beendet sich und startet sofort neu (gleiches Log, Browser bleibt offen).
+        Die Anmeldung des Steuergeräts bleibt erhalten."""
+        if not can_control(allow_remote):
+            return jsonify({"ok": False, "message": "Neu starten kann nur das Steuergerät."}), 403
+        if starting.is_set():
+            return jsonify({"ok": False, "message": "Ein Training startet gerade."}), 409
+        starting.set()
+        print("🔄 x-ski wird neu gestartet (Kachel «Neu starten»).", flush=True)
+        argv = [sys.executable, "-u", str(SCRIPT_DIR / "launcher.py"), "--no-browser", "--host", args.host]
+        if args.config_path:
+            argv += ["--config", args.config_path]
+
+        def restart():
+            release_hr()
+            os.environ["X_SKI_KEEP_ACCESS"] = "1"
+            os.chdir(SCRIPT_DIR)
+            os.closerange(3, 4096)
+            os.execv(argv[0], argv)
+        threading.Timer(0.5, restart).start()
         return jsonify({"ok": True})
 
     @app.route("/api/shutdown", methods=["POST"])
     def api_shutdown():
         """Kachel «Ausschalten»: x-ski beenden und den Raspberry Pi herunterfahren (nur am Gerät, nicht während
         ein Training startet)."""
-        if not allow_remote and request.remote_addr not in ("127.0.0.1", "::1"):
-            return jsonify({"ok": False, "message": "Ausschalten geht nur direkt am Gerät."}), 403
+        if not can_control(allow_remote):
+            return jsonify({"ok": False, "message": "Ausschalten kann nur das Steuergerät."}), 403
         if starting.is_set():
             return jsonify({"ok": False, "message": "Ein Training startet gerade."}), 409
         print("⏻ Raspberry Pi wird heruntergefahren (Kachel «Ausschalten»).", flush=True)
@@ -445,6 +468,9 @@ def main():
     parser.add_argument("--port", type=int, default=PORT, help="nur für Tests; x-ski selbst läuft immer auf 5000")
     args = parser.parse_args()
 
+    # Neuer Start von x-ski (nicht die Rückkehr aus einem Training): Anmeldung zurücksetzen
+    if os.environ.pop("X_SKI_KEEP_ACCESS", "") != "1":
+        reset_access()
     app = create_app(args)
     print(f"🏠 x-ski Startmenü: http://localhost:{args.port}/", flush=True)
     threading.Thread(target=watch_browser, args=(app,), daemon=True, name="browser-watch").start()

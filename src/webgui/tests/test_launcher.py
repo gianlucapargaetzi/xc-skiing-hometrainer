@@ -4,6 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from conftest import become_controller
+
 import launcher
 
 
@@ -47,7 +49,7 @@ def client(monkeypatch, tmp_path):
         '</trkseg></trk></gpx>')
     monkeypatch.setattr(launcher, "ROUTES_DIR", routes)
     app = launcher.create_app(SimpleNamespace(config_path=None, host="0.0.0.0", no_browser=True))
-    return app.test_client(), started
+    return become_controller(app.test_client()), started
 
 
 def test_api_lists_routes(client):
@@ -123,14 +125,25 @@ def test_browser_heartbeat_and_quit(client, monkeypatch):
     alive["until"] = 0.0
     assert c.get("/api/alive").get_json() == {"ok": True}
     assert alive["until"] > launcher.time.monotonic() + launcher.BROWSER_TIMEOUT_S - 5
-    # Header der Startseite hat die Kachel «Beenden», das Profil nicht
+    # Header der Startseite hat «Neu starten» und «Ausschalten», das Profil nicht
     assert "quit-tile" in c.get("/header").get_data(as_text=True)
     assert "quit-tile" not in c.get("/header?active=profil").get_data(as_text=True)
     exits = []
     monkeypatch.setattr(launcher.os, "_exit", lambda code: exits.append(code))
     r = c.post("/api/quit", environ_base={"REMOTE_ADDR": "127.0.0.1"})
     assert r.get_json()["ok"] is True
-    assert c.post("/api/quit", environ_base={"REMOTE_ADDR": "192.168.1.20"}).status_code == 403
+    viewer = c.application.test_client()          # anderes Gerät ohne Anmeldung
+    assert viewer.post("/api/quit", environ_base={"REMOTE_ADDR": "192.168.1.20"}).status_code == 403
+
+
+def test_restart_keeps_login(client, monkeypatch):
+    c, started = client
+    assert "Neu starten" in c.get("/header?active=start").get_data(as_text=True)
+    viewer = c.application.test_client()
+    assert viewer.post("/api/restart", environ_base={"REMOTE_ADDR": "192.168.1.20"}).status_code == 403
+    assert c.post("/api/restart", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_json()["ok"] is True
+    assert len(started) == 1                       # exec läuft im Timer (im Test nicht ausgeführt)
+    assert c.post("/api/restart", environ_base={"REMOTE_ADDR": "127.0.0.1"}).status_code == 409
 
 
 def test_shutdown_only_on_device(client, monkeypatch):
@@ -141,7 +154,8 @@ def test_shutdown_only_on_device(client, monkeypatch):
     monkeypatch.setattr(launcher.threading, "Timer", lambda delay, fn: type("T", (), {"start": lambda self: fn()})())
     monkeypatch.setattr(launcher.time, "sleep", lambda s: None)
     assert "Ausschalten" in c.get("/header?active=start").get_data(as_text=True)
-    assert c.post("/api/shutdown", environ_base={"REMOTE_ADDR": "192.168.1.20"}).status_code == 403
+    viewer = c.application.test_client()
+    assert viewer.post("/api/shutdown", environ_base={"REMOTE_ADDR": "192.168.1.20"}).status_code == 403
     assert calls == []
     assert c.post("/api/shutdown", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_json()["ok"] is True
     assert calls == ["off", ("exit", 0)]
@@ -244,19 +258,45 @@ LOCAL = {"REMOTE_ADDR": "127.0.0.1"}
 
 def test_remote_browser_cannot_control(client, monkeypatch):
     c, started = client
+    viewer = c.application.test_client()             # anderes Gerät ohne PIN
     monkeypatch.setattr(launcher.os, "_exit", lambda code: pytest.fail("darf nicht beenden"))
     # ansehen geht
-    assert c.get("/", environ_base=REMOTE).status_code == 200
-    assert c.get("/api/launcher", environ_base=REMOTE).status_code == 200
-    assert c.get("/api/role", environ_base=REMOTE).get_json() == {"control": False}
-    assert c.get("/api/role", environ_base=LOCAL).get_json() == {"control": True}
+    assert viewer.get("/", environ_base=REMOTE).status_code == 200
+    assert viewer.get("/api/launcher", environ_base=REMOTE).status_code == 200
+    role = viewer.get("/api/role", environ_base=REMOTE).get_json()
+    assert role["control"] is False and role["controller"] == "127.0.0.1"
+    assert c.get("/api/role", environ_base=LOCAL).get_json()["control"] is True
     # steuern nicht: jede ändernde Anfrage wird abgelehnt
     for path, body in (("/start", {"mode": "profile"}), ("/start", {"mode": "skier", "route": "a.gpx"}), ("/api/quit", {}),
                        ("/api/profiles/activate", {"file": "x"}), ("/api/profiles/new", {"name": "x"}),
                        ("/api/profile", {"values": {}}), ("/api/screen", {"path": "/profil"})):
-        r = c.post(path, json=body, environ_base=REMOTE)
+        r = viewer.post(path, json=body, environ_base=REMOTE)
         assert r.status_code == 403 and r.get_json()["ok"] is False, path
     assert started == []
+
+
+def test_pin_login_first_device_controls_and_takeover(client):
+    c, _ = client                                    # Browser am Pi hat sich mit 1234 angemeldet
+    tablet = c.application.test_client()
+    local2 = c.application.test_client()             # zweiter Browser am Pi ohne PIN
+    assert local2.get("/api/role", environ_base=LOCAL).get_json()["control"] is False     # immer PIN, auch am Pi
+    # falscher PIN, dann Sperre nach 5 Versuchen
+    for _ in range(4):
+        assert tablet.post("/api/login", json={"pin": "0000"}, environ_base=REMOTE).status_code == 403
+    assert tablet.post("/api/login", json={"pin": "0000"}, environ_base=REMOTE).status_code == 403
+    assert tablet.post("/api/login", json={"pin": "1234"}, environ_base=REMOTE).status_code == 429
+    other = c.application.test_client()
+    other_addr = {"REMOTE_ADDR": "192.168.1.30"}
+    # richtiger PIN, aber es steuert schon jemand -> Rückfrage, mit takeover übernommen
+    r = other.post("/api/login", json={"pin": "1234"}, environ_base=other_addr)
+    assert r.status_code == 409 and r.get_json()["busy"]
+    assert other.post("/api/login", json={"pin": "1234", "takeover": True}, environ_base=other_addr).get_json()["ok"]
+    assert other.get("/api/role", environ_base=other_addr).get_json()["control"] is True
+    assert c.get("/api/role", environ_base=LOCAL).get_json()["control"] is False          # bisheriges Gerät ist Zuschauer
+    assert c.post("/start", json={"mode": "profile"}, environ_base=LOCAL).status_code == 403
+    # Abmelden gibt die Steuerung frei; danach wird das nächste Gerät mit PIN ohne Rückfrage Steuergerät
+    assert other.post("/api/logout", environ_base=other_addr).get_json()["ok"]
+    assert become_controller(c).get("/api/role", environ_base=LOCAL).get_json()["control"] is True
 
 
 def test_viewer_follows_screen_of_local_browser(client):
@@ -270,23 +310,25 @@ def test_viewer_follows_screen_of_local_browser(client):
     from Utils.access import install_access_control
     app = Flask(__name__)
     install_access_control(app, training=True)
-    t = app.test_client()
-    assert t.get("/api/screen", environ_base=REMOTE).get_json() == {"path": None, "training": True}   # noch nichts gemeldet
+    t = become_controller(app.test_client())
+    v = app.test_client()
+    assert v.get("/api/screen", environ_base=REMOTE).get_json() == {"path": None, "training": True}   # noch nichts gemeldet
     assert t.post("/api/screen", json={"path": "/strecke"}, environ_base=LOCAL).get_json() == {"ok": True}
-    assert t.get("/api/screen", environ_base=REMOTE).get_json() == {"path": "/strecke", "training": True}
+    assert v.get("/api/screen", environ_base=REMOTE).get_json() == {"path": "/strecke", "training": True}
     # fremde Adressen werden nicht übernommen, Zuschauer können nichts melden
     t.post("/api/screen", json={"path": "https://example.org/"}, environ_base=LOCAL)
     t.post("/api/screen", json={"path": "//example.org/"}, environ_base=LOCAL)
-    assert t.post("/api/screen", json={"path": "/sic"}, environ_base=REMOTE).status_code == 403
-    assert t.get("/api/screen", environ_base=REMOTE).get_json()["path"] == "/strecke"
+    assert v.post("/api/screen", json={"path": "/sic"}, environ_base=REMOTE).status_code == 403
+    assert v.get("/api/screen", environ_base=REMOTE).get_json()["path"] == "/strecke"
 
 
 def test_only_local_browser_keeps_app_alive(client):
     c, _ = client
     alive = c.application.config["XSKI_ALIVE"]
     alive["until"] = 0.0
-    c.get("/api/alive", environ_base=REMOTE)
-    c.get("/", environ_base=REMOTE)
+    viewer = c.application.test_client()
+    viewer.get("/api/alive", environ_base=REMOTE)
+    viewer.get("/", environ_base=REMOTE)
     assert alive["until"] == 0.0                       # Zuschauer verlängern die Frist nicht
     c.get("/api/alive", environ_base=LOCAL)
     assert alive["until"] > 0.0

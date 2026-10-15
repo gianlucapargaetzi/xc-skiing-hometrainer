@@ -45,6 +45,8 @@
       <div class="grid">
         <div class="field"><label for="pw" id="pw-label">Passwort</label><div class="row"><input id="pw" type="password" autocomplete="current-password"></div>
           <div class="help" id="pw-help"></div></div>
+        <div class="field"><label for="pin">Neuer PIN für die Steuerung (optional)</label><div class="row"><input id="pin" type="password" inputmode="numeric" autocomplete="off"></div>
+          <div class="help" id="pin-help">4–8 Ziffern. Mit dem PIN meldet sich ein Gerät zum Steuern an.</div></div>
         <div class="field" id="pw2-wrap"><label for="pw2" id="pw2-label">Neues Passwort (optional)</label><div class="row"><input id="pw2" type="password" autocomplete="new-password"></div>
           <div class="help" id="pw2-help">Nur ausfüllen, wenn du das Passwort ändern willst.</div></div>
       </div>
@@ -107,6 +109,8 @@
     const lock = document.getElementById("locked");
     lock.style.display = data.locked ? "block" : "none"; lock.textContent = data.locked || "";
     document.getElementById("save").disabled = !!data.locked;
+    document.getElementById("pin-help").textContent = "4–8 Ziffern. Mit dem PIN meldet sich ein Gerät zum Steuern an." +
+      (data.pin_default ? " Zurzeit gilt der Standard-PIN 1234." : "");
   }
 
   async function save() {
@@ -117,10 +121,11 @@
     const btn = document.getElementById("save"); btn.disabled = true;
     try {
       const res = await fetch("/api/maschine", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ values, password: pw, new_password: passwordSet ? pw2 : "" }) });
+        body: JSON.stringify({ values, password: pw, new_password: passwordSet ? pw2 : "",
+                               new_pin: document.getElementById("pin").value }) });
       const data = await res.json();
       message(data.message || (data.ok ? "Gespeichert." : `Fehler (${res.status})`), !!data.ok);
-      if (data.ok) { document.getElementById("pw").value = ""; document.getElementById("pw2").value = ""; await load(); }
+      if (data.ok) { for (const id of ["pw", "pw2", "pin"]) document.getElementById(id).value = ""; await load(); }
     } catch (e) { message("Speichern fehlgeschlagen.", false); }
     btn.disabled = false;
   }

@@ -43,7 +43,7 @@ from Utils.skier_model import (
 from Utils.stroke_analysis import StrokeAnalyzer
 from Utils.fit_export import FitRecorder, FitSample
 from Utils import chat_notify, strava_client
-from Utils.access import install_access_control, is_local
+from Utils.access import can_control, install_access_control, is_controller, is_local
 from Utils.route import Route, RoutePosition, list_route_files, resolve_route_file
 from Utils.profile_page import create_profile_blueprint, update_active_profile
 from Utils.machine_page import create_machine_blueprint
@@ -373,7 +373,7 @@ def root_page():
 def restrict_config_changes_to_localhost():
     if request.path not in LOCAL_ONLY_PATHS or ALLOW_REMOTE_CONFIG:
         return None
-    if request.remote_addr in ("127.0.0.1", "::1"):
+    if can_control():
         return None
     return jsonify({
         "ok": False,
@@ -407,8 +407,10 @@ app.register_blueprint(create_machine_blueprint(
 def header():
     active = request.args.get("active", "")
     u = config.get("user", {})
+    # 3D nur auf anderen Geräten anbieten (Tablet, PC) – der Browser am Pi ist dafür zu schwach
     return render_template("partials/header.html", user=u, active=active,
-                           show_route=settings.skier_mode_requested, mode=MODE or settings.load_mode)
+                           show_route=settings.skier_mode_requested, mode=MODE or settings.load_mode,
+                           show_3d=not is_local())
 
 
 @app.route("/config")
@@ -1668,6 +1670,7 @@ def restart_launcher():
     if known_args.config_path:
         argv += ["--config", known_args.config_path]
     print("🏠 Zurück zum Startmenü", flush=True)
+    os.environ["X_SKI_KEEP_ACCESS"] = "1"     # Anmeldung des Steuergeräts gilt weiter
     time.sleep(0.5)   # Antwort an die Webseite noch ausliefern
     os.chdir(SCRIPT_DIR)
     os.closerange(3, 4096)
@@ -1922,8 +1925,8 @@ browser_alive = {"until": time.monotonic() + BROWSER_TIMEOUT_S, "gone": False}
 
 @app.before_request
 def browser_seen():
-    if not is_local():
-        return      # nur der Browser am Gerät hält x-ski am Leben, Zuschauer nicht
+    if not (is_local() or is_controller()):
+        return      # Browser am Gerät und Steuergerät halten x-ski am Leben, Zuschauer nicht
     grace = STRAVA_CONNECT_GRACE_S if request.path == "/strava/connect" else BROWSER_TIMEOUT_S
     browser_alive["until"] = max(browser_alive["until"], time.monotonic() + grace)
 

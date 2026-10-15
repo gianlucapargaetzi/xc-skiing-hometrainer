@@ -6,7 +6,9 @@ import pytest
 from flask import Flask
 
 from Utils.config_manager import ConfigManager, DEFAULT_CONFIG
+from Utils.access import install_access_control
 from Utils.profile_page import create_profile_blueprint, profile_label
+from conftest import become_controller
 
 WEBGUI = Path(__file__).resolve().parents[1]
 
@@ -25,8 +27,9 @@ def env(tmp_path):
                        default_config=DEFAULT_CONFIG, env_var="X_SKI_CONFIG_TEST")
     saved = []
     app = Flask(__name__, template_folder=str(WEBGUI / "templates"))
+    install_access_control(app)
     app.register_blueprint(create_profile_blueprint(cm, on_saved=lambda: saved.append(1)))
-    return app.test_client(), tmp_path, saved
+    return become_controller(app.test_client()), tmp_path, saved
 
 
 def test_label():
@@ -100,8 +103,9 @@ def make_machine_app(env, monkeypatch, locked=None):
     cm = ConfigManager(script_dir=tmp, active_filename="x-ski.json", config_dirname="configs",
                        default_config=DEFAULT_CONFIG, env_var="X_SKI_CONFIG_TEST")
     app = Flask(__name__, template_folder=str(WEBGUI / "templates"))
+    install_access_control(app)
     app.register_blueprint(create_machine_blueprint(cm, locked_reason=locked))
-    return app.test_client(), tmp
+    return become_controller(app.test_client()), tmp
 
 
 def test_machine_page_needs_password(env, monkeypatch):
@@ -133,7 +137,8 @@ def test_machine_page_needs_password(env, monkeypatch):
     assert client.get("/api/maschine").get_json()["values"]["hardware.pulli_diameter"] == 60
     assert client.post("/api/maschine", json={"values": {}, "password": "geheim"}, environ_base=local).status_code == 403
     # nur am Gerät
-    r = client.post("/api/maschine", json={"values": {}, "password": "neu123"}, environ_base={"REMOTE_ADDR": "10.0.0.5"})
+    r = client.application.test_client().post("/api/maschine", json={"values": {}, "password": "neu123"},
+                                               environ_base={"REMOTE_ADDR": "10.0.0.5"})
     assert r.status_code == 403
     r = client.post("/api/maschine", json={"values": {"drive.type": "siemens"}, "password": "neu123"}, environ_base=local)
     assert r.status_code == 400
@@ -160,8 +165,9 @@ def test_profile_locked_and_heart_rate_api(tmp_path):
 
     lock = {"reason": "Das Training läuft – das Profil lässt sich nur in der Pause ändern."}
     app = Flask(__name__, template_folder=str(WEBGUI / "templates"))
+    install_access_control(app)
     app.register_blueprint(create_profile_blueprint(cm, hr_manager=lambda: FakeHr(), edit_lock=lambda: lock["reason"]))
-    c = app.test_client()
+    c = become_controller(app.test_client())
     assert c.get("/api/profile").get_json()["locked"].startswith("Das Training läuft")
     assert c.post("/api/profile", json={"values": {"user.ftp_w": "160"}}).status_code == 409
     lock["reason"] = None

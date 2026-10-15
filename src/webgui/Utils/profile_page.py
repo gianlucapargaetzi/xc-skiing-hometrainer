@@ -300,8 +300,9 @@ def create_profile_blueprint(cfg_manager, on_saved: Optional[Callable[[], None]]
         return jsonify({"fields": _field_meta(), "values": values, "locked": lock_reason()})
 
     def local_only():
-        if not allow_remote and request.remote_addr not in ("127.0.0.1", "::1"):
-            return jsonify({"ok": False, "message": "Profile können nur direkt am x-ski geändert werden."}), 403
+        from Utils.access import can_control
+        if not can_control(allow_remote):
+            return jsonify({"ok": False, "message": "Profile kann nur das Steuergerät ändern."}), 403
         return None
 
     def notify_saved() -> str:
