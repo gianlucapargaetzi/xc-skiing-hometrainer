@@ -108,9 +108,64 @@
       }
       if (g === "Strava") card.appendChild(stravaBox());
       if (g === "Training") card.appendChild(calibBox());
+      if (g === "Sensoren und Verbindungen") card.insertBefore(hrBox(), card.children[1]);
       form.appendChild(card);
     }
+    const machine = document.createElement("section"); machine.className = "card";
+    machine.innerHTML = '<h2>Maschine</h2><div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">' +
+      '<a class="btn" href="/maschine" style="text-decoration:none">Maschinendaten …</a>' +
+      '<span class="help" style="color:var(--muted);font-size:14px;max-width:560px">Antrieb, Anzahl Motoren, ' +
+      'Drehrichtung, Trommel und Seil – gelten für alle Profile, Ändern nur mit Passwort und nur im Startmenü.</span></div>';
+    form.appendChild(machine);
+    // Im Training nur in der Pause änderbar
+    const locked = data.locked || "";
+    let banner = document.getElementById("locked");
+    if (!banner) {
+      banner = document.createElement("div"); banner.id = "locked"; banner.className = "card";
+      banner.style.cssText = "border-color:#f59e0b;background:#fffbeb;font-weight:700;font-size:18px";
+      form.parentNode.insertBefore(banner, form);
+    }
+    banner.style.display = locked ? "block" : "none"; banner.textContent = locked;
+    form.querySelectorAll("input, select").forEach((el) => { el.disabled = !!locked; });
+    document.getElementById("save").disabled = !!locked;
     loadStrava();
+    refreshHr();
+  }
+
+  // ---------------------- Pulsgurt ----------------------
+  function hrBox() {
+    const box = document.createElement("div");
+    box.style.cssText = "margin:0 0 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 14px;" +
+      "border-radius:12px;background:#f4f8fb";
+    box.innerHTML = '<span id="hr-dot" style="width:16px;height:16px;border-radius:50%;background:#94a3b8;flex:none"></span>' +
+      '<span id="hr-text" style="font-size:18px;font-weight:700">Pulsgurt …</span>' +
+      '<button class="btn" id="hr-search" type="button">Pulsgurt suchen</button>' +
+      '<span class="help" style="color:var(--muted);font-size:13px;max-width:420px">Gurt anfeuchten und anziehen. ' +
+      'x-ski sucht auch von selbst immer wieder, solange kein Puls kommt.</span>';
+    box.querySelector("#hr-search").addEventListener("click", async () => {
+      try { await fetch("/api/hr/search", { method: "POST" }); } catch (e) { /* nächste Abfrage zeigt es */ }
+      document.getElementById("hr-text").textContent = "Suche läuft …";
+    });
+    return box;
+  }
+
+  let hrTimer = null;
+  async function refreshHr() {
+    clearTimeout(hrTimer);
+    const dot = document.getElementById("hr-dot"), text = document.getElementById("hr-text");
+    if (!dot) return;
+    try {
+      const st = await (await fetch("/api/hr", { cache: "no-store" })).json();
+      const btn = document.getElementById("hr-search");
+      if (!st.available || !st.enabled) {
+        dot.style.background = "#94a3b8"; text.textContent = "Pulsgurt ausgeschaltet"; btn.disabled = true;
+      } else if (st.connected) {
+        dot.style.background = "#16a34a"; text.textContent = `Verbunden · ${st.heart_rate} bpm`; btn.disabled = false;
+      } else {
+        dot.style.background = "#f59e0b"; text.textContent = "Kein Puls – Suche läuft …"; btn.disabled = false;
+      }
+    } catch (e) { text.textContent = "Pulsgurt: Status unbekannt"; }
+    hrTimer = setTimeout(refreshHr, 2000);
   }
 
   function calibBox() {

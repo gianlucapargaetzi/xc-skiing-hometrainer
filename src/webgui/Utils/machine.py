@@ -25,24 +25,49 @@ def machine_path() -> Path:
     return Path(os.environ.get("X_SKI_MACHINE_FILE") or Path(__file__).resolve().parents[1] / "maschine.json")
 
 
-def load_drive() -> dict:
-    """Maschinenweite Antriebs-Einstellungen aus maschine.json (leer, wenn die Datei fehlt)."""
+# Abschnitte, die für die Maschine gelten (alle Profile) und in maschine.json stehen
+MACHINE_SECTIONS = ("drive", "hardware")
+
+
+def load_section(section: str) -> dict:
+    """Maschinenweite Werte eines Abschnitts aus maschine.json (leer, wenn die Datei fehlt)."""
     try:
-        return dict(json.loads(machine_path().read_text(encoding="utf-8")).get("drive") or {})
+        return dict(json.loads(machine_path().read_text(encoding="utf-8")).get(section) or {})
     except (OSError, ValueError):
         return {}
 
 
+def load_drive() -> dict:
+    return load_section("drive")
+
+
 def save_drive(values: dict) -> None:
+    save_section("drive", values)
+
+
+def save_section(section: str, values: dict) -> None:
     path = machine_path()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         data = {}
-    data.setdefault("drive", {}).update(values)
+    data.setdefault(section, {}).update(values)
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     os.replace(tmp, path)
+
+
+def hardware_config(profile_hardware: dict) -> dict:
+    """Abschnitt «hardware» (Trommel, Seil, Montagehöhe …): Profil, darüber maschine.json."""
+    return {**(profile_hardware or {}), **load_section("hardware")}
+
+
+def section_config(section: str, profile_values: dict) -> dict:
+    if section == "drive":
+        return drive_config(profile_values)
+    if section == "hardware":
+        return hardware_config(profile_values)
+    return dict(profile_values or {})
 
 
 def drive_config(profile_drive: dict) -> dict:

@@ -127,7 +127,7 @@ class Settings:
 
     @classmethod
     def from_config(cls, config: Dict[str, Any], training_targets: Dict[str, Any]) -> "Settings":
-        hw = config["hardware"]
+        hw = machine.hardware_config(config["hardware"])
         swing = config["swing_torque"]
         ctrl = config["control"]
         user = config["user"]

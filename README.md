@@ -98,7 +98,16 @@ Stosskraft, beim Zurückholen nur die Rückzugskraft. Im letzten Drittel des Zug
 Ein Profil ist eine JSON-Datei in `src/webgui/configs/`; das aktive Profil liegt zusätzlich als
 `src/webgui/x-ski.json` vor. Beide sind persönlich und nicht im Git, ausser der Vorlage
 `configs/x-ski.default.json`, aus der neue Profile entstehen. Die wichtigsten Werte stellst du im Formular
-(Startmenü → Profil → Bearbeiten) ein; Änderungen wirken sofort, auch während eines Trainings.
+(Startmenü → Profil → Bearbeiten) ein. Während eines Trainings lässt sich das Profil nur in der **Pause**
+ändern; die Werte wirken dann sofort. Neu im Formular: «Widerstand bergab» (`simulation.downhill_feel_floor`),
+die Gruppe «Fahrgefühl (Fortgeschritten)» (Tempo-Faktor, Reibung fürs Kraftgefühl, Diagonalschritt,
+Luftwiderstand, Steigungen verstärken, Kraftänderung pro Stoss) und «Sensoren und Verbindungen» (Pulsgurt,
+MyWhoosh, Traccar). Sicherheitsgrenzen (`max_rope_force_n`, `max_torque_pct`, `CurrentLimit`) stehen bewusst
+nur in der Datei.
+
+**Pulsgurt (ANT+)**: Die Profilseite zeigt, ob Puls ankommt, und hat einen Knopf «Pulsgurt suchen». Kommt
+30 s lang kein Puls, sucht x-ski von selbst neu – der Gurt darf also auch erst nach dem Start eingeschaltet
+werden. Im Startmenü öffnet die Profilseite den ANT-Stick und gibt ihn beim Trainingsstart wieder frei.
 
 | Wert im Formular | Schlüssel | Standard | Bedeutung |
 |---|---|---|---|
@@ -127,11 +136,14 @@ Nur in der Datei bzw. über die Konfigurationsseite einstellbar (Abschnitt `simu
 | `max_rope_force_n`, `max_force_step_n` | 180, 30 | Obergrenze der Stosskraft und Änderung pro Stoss |
 | `route_slope_factor` | 1.0 | dämpft oder verstärkt die Steigung der Strecke |
 
-### Antrieb der Maschine (ein oder zwei Motoren)
+### Maschine (Antrieb, Motoren, Trommel) – passwortgeschützt
 
-Welcher Antrieb eingebaut ist, steht nicht im Profil, sondern gilt für die ganze Maschine
-(`src/webgui/maschine.json`, wird nicht versioniert). Umgestellt wird im Profil-Formular unter **Maschine**;
-die Änderung wirkt beim nächsten Trainingsstart.
+Was zur Maschine gehört, steht nicht im Profil, sondern gilt für alle Profile (`src/webgui/maschine.json`, wird
+nicht versioniert): Antrieb (Nidec oder Delta), Anzahl Motoren, Drehrichtung pro Motor, STO angeschlossen,
+Adresse des Nidec-Antriebs, Durchmesser von Seiltrommel und Seil. Geändert wird das auf der Seite **Maschine**
+(`/maschine`, Knopf «Maschinendaten …» unten im Profil) – nur am Gerät, nur im Startmenü (nicht während eines
+Trainings) und nur mit Passwort. Das Passwort wird beim ersten Speichern festgelegt und als Hash (PBKDF2) in
+`maschine.json` abgelegt; vergessen -> Eintrag `password_hash` dort löschen und neu festlegen.
 
 | Einstellung | Antrieb | Verbindung |
 |---|---|---|

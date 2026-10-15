@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>x-ski – Maschine</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    :root { --ink: #12324a; --muted: #5b7690; --accent: #ff7b00; --line: #dbe5ee; }
+    html, body { margin: 0; min-height: 100%; }
+    body { background: #f4f8fb; color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .page { max-width: 880px; margin: 0 auto; padding: 24px 16px 40px; }
+    h1 { font-size: 30px; margin: 4px 0 18px; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; margin-bottom: 18px;
+      box-shadow: 0 6px 24px rgba(18, 50, 74, 0.06); }
+    .card h2 { font-size: 19px; margin: 0 0 12px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; }
+    .field label { display: block; font-weight: 700; font-size: 15px; margin-bottom: 5px; }
+    .field .row { display: flex; align-items: center; gap: 8px; }
+    .field input, .field select { width: 100%; box-sizing: border-box; font: inherit; font-size: 17px; padding: 9px 11px;
+      border: 1px solid #c9d6e2; border-radius: 9px; background: #fff; color: var(--ink); }
+    .field input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .field .unit { color: var(--muted); white-space: nowrap; font-size: 14px; }
+    .field .help { color: var(--muted); font-size: 13px; margin-top: 4px; line-height: 1.35; }
+    .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .btn { font: inherit; font-size: 17px; padding: 11px 20px; border-radius: 10px; border: 1px solid var(--line);
+      background: #fff; color: var(--ink); cursor: pointer; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+    .btn:disabled { opacity: .6; cursor: wait; }
+    #msg { font-weight: 600; }
+    #msg.ok { color: #15803d; } #msg.err { color: #b91c1c; }
+    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div id="header-mount"></div>
+  <div class="page">
+    <h1>Maschine</h1>
+    <p style="color:var(--muted);margin:-8px 0 18px">Gilt für alle Profile. Ändern nur mit Passwort und nur direkt am x-ski.</p>
+    <div id="locked" class="card" style="display:none;border-color:#f59e0b;background:#fffbeb;font-weight:700"></div>
+    <form id="form" novalidate></form>
+    <section class="card">
+      <h2 id="pw-title">Passwort</h2>
+      <div class="grid">
+        <div class="field"><label for="pw" id="pw-label">Passwort</label><div class="row"><input id="pw" type="password" autocomplete="current-password"></div>
+          <div class="help" id="pw-help"></div></div>
+        <div class="field" id="pw2-wrap"><label for="pw2" id="pw2-label">Neues Passwort (optional)</label><div class="row"><input id="pw2" type="password" autocomplete="new-password"></div>
+          <div class="help" id="pw2-help">Nur ausfüllen, wenn du das Passwort ändern willst.</div></div>
+      </div>
+    </section>
+    <div class="actions">
+      <button class="btn primary" id="save" type="button">Speichern</button>
+      <button class="btn" id="back" type="button">Zurück</button>
+      <span id="msg" role="status"></span>
+    </div>
+  </div>
+<script>
+(() => {
+  "use strict";
+  const form = document.getElementById("form");
+  let fields = [], passwordSet = false;
+
+  async function loadHeader() {
+    try {
+      const res = await fetch("/header?active=profil", { cache: "no-store" });
+      if (res.ok) document.getElementById("header-mount").innerHTML = await res.text();
+    } catch (e) { /* optional */ }
+  }
+  function message(text, ok) { const el = document.getElementById("msg"); el.textContent = text; el.className = ok ? "ok" : "err"; }
+
+  async function load() {
+    let data;
+    try { data = await (await fetch("/api/maschine", { cache: "no-store" })).json(); }
+    catch (e) { message("Maschinendaten konnten nicht geladen werden.", false); return; }
+    fields = data.fields; passwordSet = data.password_set;
+    form.innerHTML = "";
+    const card = document.createElement("section"); card.className = "card";
+    const grid = document.createElement("div"); grid.className = "grid"; card.appendChild(grid);
+    for (const f of fields) {
+      const id = `${f.section}.${f.key}`;
+      const wrap = document.createElement("div"); wrap.className = "field";
+      const label = document.createElement("label"); label.htmlFor = id; label.textContent = f.label;
+      const row = document.createElement("div"); row.className = "row";
+      const input = document.createElement(f.type === "select" ? "select" : "input");
+      input.id = id;
+      if (f.type === "select") {
+        for (const o of f.options) { const opt = document.createElement("option"); opt.value = o.value; opt.textContent = o.label; input.appendChild(opt); }
+      } else input.type = f.type;
+      const v = data.values[id];
+      if (f.type === "checkbox") { input.style.width = "28px"; input.style.height = "28px"; input.checked = v === true; }
+      else input.value = v === null || v === undefined ? "" : v;
+      if (f.type === "number") { if (f.min !== null) input.min = f.min; if (f.max !== null) input.max = f.max; if (f.step !== null) input.step = f.step; }
+      row.appendChild(input);
+      if (f.unit) { const u = document.createElement("span"); u.className = "unit"; u.textContent = f.unit; row.appendChild(u); }
+      wrap.append(label, row);
+      if (f.help) { const hp = document.createElement("div"); hp.className = "help"; hp.textContent = f.help; wrap.appendChild(hp); }
+      grid.appendChild(wrap);
+    }
+    form.appendChild(card);
+    document.getElementById("pw-title").textContent = passwordSet ? "Passwort" : "Passwort festlegen";
+    document.getElementById("pw-label").textContent = passwordSet ? "Passwort" : "Neues Passwort";
+    document.getElementById("pw-help").textContent = passwordSet ? "Zum Speichern nötig."
+      : "Noch kein Passwort festgelegt. Es gilt ab dem ersten Speichern (mindestens 4 Zeichen).";
+    document.getElementById("pw2-label").textContent = passwordSet ? "Neues Passwort (optional)" : "Passwort wiederholen";
+    document.getElementById("pw2-help").textContent = passwordSet ? "Nur ausfüllen, wenn du das Passwort ändern willst." : "";
+    const lock = document.getElementById("locked");
+    lock.style.display = data.locked ? "block" : "none"; lock.textContent = data.locked || "";
+    document.getElementById("save").disabled = !!data.locked;
+  }
+
+  async function save() {
+    const pw = document.getElementById("pw").value, pw2 = document.getElementById("pw2").value;
+    if (!passwordSet && pw !== pw2) { message("Die beiden Passwörter stimmen nicht überein.", false); return; }
+    const values = {};
+    for (const f of fields) { const el = document.getElementById(`${f.section}.${f.key}`); values[`${f.section}.${f.key}`] = f.type === "checkbox" ? el.checked : el.value; }
+    const btn = document.getElementById("save"); btn.disabled = true;
+    try {
+      const res = await fetch("/api/maschine", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ values, password: pw, new_password: passwordSet ? pw2 : "" }) });
+      const data = await res.json();
+      message(data.message || (data.ok ? "Gespeichert." : `Fehler (${res.status})`), !!data.ok);
+      if (data.ok) { document.getElementById("pw").value = ""; document.getElementById("pw2").value = ""; await load(); }
+    } catch (e) { message("Speichern fehlgeschlagen.", false); }
+    btn.disabled = false;
+  }
+
+  document.getElementById("save").addEventListener("click", save);
+  document.getElementById("back").addEventListener("click", () => {
+    try { const ref = new URL(document.referrer); if (ref.origin === location.origin && ref.pathname !== "/maschine") { location.href = ref.pathname; return; } } catch (e) { /* kein Referrer */ }
+    location.href = "/";
+  });
+  loadHeader(); load();
+})();
+</script>
+<script src="/static/js/viewer.js"></script>
+</body>
+</html>

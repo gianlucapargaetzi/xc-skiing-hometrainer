@@ -20,6 +20,7 @@ from Utils.access import install_access_control, is_local
 from Utils.config_manager import ConfigManager, DEFAULT_CONFIG
 from Utils.route import Route, list_route_files, resolve_route_file
 from Utils.profile_page import create_profile_blueprint
+from Utils.machine_page import create_machine_blueprint
 from Utils.settings import Settings
 from Utils.speed_compare import (comparison_payload, fit_overview, load_fit_records, match_route, training_payload,
                                  training_summary)
@@ -106,7 +107,31 @@ def create_app(args) -> Flask:
         threading.Timer(0.5, lambda: os._exit(0)).start()
         return jsonify({"ok": True})
 
-    app.register_blueprint(create_profile_blueprint(cfg_manager, on_saved=load_config, allow_remote=allow_remote))
+    # Pulsgurt im Startmenü: erst wenn die Profilseite danach fragt (der ANT-Stick gehört dann dem Startmenü,
+    # bis ein Training startet – vorher wird er freigegeben)
+    hr = {"mgr": None}
+    hr_lock = threading.Lock()
+
+    def hr_manager():
+        s = state["settings"]
+        with hr_lock:
+            if hr["mgr"] is None and s.ant_hr_enabled and not starting.is_set():
+                from Utils.ant_hr_manager import ANTHRManager
+                hr["mgr"] = ANTHRManager(device_id=s.ant_hr_device_id, enabled=True)
+            return hr["mgr"]
+
+    def release_hr():
+        with hr_lock:
+            mgr, hr["mgr"] = hr["mgr"], None
+        if mgr is not None:
+            try:
+                mgr.close()
+            except Exception as e:
+                print(f"Warnung beim Freigeben des Pulsgurts: {e}")
+
+    app.register_blueprint(create_profile_blueprint(cfg_manager, on_saved=load_config, allow_remote=allow_remote,
+                                                    hr_manager=hr_manager))
+    app.register_blueprint(create_machine_blueprint(cfg_manager, on_saved=load_config, allow_remote=allow_remote))
 
     @app.route("/")
     def start_page():
@@ -358,6 +383,7 @@ def create_app(args) -> Flask:
         starting.set()
 
         def exec_xski():
+            release_hr()               # ANT-Stick freigeben, x-ski öffnet ihn neu
             print(f"▶️ Starte x-ski: {' '.join(argv[2:])}", flush=True)
             os.chdir(SCRIPT_DIR)
             # Alle geerbten Dateideskriptoren ausser stdin/stdout/stderr schliessen – sonst bleibt der

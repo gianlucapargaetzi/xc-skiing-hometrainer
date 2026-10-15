@@ -87,20 +87,85 @@ def test_list_activate_and_new_profile(env):
     assert len(saved) == 2
 
 
-def test_drive_selection_is_saved_for_the_machine_not_the_profile(env, monkeypatch):
+def test_machine_fields_are_not_in_the_profile(env):
+    client, _, _ = env
+    sections = {f["section"] for f in client.get("/api/profile").get_json()["fields"]}
+    assert "drive" not in sections and "hardware" not in sections
+
+
+def make_machine_app(env, monkeypatch, locked=None):
+    from Utils.machine_page import create_machine_blueprint
     client, tmp, _ = env
     monkeypatch.setenv("X_SKI_MACHINE_FILE", str(tmp / "maschine.json"))
-    data = client.get("/api/profile").get_json()
-    assert data["values"]["drive.type"] == "m751" and data["values"]["drive.axes"] == 1
-    field = next(f for f in data["fields"] if f["key"] == "type" and f["section"] == "drive")
-    assert [o["value"] for o in field["options"]] == ["m751", "delta_b3"]
+    cm = ConfigManager(script_dir=tmp, active_filename="x-ski.json", config_dirname="configs",
+                       default_config=DEFAULT_CONFIG, env_var="X_SKI_CONFIG_TEST")
+    app = Flask(__name__, template_folder=str(WEBGUI / "templates"))
+    app.register_blueprint(create_machine_blueprint(cm, locked_reason=locked))
+    return app.test_client(), tmp
 
-    r = client.post("/api/profile", json={"values": {"drive.type": "delta_b3", "drive.axes": "2"}},
-                    environ_base={"REMOTE_ADDR": "127.0.0.1"})
+
+def test_machine_page_needs_password(env, monkeypatch):
+    client, tmp = make_machine_app(env, monkeypatch)
+    local = {"REMOTE_ADDR": "127.0.0.1"}
+    data = client.get("/api/maschine").get_json()
+    assert data["values"]["drive.type"] == "m751" and not data["password_set"]
+    assert [o["value"] for o in next(f for f in data["fields"] if f["key"] == "type")["options"]] == ["m751", "delta_b3"]
+
+    # ohne Passwort: erst festlegen
+    r = client.post("/api/maschine", json={"values": {"drive.type": "delta_b3"}}, environ_base=local)
+    assert r.status_code == 400 and not (tmp / "maschine.json").exists()
+    r = client.post("/api/maschine", json={"values": {"drive.type": "delta_b3", "drive.axes": "2"}, "password": "geheim"},
+                    environ_base=local)
     assert r.get_json()["ok"]
-    assert json.loads((tmp / "maschine.json").read_text())["drive"] == {"type": "delta_b3", "axes": 2}
-    assert "type" not in json.loads((tmp / "x-ski.json").read_text())["drive"]      # Profil bleibt unberührt
-    assert client.get("/api/profile").get_json()["values"]["drive.axes"] == 2
+    stored = json.loads((tmp / "maschine.json").read_text())
+    assert stored["drive"] == {"type": "delta_b3", "axes": 2}
+    assert "geheim" not in json.dumps(stored) and stored["password_hash"]       # nur als Hash
+    assert "type" not in json.loads((tmp / "x-ski.json").read_text())["drive"]   # Profil bleibt unberührt
 
-    r = client.post("/api/profile", json={"values": {"drive.type": "siemens"}}, environ_base={"REMOTE_ADDR": "127.0.0.1"})
+    # falsches Passwort
+    r = client.post("/api/maschine", json={"values": {"drive.axes": "1"}, "password": "falsch"}, environ_base=local)
+    assert r.status_code == 403
+    assert client.get("/api/maschine").get_json()["values"]["drive.axes"] == 2
+    # richtiges Passwort, Trommel ändern, Passwort wechseln
+    r = client.post("/api/maschine", json={"values": {"hardware.pulli_diameter": "60"}, "password": "geheim",
+                                           "new_password": "neu123"}, environ_base=local)
+    assert r.get_json()["ok"]
+    assert client.get("/api/maschine").get_json()["values"]["hardware.pulli_diameter"] == 60
+    assert client.post("/api/maschine", json={"values": {}, "password": "geheim"}, environ_base=local).status_code == 403
+    # nur am Gerät
+    r = client.post("/api/maschine", json={"values": {}, "password": "neu123"}, environ_base={"REMOTE_ADDR": "10.0.0.5"})
+    assert r.status_code == 403
+    r = client.post("/api/maschine", json={"values": {"drive.type": "siemens"}, "password": "neu123"}, environ_base=local)
     assert r.status_code == 400
+
+
+def test_machine_page_locked_during_training(env, monkeypatch):
+    client, _ = make_machine_app(env, monkeypatch, locked=lambda: "Training läuft")
+    assert client.get("/api/maschine").get_json()["locked"] == "Training läuft"
+    r = client.post("/api/maschine", json={"values": {}, "password": "x"}, environ_base={"REMOTE_ADDR": "127.0.0.1"})
+    assert r.status_code == 409
+
+
+def test_profile_locked_and_heart_rate_api(tmp_path):
+    (tmp_path / "configs").mkdir()
+    (tmp_path / "x-ski.json").write_text(json.dumps(DEFAULT_CONFIG), encoding="utf-8")
+    cm = ConfigManager(script_dir=tmp_path, active_filename="x-ski.json", config_dirname="configs",
+                       default_config=DEFAULT_CONFIG, env_var="X_SKI_CONFIG_TEST")
+
+    class FakeHr:
+        enabled = True
+        searched = 0
+        def status(self): return {"enabled": True, "connected": True, "heart_rate": 132, "searching": False}
+        def research(self): FakeHr.searched += 1
+
+    lock = {"reason": "Das Training läuft – das Profil lässt sich nur in der Pause ändern."}
+    app = Flask(__name__, template_folder=str(WEBGUI / "templates"))
+    app.register_blueprint(create_profile_blueprint(cm, hr_manager=lambda: FakeHr(), edit_lock=lambda: lock["reason"]))
+    c = app.test_client()
+    assert c.get("/api/profile").get_json()["locked"].startswith("Das Training läuft")
+    assert c.post("/api/profile", json={"values": {"user.ftp_w": "160"}}).status_code == 409
+    lock["reason"] = None
+    assert c.post("/api/profile", json={"values": {"user.ftp_w": "160"}}).status_code == 200
+    assert c.get("/api/hr").get_json() == {"available": True, "enabled": True, "connected": True,
+                                           "heart_rate": 132, "searching": False}
+    assert c.post("/api/hr/search").get_json()["ok"] and FakeHr.searched == 1

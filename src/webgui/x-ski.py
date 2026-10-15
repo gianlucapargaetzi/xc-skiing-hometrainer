@@ -46,6 +46,7 @@ from Utils import chat_notify, strava_client
 from Utils.access import install_access_control, is_local
 from Utils.route import Route, RoutePosition, list_route_files, resolve_route_file
 from Utils.profile_page import create_profile_blueprint, update_active_profile
+from Utils.machine_page import create_machine_blueprint
 from Utils.rope_calibration import RopeCalibration
 from Utils.traccar_eelink import TrackerFix
 from Utils.traccar_osmand import create_tracker
@@ -387,8 +388,19 @@ def _profile_saved():
     apply_runtime_reload()
 
 
+def _profile_lock():
+    """Profil im Training nur in der Pause ändern (die Werte wirken sofort auf Kraft und Tempo)."""
+    if session_state["started_at"] is not None and not session_state["paused"]:
+        return "Das Training läuft – das Profil lässt sich nur in der Pause ändern."
+    return None
+
+
 app.register_blueprint(create_profile_blueprint(cfg_manager, on_saved=_profile_saved,
-                                                allow_remote=ALLOW_REMOTE_CONFIG))
+                                                allow_remote=ALLOW_REMOTE_CONFIG,
+                                                hr_manager=lambda: ant_hr_manager, edit_lock=_profile_lock))
+app.register_blueprint(create_machine_blueprint(
+    cfg_manager, allow_remote=ALLOW_REMOTE_CONFIG,
+    locked_reason=lambda: "Maschinendaten lassen sich nur im Startmenü ändern, nicht während eines Trainings."))
 
 
 @app.route("/header")
