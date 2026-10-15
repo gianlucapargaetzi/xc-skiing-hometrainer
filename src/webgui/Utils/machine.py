@@ -14,6 +14,7 @@ DRIVE_DEFAULTS = {
     "counts_per_rev": 16777216,     # delta_b3: Positionseinheiten pro Umdrehung (E-Getriebe 1:1)
     "direction_1": 1,               # delta_b3: Drehrichtung Motor 1 (1 oder -1)
     "direction_2": 1,               # delta_b3: Drehrichtung Motor 2 (gleich eingebaut wie Motor 1)
+    "left_motor": 1,                # delta_b3 mit 2 Motoren: an welchem Motor das linke Seil hängt
     "sto_wired": False,             # delta_b3: Sicherheitsschalter an CN10 angeschlossen
     "cycle_ms": 10.0,               # delta_b3: Takt von EtherCAT und Regelschleife
     "dc_sync": False,               # delta_b3: Distributed Clocks (nur falls der Antrieb es verlangt)

@@ -62,7 +62,12 @@
       try { control = (await (await fetch("/api/role", { cache: "no-store" })).json()).control; }
       catch (e) { await new Promise((r) => setTimeout(r, 1500)); }
     }
-    if (control === false) {
+    // Seiten mit data-xski-stay (z. B. die 3D-Ansicht fürs Tablet) bleiben, wo sie sind: sie haben keine
+    // Bedienelemente und zeigen ihren Wartezustand selbst
+    const stay = document.documentElement.hasAttribute("data-xski-stay");
+    if (control === false && stay) {
+      return;
+    } else if (control === false) {
       lockControls();
       if (isTop) follow();           // in eingebetteten Seiten (iframe) entscheidet die äussere Seite
     } else if (control === true && isTop) {

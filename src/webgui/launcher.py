@@ -137,6 +137,11 @@ def create_app(args) -> Flask:
     def start_page():
         return render_template("start.html")
 
+    @app.route("/3d")
+    def route_3d_page():
+        # Tablet mit der 3D-Ansicht: im Startmenü «Warten auf Training», beim Trainingsstart übernimmt x-ski
+        return render_template("route3d.html")
+
     @app.route("/header")
     def header():
         return render_template("partials/header.html", user=state["config"].get("user", {}),

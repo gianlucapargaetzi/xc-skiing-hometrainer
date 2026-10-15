@@ -111,9 +111,17 @@ MACHINE_FIELDS = [
     ("drive", "axes", "Anzahl Motoren", "select", None, None, None, "",
      "Nur Delta. Mit zwei Motoren hat jede Seite ihr eigenes Seil; beide bekommen dieselbe Kraft "
      "(je die Hälfte), die Anzeige zeigt den Mittelwert.", MACHINE_GROUP),
+    ("drive", "interface", "Netzwerkanschluss für EtherCAT", "text", None, None, None, "",
+     "Nur Delta. Die Delta-Antriebe haben keine IP-Adresse: sie hängen in einer Kette am Netzwerkanschluss des Pi "
+     "(Pi → Antrieb 1 IN, Antrieb 1 OUT → Antrieb 2 IN). Standard eth0.", MACHINE_GROUP),
     ("drive", "direction_1", "Drehrichtung Motor 1", "select", None, None, None, "",
-     "Nur Delta. Umkehren, wenn der Motor das Seil beim Kalibrieren abwickelt statt aufwickelt.", MACHINE_GROUP),
-    ("drive", "direction_2", "Drehrichtung Motor 2", "select", None, None, None, "", "", MACHINE_GROUP),
+     "Nur Delta. Motor 1 ist der Antrieb, der direkt am Pi hängt. Umkehren, wenn der Motor das Seil beim "
+     "Kalibrieren abwickelt statt aufwickelt.", MACHINE_GROUP),
+    ("drive", "direction_2", "Drehrichtung Motor 2", "select", None, None, None, "",
+     "Nur Delta. Motor 2 ist der zweite Antrieb in der Kette.", MACHINE_GROUP),
+    ("drive", "left_motor", "Linkes Seil hängt an", "select", None, None, None, "",
+     "Nur Delta mit 2 Motoren. Bei jedem Start fordert x-ski auf, das LINKE Seil herauszuziehen, und meldet, "
+     "welcher Motor sich bewegt hat. Passt es nicht, hier umstellen oder die Netzwerkkabel tauschen.", MACHINE_GROUP),
     ("drive", "sto_wired", "Sicherheitsschalter (STO) am Delta-Antrieb angeschlossen", "checkbox", None, None, None, "",
      "Aus = Brücke ab Werk im Stecker CN10: nur für den Test auf dem Tisch ohne Seil.", MACHINE_GROUP),
 ]
@@ -124,6 +132,7 @@ FIELD_OPTIONS = {
     "drive.axes": [(1, "1 Motor"), (2, "2 Motoren (links / rechts)")],
     "drive.direction_1": [(1, "normal"), (-1, "umgekehrt")],
     "drive.direction_2": [(1, "normal"), (-1, "umgekehrt")],
+    "drive.left_motor": [(1, "Motor 1 (direkt am Pi)"), (2, "Motor 2")],
 }
 
 

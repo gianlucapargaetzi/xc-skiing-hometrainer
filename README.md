@@ -44,6 +44,17 @@ jeweilige Funktion einfach aus.
 
 ## Starten und Bedienen
 
+**Automatischer Start:** Beim Anmelden auf dem Desktop (Autologin) startet `~/.config/autostart/x-ski.desktop` nach
+8 s dasselbe wie das Desktop-Symbol (`src/x-ski.sh` im Terminal); das Startmenü öffnet den Browser am Gerät.
+Gesteuert wird weiterhin nur mit dem Browser direkt am x-ski.
+
+**3D-Ansicht auf einem Tablet:** `http://<adresse-des-pi>:5000/3d` (z. B. `http://pmtrasp08.dyndns.org:5000/3d`)
+im selben WLAN öffnen. Nur Anzeige: die Karte (MapLibre mit Geländemodell, Kartenbilder swisstopo bzw.
+OpenTopoMap, Höhen aus den freien Terrain Tiles) rechnet das Tablet, x-ski schickt nur die Position. Ohne
+Training zeigt die Seite «Warten auf Training» und springt beim nächsten Start der Streckensimulation an.
+«Übersicht» zeigt die ganze Strecke, «Folgen» wieder die Kamera hinter dem Skifahrer. Braucht WebGL; der
+Browser am Pi selbst ist dafür zu schwach.
+
 ```
 src/x-ski.sh
 ```
@@ -166,6 +177,9 @@ getestet – an der Hardware noch nicht.** Vor dem ersten Betrieb zu klären:
   `motor_max_torque_pct`, `cycle_ms`, `dc_sync`.
 - Die Drehzahlgrenze beim Rückzug macht die Software (Drehmoment wird über der Grenze zurückgenommen).
 - Ohne angeschlossenen Sicherheitsschalter («STO angeschlossen» aus) nur auf dem Tisch ohne Seil testen.
+- **Links/rechts**: EtherCAT nummeriert die Antriebe nach der Kette – Motor 1 hängt direkt am Pi, Motor 2 an
+  dessen OUT-Buchse. Mit zwei Motoren fordert x-ski bei jedem Start auf, das LINKE Seil herauszuziehen, und
+  meldet, welcher Motor sich bewegt hat (Vergleich mit «Linkes Seil hängt an» auf der Seite «Maschine»).
 
 ## Streckensimulation
 

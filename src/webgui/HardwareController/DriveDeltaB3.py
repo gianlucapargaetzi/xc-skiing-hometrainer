@@ -366,6 +366,22 @@ class DriveDeltaB3:
             return [{"position": pos[a], "rpm": self._rpm[a], "torque_nm": self._torque_nm[a],
                      "statusword": self._status[a], "alarm": self._alarm[a]} for a in range(self.axes)]
 
+    def wait_for_moved_axis(self, min_revs: float = 1.0, timeout_s: float = 60.0) -> Optional[int]:
+        """Wartet, bis ein Seil von Hand herausgezogen wird (Endstufe aus), und gibt die Achse zurück (0 = Motor 1),
+        die sich um mindestens min_revs Umdrehungen bewegt hat – bei beiden gleichzeitig die mit dem grösseren Weg.
+        None nach timeout_s ohne Bewegung."""
+        with self._lock:
+            start = self._axis_positions()
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            time.sleep(0.05)
+            with self._lock:
+                moved = [abs(p - s0) for p, s0 in zip(self._axis_positions(), start)]
+            best = max(range(self.axes), key=lambda a: moved[a])
+            if moved[best] >= min_revs * self.COUNTS_PER_REV:
+                return best
+        return None
+
     # ---------------------- Abläufe ----------------------
     def wait_until_ready(self):
         print(f"Warte auf Delta-Antrieb ({self.axes} Achse(n), EtherCAT) ...")

@@ -258,3 +258,14 @@ def test_factory_selects_drive_from_machine_settings(tmp_path, monkeypatch):
     assert (s.drive_type, s.drive_axes, s.drive_directions) == ("delta_b3", 2, (1, 1))
     drv = create_drive(s)
     assert type(drv).__name__ == "DriveDeltaB3" and drv.axes == 2
+
+
+def test_wait_for_moved_axis_finds_the_pulled_rope(drive):
+    drv, bus = drive()
+    assert drv.wait_for_moved_axis(min_revs=1.0, timeout_s=0.2) is None      # niemand zieht
+    import threading as th
+    def pull():                                  # Motor 2 (gespiegelt) wird 2 Umdrehungen herausgezogen
+        time.sleep(0.05)
+        bus.pos[1] += 2 * bus.cpr
+    th.Thread(target=pull).start()
+    assert drv.wait_for_moved_axis(min_revs=1.0, timeout_s=2.0) == 1

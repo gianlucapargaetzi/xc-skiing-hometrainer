@@ -529,6 +529,12 @@ def route_page():
     return render_template("route.html")
 
 
+@app.route("/3d")
+def route_3d_page():
+    """3D-Ansicht der Streckensimulation, gedacht für ein Tablet im selben Netz (nur Anzeige)."""
+    return render_template("route3d.html")
+
+
 @app.route("/strecke")
 def route_dual_page():
     return render_template("multi_view_route.html")
@@ -1006,7 +1012,11 @@ def prepare_drive(drv, s: Settings, *, swing_length: float, dist_per_rev: float,
     drv.set_current_limit(s.current_limit)
     print(drv.configure_protection())
 
-    log("Bitte Seil 50 cm herausziehen, dann Sicherheitsschalter auslösen")
+    if getattr(drv, "axes", 1) == 2 and hasattr(drv, "wait_for_moved_axis"):
+        check_sides(drv, s, log)
+        log("Bitte Seile 50 cm herausziehen, dann Sicherheitsschalter auslösen")
+    else:
+        log("Bitte Seil 50 cm herausziehen, dann Sicherheitsschalter auslösen")
     drv.wait_for_sto_off()
     drv.set_forward_limit_enabled(False)
     drv.wait_for_sto_on()
@@ -1035,6 +1045,27 @@ def prepare_drive(drv, s: Settings, *, swing_length: float, dist_per_rev: float,
     drv.set_enabled(True)
     return {"abs_zero": abs_zero_position, "pole_zero": pole_zero_position,
             "soft_zero": soft_zero_position, "end_swing": end_swing_position}
+
+
+def check_sides(drv, s: Settings, log):
+    """Zwei Motoren: welcher hängt am linken Seil? Der Nutzer zieht das linke Seil heraus (Endstufe ist aus),
+    x-ski meldet den bewegten Motor und vergleicht mit der Einstellung «Linkes Seil hängt an»."""
+    log("Bitte nur das LINKE Seil ein Stück herausziehen (Seitenprüfung)")
+    axis = drv.wait_for_moved_axis(min_revs=1.0, timeout_s=60.0)
+    if axis is None:
+        log("⚠️ Seitenprüfung übersprungen – kein Seil bewegt")
+        print("⚠️ Seitenprüfung: in 60 s wurde kein Seil herausgezogen")
+        return None
+    motor = axis + 1
+    if motor == s.drive_left_motor:
+        log(f"✅ Linkes Seil = Motor {motor} – passt")
+        print(f"✅ Seitenprüfung: linkes Seil hängt an Motor {motor} (wie eingestellt)")
+    else:
+        log(f"⚠️ Linkes Seil hängt an Motor {motor}, eingestellt ist Motor {s.drive_left_motor} – "
+            f"Maschine anpassen oder Netzwerkkabel tauschen")
+        print(f"⚠️ Seitenprüfung: linkes Seil hängt an Motor {motor}, eingestellt ist Motor {s.drive_left_motor}")
+    time.sleep(2)
+    return motor
 
 
 def feel_resistance_n(s: Settings, skier: VirtualSkier, terrain: Terrain) -> float:

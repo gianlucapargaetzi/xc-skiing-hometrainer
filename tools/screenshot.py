@@ -3,13 +3,14 @@
 
     .venv/bin/python tools/screenshot.py <url> <bild.png> <breite,höhe> ['[[wartezeit_s, "js"], …]']
 """
-import base64, json, subprocess, sys, time, urllib.request
+import os, base64, json, subprocess, sys, time, urllib.request
 import simple_websocket
 
 url, out_png, size = sys.argv[1], sys.argv[2], sys.argv[3]
 steps = json.loads(sys.argv[4]) if len(sys.argv) > 4 else [[4, "1"]]
+extra = os.environ.get("SCREENSHOT_FLAGS", "").split()     # z. B. WebGL per Software: --use-angle=swiftshader
 proc = subprocess.Popen(["chromium", "--headless=new", "--no-sandbox", "--remote-debugging-port=9334",
-                         f"--window-size={size}", "--hide-scrollbars", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                         f"--window-size={size}", "--hide-scrollbars", *extra, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 try:
     page = None
     for _ in range(50):

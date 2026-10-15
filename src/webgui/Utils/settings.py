@@ -63,6 +63,7 @@ class Settings:
     drive_counts_per_rev: int = 16777216
     drive_directions: tuple = (1, 1)
     drive_sto_wired: bool = False
+    drive_left_motor: int = 1
     drive_cycle_ms: float = 10.0
     drive_dc_sync: bool = False
 
@@ -176,6 +177,7 @@ class Settings:
             drive_directions=(-1 if safe_float(drive["direction_1"], 1) < 0 else 1,
                               -1 if safe_float(drive["direction_2"], 1) < 0 else 1),
             drive_sto_wired=bool(drive["sto_wired"]),
+            drive_left_motor=2 if int(safe_float(drive.get("left_motor", 1), 1)) == 2 else 1,
             drive_cycle_ms=max(2.0, min(safe_float(drive["cycle_ms"], 10.0), 20.0)),
             drive_dc_sync=bool(drive["dc_sync"]),
             ble_enabled=bool(ble.get("enabled", True)),
