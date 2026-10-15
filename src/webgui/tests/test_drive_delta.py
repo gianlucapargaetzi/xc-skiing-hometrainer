@@ -193,6 +193,12 @@ def test_homing_times_out_when_a_motor_unwinds(drive):
 def test_sto_and_fault_end_the_loop_and_reset_recovers(drive):
     drv, bus = drive()
     assert drv.hardware_enabled()
+    bus.trip(1, 0x3E1)                           # andere Störung: Training läuft weiter (Pause + Quittieren)
+    settle(drv)
+    assert drv.hardware_enabled() and drv.drive_fault() == 0x3E1 and "AL3E1" in drv.fault_text(0x3E1)
+    bus.alarm[1] = 0
+    drv.reset()
+    assert drv.drive_fault() is None
     bus.trip(0, 0x500)                           # Sicherheitsschalter ausgelöst
     settle(drv)
     assert not drv.hardware_enabled()
@@ -215,7 +221,11 @@ def test_watchdog_stops_torque_when_loop_hangs(drive):
     assert bus.outputs[0][1] > 0 and drv.hardware_enabled()
     time.sleep(0.12)                             # Regelschleife hängt
     assert bus.outputs[0][1] == 0 and bus.outputs[0][0] == D.CW_SHUTDOWN
-    assert not drv.hardware_enabled()
+    assert drv.drive_fault() == drv.WATCHDOG_FAULT and "Watchdog" in drv.fault_text(drv.drive_fault())
+    assert drv.hardware_enabled()                # keine STO: x-ski pausiert und lässt quittieren
+    drv.set_enabled(False)
+    drv.reset()
+    assert drv.drive_fault() is None
 
 
 def test_bus_loss_is_reported(drive):

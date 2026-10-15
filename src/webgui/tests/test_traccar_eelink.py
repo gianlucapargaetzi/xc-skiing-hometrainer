@@ -191,3 +191,39 @@ def test_osmand_rejects_bad_config():
         OsmAndTracker("traccar:5055", "x")
     with pytest.raises(ValueError):
         OsmAndTracker("http://traccar:5055", "")
+
+
+def test_osmand_tracker_keeps_positions_while_server_is_down():
+    received, state = [], {"down": True}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            if state["down"]:
+                self.send_response(503); self.end_headers(); return
+            received.append(dict(_up.parse_qsl(_up.urlparse(self.path).query)))
+            self.send_response(200); self.end_headers()
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    tracker = OsmAndTracker(f"http://127.0.0.1:{srv.server_port}", "xski-1", interval_s=1.0)
+    tracker.RETRY_MAX_S = 1.0
+    try:
+        t0 = 1_760_000_000
+        for i in range(35):                      # 3.5 s Ausfall: im 1-s-Takt gesammelt
+            tracker.update(TrackerFix(t0 + i, 46.7 + i * 1e-4, 9.8, 1500, 10.0, 90.0))
+            time.sleep(0.1)
+        assert not received and not tracker.connected and tracker.pending >= 3
+        state["down"] = False
+        tracker.update(TrackerFix(t0 + 99, 46.8, 9.8, 1500, 10.0, 90.0))
+        deadline = time.time() + 5
+        while (tracker.pending or not received) and time.time() < deadline:
+            time.sleep(0.1)
+        stamps = [int(r["timestamp"]) for r in received]
+        assert len(stamps) >= 4 and stamps == sorted(stamps)    # alles nachgesendet, in der richtigen Reihenfolge
+        assert stamps[0] <= t0 + 2 and tracker.connected         # beginnt mit dem Anfang der Unterbrechung
+    finally:
+        tracker.close()
+        srv.shutdown()

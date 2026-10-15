@@ -4,6 +4,7 @@
 #   &altitude=<m>&speed=<Knoten>&bearing=<Grad>  ->  Antwort 200 OK
 
 import threading
+from collections import deque
 import time
 import urllib.parse
 import urllib.request
@@ -29,12 +30,15 @@ def osmand_url(base_url: str, device_id: str, fix: TrackerFix) -> str:
 
 class OsmAndTracker:
     """
-    Sendet die jeweils neueste Position im Hintergrund per HTTP. update() speichert nur und kehrt
+    Sendet die Position im Hintergrund per HTTP, höchstens alle interval_s. update() speichert nur und kehrt
     sofort zurück; ein langsamer oder nicht erreichbarer Server blockiert die Regelschleife nie.
+    Ist der Server nicht erreichbar (z. B. WLAN weg), werden die Positionen weiter im Takt gesammelt und nach
+    der Unterbrechung in der richtigen Reihenfolge nachgesendet (mit ihrer Zeit) – die Spur bleibt lückenlos.
     """
 
     TIMEOUT_S = 5.0
     RETRY_MAX_S = 60.0
+    BACKLOG_MAX = 10_000         # ältere Positionen fallen weg (bei 5 s Takt knapp 14 Stunden)
 
     def __init__(self, base_url: str, device_id: str, interval_s: float = 5.0):
         if not device_id:
@@ -48,7 +52,8 @@ class OsmAndTracker:
 
         self._lock = threading.Lock()
         self._fix: Optional[TrackerFix] = None
-        self._fix_sent = True
+        self._fix_taken = True
+        self._backlog: deque = deque(maxlen=self.BACKLOG_MAX)
         self._stop = threading.Event()
         self.sent_count = 0
         self.connected = False
@@ -59,10 +64,14 @@ class OsmAndTracker:
     def update(self, fix: TrackerFix):
         with self._lock:
             self._fix = fix
-            self._fix_sent = False
+            self._fix_taken = False
 
     def close(self):
         self._stop.set()
+
+    @property
+    def pending(self) -> int:
+        return len(self._backlog)
 
     def _send(self, fix: TrackerFix):
         req = urllib.request.Request(osmand_url(self.base_url, self.device_id, fix), method="GET",
@@ -71,33 +80,48 @@ class OsmAndTracker:
             if resp.status != 200:
                 raise ConnectionError(f"HTTP {resp.status}")
 
-    def _run(self):
-        retry_s = self.interval_s
-        while not self._stop.is_set():
-            with self._lock:
-                fix = None if self._fix_sent else self._fix
-            if fix is None:
-                self._stop.wait(0.2)
-                continue
+    def _flush(self) -> bool:
+        """Gesammelte Positionen der Reihe nach senden; False beim ersten Fehler (Rest bleibt gespeichert)."""
+        sent = 0
+        while self._backlog and not self._stop.is_set():
             try:
-                self._send(fix)
-                with self._lock:
-                    if self._fix is fix:
-                        self._fix_sent = True
-                self.sent_count += 1
-                if not self.connected:
-                    print(f"📡 Traccar (OsmAnd) erreichbar: {self.base_url}, Gerät {self.device_id}")
-                self.connected = True
-                self.last_error = ""
-                retry_s = self.interval_s
-                self._stop.wait(self.interval_s)
+                self._send(self._backlog[0])
             except Exception as e:
                 if str(e) != self.last_error:
-                    print(f"⚠️ Traccar (OsmAnd) nicht erreichbar ({self.base_url}): {e}")
+                    print(f"⚠️ Traccar (OsmAnd) nicht erreichbar ({self.base_url}): {e} – Positionen werden gesammelt")
                 self.connected = False
                 self.last_error = str(e)
-                self._stop.wait(retry_s)
-                retry_s = min(retry_s * 2, self.RETRY_MAX_S)
+                return False
+            self._backlog.popleft()
+            sent += 1
+            self.sent_count += 1
+            if not self.connected:
+                print(f"📡 Traccar (OsmAnd) erreichbar: {self.base_url}, Gerät {self.device_id}")
+                self.connected = True
+                self.last_error = ""
+        if sent > 1:
+            print(f"📡 Traccar: {sent} gesammelte Positionen nachgesendet")
+        return True
+
+    def _run(self):
+        retry_s = self.interval_s
+        next_sample = next_try = 0.0
+        while not self._stop.is_set():
+            now = time.monotonic()
+            # Takt der Positionen unabhängig vom Server: auch während einer Unterbrechung alle interval_s eine
+            with self._lock:
+                if not self._fix_taken and now >= next_sample:
+                    self._backlog.append(self._fix)
+                    self._fix_taken = True
+                    next_sample = now + self.interval_s
+            if self._backlog and now >= next_try:
+                if self._flush():
+                    retry_s = self.interval_s
+                    next_try = 0.0
+                else:
+                    next_try = time.monotonic() + retry_s
+                    retry_s = min(retry_s * 2, self.RETRY_MAX_S)
+            self._stop.wait(0.2)
 
 
 def create_tracker(protocol: str, *, url: str, host: str, port: int, device_id: str, interval_s: float):

@@ -111,6 +111,48 @@
     }
   }
 
+  // ---------------------- Antriebsstörung ----------------------
+  // Grosse rote Warnung über allem. «Quittieren» setzt den Antrieb zurück; er bleibt aus und das Training
+  // pausiert. Erst «Weiter» (Leiste unten) gibt ihn nach dem Countdown frei und spannt das Seil.
+  async function ackFault() {
+    try {
+      const res = await fetch("/api/session/fault/ack", { method: "POST" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (e) { /* Knopf bleibt, nächste Abfrage zeigt den Zustand */ }
+    refresh();
+  }
+
+  function faultLayer(info) {
+    let el = doc.getElementById("xski-fault-layer");
+    const f = info && info.fault;
+    if (!f) { if (el) el.remove(); return; }
+    if (!el) {
+      el = doc.createElement("div");
+      el.id = "xski-fault-layer";
+      el.style.cssText = "position:fixed;inset:0;z-index:100001;display:grid;place-items:center;background:rgba(127,0,0,.82);" +
+        "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif";
+      el.innerHTML = `<div style="background:#b91c1c;color:#fff;border:6px solid #fff;border-radius:24px;padding:34px 40px;
+          max-width:900px;width:calc(100vw - 48px);box-shadow:0 20px 70px rgba(0,0,0,.5);text-align:center">
+        <div style="font-size:64px;font-weight:900;line-height:1">⚠</div>
+        <div style="font-size:46px;font-weight:900;letter-spacing:.02em;margin:10px 0 14px">ANTRIEBSSTÖRUNG</div>
+        <div id="xski-fault-text" style="font-size:26px;font-weight:700;line-height:1.35"></div>
+        <div style="font-size:20px;line-height:1.45;margin:18px 0 26px;opacity:.95">Training pausiert · Antrieb aus · Uhr angehalten.<br>
+          Nach dem Quittieren bleibt der Antrieb aus – mit «Weiter» wird das Seil gespannt.</div>
+        <div id="xski-fault-msg" style="font-size:20px;font-weight:700;margin-bottom:18px;background:#7f1d1d;border-radius:12px;padding:10px 14px;display:none"></div>
+        <button id="xski-fault-ack" style="${BTN}font-size:32px;font-weight:900;min-height:90px;min-width:340px;padding:12px 40px;
+          border:none;border-radius:18px;background:#fff;color:#b91c1c;cursor:pointer">Quittieren</button>
+      </div>`;
+      doc.body.appendChild(el);
+      el.querySelector("#xski-fault-ack").addEventListener("click", ackFault);
+    }
+    doc.getElementById("xski-fault-text").textContent = f.text || "Der Antrieb meldet eine Störung.";
+    const msg = doc.getElementById("xski-fault-msg");
+    msg.textContent = f.message || ""; msg.style.display = f.message ? "block" : "none";
+    const btn = doc.getElementById("xski-fault-ack");
+    btn.disabled = !!f.acking; btn.textContent = f.acking ? "Wird quittiert …" : "Quittieren";
+    btn.style.opacity = f.acking ? ".6" : "1";
+  }
+
   async function refresh() {
     try { lastInfo = await (await fetch("/api/session", { cache: "no-store" })).json(); } catch (e) { return; }
     document.querySelectorAll("[data-xski-pause]").forEach((b) => {
@@ -119,6 +161,7 @@
       b.title = lastInfo.started ? "" : "Pause ist möglich, sobald das Training läuft";
     });
     pauseBar(lastInfo);
+    faultLayer(lastInfo);
   }
 
   document.addEventListener("click", (ev) => {
@@ -129,7 +172,8 @@
   (async function loop() {
     await refresh();
     const counting = lastInfo && lastInfo.resume_in_s !== null && lastInfo.resume_in_s !== undefined;
-    setTimeout(loop, counting ? 250 : 1000);
+    const acking = lastInfo && lastInfo.fault && lastInfo.fault.acking;
+    setTimeout(loop, counting || acking ? 250 : 1000);
   })();
 
   window.xskiStop = async function () {

@@ -216,7 +216,7 @@ Leistung; in der Streckensimulation zusätzlich GPS, Höhe und Steigung) und ein
 |---|---|---|
 | **Strava** | `.env`: Client ID und Secret. Im Profil «Mit Strava verbinden» (pro Profil ein eigenes Konto) und «automatisch hochladen» | Upload als Skilanglauf, ohne Indoor-Markierung (damit Karte und Höhenmeter erscheinen) |
 | **E-Mail** | `.env`: SMTP. Adresse im Profil | geht nur raus, wenn der Strava-Upload aus ist oder scheitert; FIT und Bild hängen an |
-| **Traccar** | Abschnitt `traccar` im Profil (`osmand` per HTTP oder `eelink` per TCP) | sendet in der Streckensimulation die virtuelle Position alle `interval_s` Sekunden |
+| **Traccar** | Abschnitt `traccar` im Profil (`osmand` per HTTP oder `eelink` per TCP) | sendet in der Streckensimulation die virtuelle Position alle `interval_s` Sekunden; ist der Server nicht erreichbar (z. B. WLAN weg), werden die Positionen gesammelt und danach mit ihrer Zeit nachgesendet |
 | **Tracking-Chat** | `.env`: `TRACKING_DEVICE_ID`, `TRACKING_SK`. Im Profil unter «Live-Tracking» einschalten | Streckensimulation: beim ersten Zug «Training gestartet. Folge mir unter: …», am Ende das Bild der Zusammenfassung mit «Training beendet.», Kurzfassung und Strava-Link |
 
 Die Chat-Meldungen laufen im Hintergrund und halten das Training nie auf. Scheitert der Bildversand, folgt
@@ -239,7 +239,13 @@ Freilauf-Messungen (z. B. gebremster Griff) werden verworfen und der Schritt mus
 ## Sicherheit
 
 - Der Antrieb läuft nur mit eingeschaltetem Sicherheitsschalter (STO). Wird er ausgelöst, endet das Training.
-- Ein Watchdog im Antrieb schaltet ab, wenn das Programm länger als 1 s nichts sendet.
+- Ein Watchdog im Antrieb schaltet ab, wenn das Programm länger als 1 s nichts sendet. In der Pause ist er
+  aus (der Antrieb ist dann ohnehin aus), damit ein Hänger des Pi dort keine Störung auslöst.
+- **Antriebsstörung**: x-ski fragt zweimal pro Sekunde, ob der Antrieb gestört ist (M751: Pr 10.001 / Trip in
+  Pr 10.020). Dann pausiert das Training sofort (Drehmoment 0, Endstufe aus, Uhr steht) und eine grosse rote
+  Warnung mit dem Fehler und dem Knopf «Quittieren» erscheint. Quittieren setzt nur den Fehler zurück – der
+  Antrieb bleibt aus. Erst «Weiter» gibt ihn nach dem Countdown frei, und der Rückzug spannt das Seil.
+  Die Seilzug-Kalibrierung kennt diese Anzeige noch nicht.
 - Beim Beenden, bei Fehlern und in der Pause wird der Antrieb immer abgeschaltet.
 - Oberhalb des Software-Nullpunkts (50 mm unter dem oberen Anschlag) ist der Antrieb frei.
 - Grenzen: Die Kalibrierung testet und schlägt höchstens 40 % für Grundzug und Rückzug und 3000 rpm vor.
@@ -297,7 +303,7 @@ Werkzeuge in `tools/` (jeweils mit `.venv/bin/python` aus dem Projektordner star
 
 | Werkzeug | Zweck |
 |---|---|
-| `sim_xski.py <ordner> [sekunden] -- --mode …` | x-ski mit simuliertem Antrieb und simuliertem Nutzer auf Port 5097; keine E-Mail, kein Strava, kein Traccar, Chat nur mit `SIM_CHAT=1` |
+| `sim_xski.py <ordner> [sekunden] -- --mode …` | x-ski mit simuliertem Antrieb und simuliertem Nutzer auf Port 5097; keine E-Mail, kein Strava, kein Traccar, Chat nur mit `SIM_CHAT=1`; `SIM_TRIP_AT=<s>` simuliert eine Antriebsstörung (Trip 30) |
 | `screenshot.py <url> <bild.png> <breite,höhe> [schritte]` | Seite in Chromium laden, optional JavaScript ausführen, Bild speichern |
 | `add_elevation.py <gpx>` | Höhen in ein GPX ohne Höhenangaben eintragen (Schweiz, Geländemodell von swisstopo); ohne Höhe ist eine Strecke «nicht lesbar» |
 | `compare_gpx.py <fit> <gpx> [--png bild.png]` | Aufzeichnung abschnittsweise mit dem echten Lauf vergleichen |

@@ -23,6 +23,7 @@ WATCHDOG_BIT = 16384           # Bit 14
 REG_DRIVE_HEALTHY = 1000
 REG_DRIVE_RUNNING = 1001
 REG_DRIVE_RESET = 1032
+REG_TRIP_0 = 1019              # Pr 10.020 letzter Trip
 REG_SAVE_FORWARD_LIMIT = 1209
 REG_FORWARD_LIMIT_ENABLE = 1235
 REG_THERMAL_PROTECTION_MODE = 415  # Pr 04.016 Thermischer Schutzmodus
@@ -162,6 +163,21 @@ class DriveM751:
 
     def is_running(self) -> bool:
         return self._read_flag(REG_DRIVE_RUNNING)
+
+    # Bekannte Trip-Nummern (Pr 10.020) mit Klartext; alle anderen siehe Handbuch Digitax HD
+    TRIP_TEXTS = {30: "Watchdog – die Regelschleife hat länger als 1 s nicht geantwortet"}
+
+    def drive_fault(self) -> Optional[int]:
+        """Trip-Nummer, wenn der Antrieb gestört ist, sonst None (auch bei einem Lesefehler –
+        ein einzelner verlorener Modbus-Zugriff ist keine Störung)."""
+        healthy = self._read1(REG_DRIVE_HEALTHY)
+        if healthy is None or healthy == 1:
+            return None
+        trip = self._read1(REG_TRIP_0)
+        return int(trip) if trip is not None else 0
+
+    def fault_text(self, code: int) -> str:
+        return self.TRIP_TEXTS.get(code, f"Trip {code} (siehe Handbuch Digitax HD, Pr 10.020)")
 
     def hardware_enabled(self) -> bool:
         """False, wenn der Sicherheitsschalter (STO) ausgelöst ist oder der Drive nicht antwortet."""

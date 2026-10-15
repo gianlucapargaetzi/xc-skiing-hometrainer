@@ -68,3 +68,17 @@ def test_thermal_protection_mode_written_and_read_back():
     drv = ModeDrive()
     assert drv.set_thermal_protection_mode(D.DriveM751.THERMAL_MODE_MOTOR_LIMIT) == 1
     assert (D.REG_THERMAL_PROTECTION_MODE, 1) in [(a, v) for _, a, v in drv.writes]
+
+
+def test_drive_fault_reads_trip_only_when_unhealthy():
+    class TripDrive(RecordingDrive):
+        regs = {}
+        def _read1(self, addr):
+            return self.regs.get(addr)
+    drv = TripDrive()
+    assert drv.drive_fault() is None                       # Lesefehler ist keine Störung
+    drv.regs = {D.REG_DRIVE_HEALTHY: 1, D.REG_TRIP_0: 30}
+    assert drv.drive_fault() is None                       # gesund (alter Trip steht noch im Speicher)
+    drv.regs = {D.REG_DRIVE_HEALTHY: 0, D.REG_TRIP_0: 30}
+    assert drv.drive_fault() == 30 and "Watchdog" in drv.fault_text(30)
+    assert "Trip 5" in drv.fault_text(5)

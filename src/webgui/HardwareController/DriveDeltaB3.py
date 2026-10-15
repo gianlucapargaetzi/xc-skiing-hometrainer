@@ -255,6 +255,9 @@ class DriveDeltaB3:
 
     # ---------------------- Schreiben ----------------------
     def reset(self):
+        with self._lock:
+            self._watchdog_t = time.monotonic()
+            self._watchdog_tripped = False
         self._reset_fault = True
         time.sleep(4 * self.cycle_s)
         self._reset_fault = False
@@ -307,9 +310,24 @@ class DriveDeltaB3:
         return self._bus_ok and all((s & 0x6F) == 0x27 for s in self._status)
 
     def hardware_enabled(self) -> bool:
-        """False bei STO, jeder anderen Störung eines Antriebs, Ausfall des EtherCAT oder wenn die
-        Regelschleife länger als APP_WATCHDOG_S ausgesetzt hat."""
-        return self.is_healthy()
+        """False bei STO (Sicherheitsschalter) oder Ausfall des EtherCAT – dann endet das Training.
+        Andere Störungen meldet drive_fault(); x-ski pausiert und lässt sie quittieren."""
+        return self._bus_ok and not any(a in STO_ALARMS for a in self._alarm)
+
+    WATCHDOG_FAULT = -1          # Code für «Regelschleife hat ausgesetzt»
+
+    def drive_fault(self) -> Optional[int]:
+        if self._watchdog_tripped:
+            return self.WATCHDOG_FAULT
+        for a in range(self.axes):
+            if self._status[a] & SW_FAULT:
+                return self._alarm[a] if self._alarm[a] is not None else 0
+        return None
+
+    def fault_text(self, code: int) -> str:
+        if code == self.WATCHDOG_FAULT:
+            return f"Watchdog – die Regelschleife hat länger als {self.APP_WATCHDOG_S:.0f} s nicht geantwortet"
+        return f"Alarm AL{code:03X} (siehe Handbuch ASDA-B3, Kap. 13)" if code else "Störung des Antriebs"
 
     def _axis_positions(self) -> List[float]:
         return [self._directions[a] * self._raw_pos[a] * self._count_scale - self._home[a] for a in range(self.axes)]

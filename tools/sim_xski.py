@@ -52,12 +52,15 @@ S = xski.settings
 
 
 class FakeDrive(D.DriveM751):
-    """Hand zieht im festen Rhythmus (Zug 0.45 s, Rückweg 0.75 s); Leistung = Drehmoment × Seilgeschwindigkeit."""
+    """Hand zieht im festen Rhythmus (Zug 0.45 s, Rückweg 0.75 s); Leistung = Drehmoment × Seilgeschwindigkeit.
+    SIM_TRIP_AT=<s>: so lange nach dem Start meldet der Antrieb Trip 30 (Watchdog), bis er zurückgesetzt wird."""
     CYCLE_S, PUSH_S, HAND = 1.2, 0.45, 2.5
+    TRIP_AT = float(os.environ.get("SIM_TRIP_AT", "0") or 0)
 
     def __init__(self):
         super().__init__("127.0.0.1", 1, 1, S.max_torque_pct)
         self.t0, self.tq = None, 0.0
+        self.tripped, self.trip_done, self.enabled = False, False, 0
         self.mpc = S.dist_per_rev / 1000 / 65536
         self.pole = round((S.top_position - S.pole_length) / S.dist_per_rev * 65536)
 
@@ -65,6 +68,10 @@ class FakeDrive(D.DriveM751):
         time.sleep(0.004)
         if a == D.REG_WATCHDOG_ENABLE and v == 1: self.t0 = time.time()
         if a == D.REG_TORQUE_REF: self.tq = v / 100
+        if a == D.REG_DRIVE_ENABLE: self.enabled = v
+        if a == D.REG_DRIVE_RESET and v == 1 and self.tripped:
+            self.tripped = False
+            print(f"(Sim) Antrieb zurückgesetzt – Endstufe {'EIN' if self.enabled else 'aus'}, Drehmoment {self.tq:.0f} %", flush=True)
 
     def _state(self):
         if self.t0 is None: return 0.0, 0.0
@@ -75,7 +82,12 @@ class FakeDrive(D.DriveM751):
 
     def _read1(self, a):
         time.sleep(0.004)
-        if a in (D.REG_DRIVE_HEALTHY, D.REG_HARDWARE_ENABLE): return 1
+        if self.TRIP_AT and self.t0 and not self.trip_done and time.time() - self.t0 > self.TRIP_AT:
+            self.tripped, self.trip_done = True, True
+            print("(Sim) Antrieb meldet Trip 30", flush=True)
+        if a == D.REG_DRIVE_HEALTHY: return 0 if self.tripped else 1
+        if a == D.REG_TRIP_0: return 30
+        if a == D.REG_HARDWARE_ENABLE: return 1
         if a == D.REG_POWER:
             v, _ = self._state()
             return (-int(self.tq / 100 * S.motor_rated_torque_nm / S.drum_radius_m * v) if v > 0 else 0) & 0xFFFF

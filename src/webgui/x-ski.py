@@ -81,6 +81,8 @@ END_PULL_RAMP_START = 0.65
 DIAG_STEP_PER_STROKE = 0.34
 # «Weiter» nach einer Pause: so lange Countdown, dann wird der Antrieb freigegeben und spannt das Seil
 RESUME_COUNTDOWN_S = 3.0
+# Störung des Antriebs (Trip) so oft abfragen
+DRIVE_FAULT_CHECK_INTERVAL_S = 0.5
 # Ohne Lebenszeichen vom Browser (Trainingsseiten fragen jede Sekunde nach) wird x-ski beendet.
 # Grosszügig, weil Browser Zeitgeber in Hintergrund-Tabs auf 1×/min drosseln.
 BROWSER_TIMEOUT_S = 90
@@ -838,11 +840,30 @@ class TrainingSession:
 # Laufendes Training: Start, Pause und Stop-Entscheid (save: None = normal speichern, False = verwerfen)
 session_state = {"started_at": None, "save": None, "paused": False, "paused_since": None, "paused_total": 0.0,
                  "resume_at": None, "chat_started": False}
+# Störung des Antriebs: active = Antrieb gestört (Drehmoment 0, Endstufe aus, Training pausiert),
+# ack_requested = «Quittieren» gedrückt (die Regelschleife setzt den Antrieb zurück), message = Rückmeldung
+drive_fault = {"active": False, "code": None, "text": "", "ack_requested": False, "message": ""}
 
 
 def chat_sender_name(s: Settings) -> str:
     return f"{s.firstname} {s.lastname}".strip() or "x-ski"
 session_lock = Lock()
+
+
+def session_pause_start(now: float, reason: str = "") -> bool:
+    """Pause beginnen (falls nicht schon pausiert): Antrieb aus, Uhr angehalten. True, wenn neu pausiert."""
+    st = session_state
+    with session_lock:
+        if st["paused"]:
+            st["resume_at"] = None
+            return False
+        st.update(paused=True, paused_since=now, resume_at=None)
+    if hasattr(active_ic, "pause"):
+        active_ic.pause()
+    print(f"⏸ Pause bei {session_active_elapsed(now) / 60:.1f} min – Antrieb aus{reason}")
+    if scope is not None:
+        scope.log_message("Pause – Antrieb aus, Uhr angehalten")
+    return True
 
 
 def session_resume_if_due(now: float = None) -> bool:
@@ -852,7 +873,8 @@ def session_resume_if_due(now: float = None) -> bool:
     with session_lock:
         if not (st["paused"] and st["resume_at"] and now >= st["resume_at"]):
             return False
-        st["paused_total"] += now - (st["paused_since"] or now)
+        if st["started_at"] is not None:   # Pause vor dem ersten Zug (nach einer Störung) zählt nicht
+            st["paused_total"] += now - max(st["paused_since"] or now, st["started_at"])
         st.update(paused=False, paused_since=None, resume_at=None)
     if hasattr(active_ic, "resume"):
         active_ic.resume()
@@ -1014,6 +1036,42 @@ def feel_resistance_n(s: Settings, skier: VirtualSkier, terrain: Terrain) -> flo
     return max(r, s.downhill_feel_floor * flat_friction)
 
 
+def check_drive_fault(drv, now: float):
+    """Störung des Antriebs erkannt -> Training pausieren, Drehmoment 0, grosse Warnung im Browser."""
+    code = drv.drive_fault()
+    if code is None:
+        return
+    text = drv.fault_text(code)
+    drive_fault.update(active=True, code=code, text=text, ack_requested=False, message="")
+    print(f"❌ Antriebsstörung: {text}")
+    session_pause_start(now, " (Antriebsstörung)")
+    if scope is not None:
+        scope.log_message(f"❌ Antriebsstörung: {text} – bitte quittieren")
+
+
+def handle_drive_fault(drv):
+    """«Quittieren» ausführen (in der Regelschleife, weil nur sie mit dem Antrieb spricht). Der Antrieb wird
+    vorher ausgeschaltet und bleibt aus; das Training bleibt pausiert, bis «Weiter» gedrückt wird."""
+    if not (drive_fault["active"] and drive_fault["ack_requested"]):
+        return
+    drv.set_enabled(False)
+    drv.set_torque(0)
+    drv.reset()
+    time.sleep(0.3)
+    code = drv.drive_fault()
+    if code is None:
+        print(f"✅ Antriebsstörung quittiert ({drive_fault['text']}) – Antrieb aus, weiter mit «Weiter»")
+        drive_fault.update(active=False, code=None, text="", ack_requested=False, message="")
+        if scope is not None:
+            scope.log_message("Störung quittiert – mit «Weiter» wird das Seil gespannt")
+    else:
+        text = drv.fault_text(code)
+        print(f"❌ Quittieren hat nicht geklappt: {text}")
+        drive_fault.update(code=code, text=text, ack_requested=False,
+                           message="Quittieren hat nicht geklappt – Ursache prüfen (Sicherheitsschalter, Kabel), "
+                                   "dann nochmals versuchen.")
+
+
 def run_training(drv) -> TrainingSession:
     global current_gui_intensity
 
@@ -1083,6 +1141,8 @@ def run_training(drv) -> TrainingSession:
     speed_ref_rpm = s.pull_speed     # beim Start an den Antrieb geschickt (prepare_drive)
     fit_power_sum, fit_power_n = 0.0, 0
     last_thermal_check = 0.0
+    last_fault_check = 0.0
+    watchdog_on = True               # prepare_drive hat den Watchdog eingeschaltet
     last_model_t = None
     last_route_publish = 0.0
     route_finished_announced = False
@@ -1109,6 +1169,12 @@ def run_training(drv) -> TrainingSession:
                 where = ", ".join(f"{phase} {travel:.0f} mm bei {pos:.0f} mm" for phase, travel, pos in ignored[:6])
                 print(f"   Ignorierte Kurzbewegungen: {len(ignored)} ({where}{' …' if len(ignored) > 6 else ''})")
         drv.service_watchdog()
+        handle_drive_fault(drv)
+        # In der Pause ist der Antrieb aus; dann darf auch ein Hänger der Regelschleife keinen Watchdog-Trip
+        # auslösen (15.10.2026: Hänger von 2 s in der Pause -> Trip 30, «Weiter» spannte das Seil nicht mehr)
+        if watchdog_on == (session_state["paused"] or drive_fault["active"]):
+            watchdog_on = not watchdog_on
+            drv.set_watchdog_enabled(watchdog_on)
         just_started_clock = False
         s = settings  # min/max-Torque, Zonen, Schnee und Steigung wirken live nach einem Reload
 
@@ -1123,7 +1189,8 @@ def run_training(drv) -> TrainingSession:
         # In der Pause ist der Antrieb aus (kein Drehmoment, Seil frei); «Weiter» gibt ihn nach dem
         # Countdown wieder frei – der Rückzug spannt dann das Seil
         session_resume_if_due()
-        drv.update_enabled(actual_position <= soft_zero_position and not session_state["paused"])
+        drv.update_enabled(actual_position <= soft_zero_position and not session_state["paused"]
+                           and not drive_fault["active"])
 
         power = drv.read_power()
         now = time.time()
@@ -1137,6 +1204,10 @@ def run_training(drv) -> TrainingSession:
         if now - last_thermal_check >= THERMAL_CHECK_INTERVAL_S:
             last_thermal_check = now
             thermal.update(drv.read_motor_overload_pct(), drv.read_brake_resistor_pct())
+
+        if now - last_fault_check >= DRIVE_FAULT_CHECK_INTERVAL_S and not drive_fault["active"]:
+            last_fault_check = now
+            check_drive_fault(drv, now)
 
         if now - last_speed_register_check >= SPEED_REGISTER_CHECK_INTERVAL_S:
             speed_register = drv.read_speed()
@@ -1257,6 +1328,8 @@ def run_training(drv) -> TrainingSession:
             skier.step(dt_model, terrain, propulsive_power_w=active_power * s.power_scale * leg_boost)
 
         act_torque_pct = max(0, min(act_torque_pct, s.max_torque_pct))
+        if drive_fault["active"]:
+            act_torque_pct = 0           # nach einer Störung kein Drehmoment, bis «Weiter»
         drv.update_torque(act_torque_pct)
         if s.pull_speed != speed_ref_rpm:
             # Rückzugs-Drehzahlgrenze im Profil geändert -> sofort an den Antrieb
@@ -1745,7 +1818,20 @@ def api_session():
                     "elapsed_s": round(session_active_elapsed()), "paused": session_state["paused"],
                     "paused_s": round(time.time() - session_state["paused_since"]) if session_state["paused"] else 0,
                     "resume_in_s": round(max(0.0, session_state["resume_at"] - time.time()), 1)
-                    if session_state["resume_at"] else None})
+                    if session_state["resume_at"] else None,
+                    "fault": {"code": drive_fault["code"], "text": drive_fault["text"],
+                              "acking": drive_fault["ack_requested"], "message": drive_fault["message"]}
+                    if drive_fault["active"] else None})
+
+
+@app.route("/api/session/fault/ack", methods=["POST"])
+def api_session_fault_ack():
+    """«Quittieren»: die Regelschleife setzt den Antrieb zurück. Er bleibt danach aus (Pause);
+    erst «Weiter» gibt ihn nach dem Countdown frei und spannt das Seil."""
+    if not drive_fault["active"]:
+        return jsonify({"ok": True, "message": "Keine Störung."})
+    drive_fault.update(ack_requested=True, message="")
+    return jsonify({"ok": True})
 
 
 @app.route("/api/session/pause", methods=["POST"])
@@ -1753,28 +1839,21 @@ def api_session_pause():
     """Pause/Weiter: Antrieb aus, Uhr angehalten, Strecke und Aufzeichnung stehen; im Intervall
     bleibt auch der Ablauf stehen."""
     st = session_state
-    if st["started_at"] is None:
+    if st["started_at"] is None and not st["paused"]:
         return jsonify({"ok": False, "message": "Das Training hat noch nicht begonnen."}), 409
     want = bool((request.get_json(silent=True) or {}).get("paused", not st["paused"]))
+    if not want and drive_fault["active"]:
+        return jsonify({"ok": False, "message": "Zuerst die Antriebsstörung quittieren."}), 409
     now = time.time()
-    with session_lock:
-        if want and not st["paused"]:
-            st.update(paused=True, paused_since=now, resume_at=None)
-            started_pause = True
-        elif want and st["resume_at"]:
-            st["resume_at"] = None          # Countdown abgebrochen – Pause geht weiter
-            started_pause = False
-        elif not want and st["paused"] and not st["resume_at"]:
-            st["resume_at"] = now + RESUME_COUNTDOWN_S
-            started_pause = False
-            print(f"▶️ Weiter in {RESUME_COUNTDOWN_S:.0f} s – Antrieb wird danach freigegeben")
-        else:
-            started_pause = False
-    if started_pause:
-        if hasattr(active_ic, "pause"):
-            active_ic.pause()
-        print(f"⏸ Pause bei {session_active_elapsed(now) / 60:.1f} min – Antrieb aus")
-        scope.log_message("Pause – Antrieb aus, Uhr angehalten")
+    if want and not st["paused"]:
+        session_pause_start(now)
+    else:
+        with session_lock:
+            if want and st["resume_at"]:
+                st["resume_at"] = None          # Countdown abgebrochen – Pause geht weiter
+            elif not want and st["paused"] and not st["resume_at"]:
+                st["resume_at"] = now + RESUME_COUNTDOWN_S
+                print(f"▶️ Weiter in {RESUME_COUNTDOWN_S:.0f} s – Antrieb wird danach freigegeben")
     return jsonify({"ok": True, "paused": st["paused"], "elapsed_s": round(session_active_elapsed(now))})
 
 
