@@ -32,6 +32,9 @@ COOKIE = "xski_access"
 CONTROLLER_STALE_S = 120.0   # so lange still -> anderes Gerät übernimmt ohne Rückfrage
 # am Gerät (localhost) immer erlaubt, auch ohne PIN: anhalten und beenden
 LOCAL_EMERGENCY_PATHS = ("/api/session/pause", "/api/session/end", "/stop")
+# persönliche Seiten und Daten: Zuschauer sehen sie nicht (auch nicht, wenn das Steuergerät sie offen hat)
+PRIVATE_PREFIXES = ("/config", "/api/config", "/profil", "/api/profile", "/maschine", "/api/maschine",
+                    "/api/hr", "/strava", "/api/strava", "/kalibrierung", "/api/calibration")
 PIN_MAX_FAILS = 5            # so viele falsche PIN pro Adresse ...
 PIN_LOCK_S = 60.0            # ... dann so lange gesperrt
 _lock = threading.Lock()
@@ -118,7 +121,16 @@ def install_access_control(app, allow_remote: bool = False, training: bool = Fal
                     data["controller"]["last"] = time.time()
                     _save(data)
                     last_touch["t"] = time.monotonic()
-        if request.method in SAFE_METHODS or can_ctl():
+        if can_ctl():
+            return None
+        if request.method in SAFE_METHODS:
+            if request.path.startswith(PRIVATE_PREFIXES):
+                message = "Nur für das Steuergerät."
+                if request.path.startswith("/api/"):
+                    return jsonify({"ok": False, "message": message}), 403
+                return (f"<!DOCTYPE html><meta charset=utf-8><meta name=viewport content='width=device-width'>"
+                        f"<body style='font-family:sans-serif;display:grid;place-items:center;height:90vh;color:#12324a'>"
+                        f"<div style='text-align:center'><h1>{message}</h1><p><a href='/'>Zurück</a></p></div>"), 403
             return None
         if request.path.startswith(ALWAYS_ALLOWED_PREFIXES) or request.path in ("/api/login", "/api/logout"):
             return None
@@ -195,4 +207,5 @@ def install_access_control(app, allow_remote: bool = False, training: bool = Fal
                 screen.update(path=path, t=time.monotonic())
             return jsonify({"ok": True})
         fresh = screen["path"] is not None and time.monotonic() - screen["t"] <= SCREEN_MAX_AGE_S
-        return jsonify({"path": screen["path"] if fresh and training else None, "training": training})
+        private = fresh and screen["path"].startswith(PRIVATE_PREFIXES)
+        return jsonify({"path": screen["path"] if fresh and training and not private else None, "training": training})

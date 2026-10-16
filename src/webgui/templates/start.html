@@ -152,7 +152,7 @@
       <div class="group-head" id="training-head"><h2>Training</h2></div>
       <div class="group-head" id="routes-head">
         <h2>Strecken</h2>
-        <span id="routes-note"></span>
+        <span id="routes-note">Strecken werden geladen …</span>
 
         <div class="pager" id="pager">
           <button type="button" id="page-prev" aria-label="Vorherige Strecken">‹</button>
@@ -233,8 +233,11 @@
       return;
     }
     // Nur neu zeichnen, wenn sich die Strecken oder die Verfügbarkeit geändert haben
-    const sig = info.skier_available + "|" + info.routes.map((r) => r.file + ":" + r.length_km + ":" + (r.resume ? r.resume.km : "")).join("|");
+    const sig = info.skier_available + "|" + info.resume_pending + "|" +
+      info.routes.map((r) => r.file + ":" + r.length_km + ":" + (r.resume ? r.resume.km : "")).join("|");
     if (sig !== shownFiles) { shownFiles = sig; renderRoutes(); }
+    // solange «Weiterlaufen» noch berechnet wird, öfter nachfragen
+    if (info.resume_pending) setTimeout(loadInfo, 2000);
   }
 
   function sparkline(values) {
@@ -254,7 +257,8 @@
     page = Math.min(page, pages - 1);
     const note = document.getElementById("routes-note");
     note.textContent = !info.skier_available ? "Nicht verfügbar: Motor-Nenndrehmoment fehlt in der Konfiguration."
-      : !routes.length ? "Keine Strecken – bitte GPX-Dateien in src/routes ablegen." : "";
+      : !routes.length ? "Keine Strecken – bitte GPX-Dateien in src/routes ablegen."
+      : info.resume_pending ? "«Weiterlaufen» wird aus den letzten Trainings berechnet …" : "";
 
     routes.slice(page * PER_PAGE, (page + 1) * PER_PAGE).forEach((r, i) => {
       const b = document.createElement("button");
@@ -423,14 +427,18 @@
 
   async function openSection(meta) {
     let r;
+    const note = document.getElementById("routes-note"), before = note.textContent;
+    note.textContent = `${meta.name || meta.file} wird geladen …`;
     try {
       const res = await fetch(`/api/launcher/route?file=${encodeURIComponent(meta.file)}`, { cache: "no-store" });
       r = await res.json();
       if (!res.ok) throw new Error(r.message || res.status);
     } catch (e) {
       document.getElementById("error").textContent = `Strecke nicht ladbar: ${e.message}`;
+      note.textContent = before;
       return;
     }
+    note.textContent = before;
     sec.route = r; sec.meta = meta; sec.start = 0; sec.end = r.length_m; setPick("start");
     // Weiterlaufen: dort starten, wo das letzte Training auf dieser Strecke aufgehört hat
     const resumeBtn = document.getElementById("sec-resume");

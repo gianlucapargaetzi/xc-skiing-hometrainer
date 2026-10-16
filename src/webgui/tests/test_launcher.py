@@ -48,7 +48,9 @@ def client(monkeypatch, tmp_path):
         '<trkpt lat="46.71" lon="9.80"><ele>1550</ele></trkpt>'
         '</trkseg></trk></gpx>')
     monkeypatch.setattr(launcher, "ROUTES_DIR", routes)
+    monkeypatch.setattr(launcher, "TRAININGS_DIR", tmp_path / "keine_trainings")   # nie die echten Trainings lesen
     app = launcher.create_app(SimpleNamespace(config_path=None, host="0.0.0.0", no_browser=True))
+    assert app.config["XSKI_RESUME_READY"].wait(10)          # Hintergrundberechnung «Weiterlaufen» fertig
     return become_controller(app.test_client()), started
 
 
@@ -208,7 +210,7 @@ def test_training_list_analysis_and_upload(client, monkeypatch, tmp_path):
     assert r.status_code == 400 and not (trainings / "x.fit").exists()
     r = c.post("/api/trainings/upload", data={"file": (io.BytesIO(b"<tcx/>"), "x.tcx")}, environ_base=local)
     assert r.status_code == 400
-    r = c.post("/api/trainings/upload", data={"file": (io.BytesIO(b"x"), "y.fit")}, environ_base={"REMOTE_ADDR": "192.168.1.9"})
+    r = c.application.test_client().post("/api/trainings/upload", data={"file": (io.BytesIO(b"x"), "y.fit")}, environ_base={"REMOTE_ADDR": "192.168.1.9"})
     assert r.status_code == 403
 
 
@@ -273,6 +275,15 @@ def test_remote_browser_cannot_control(client, monkeypatch):
         r = viewer.post(path, json=body, environ_base=REMOTE)
         assert r.status_code == 403 and r.get_json()["ok"] is False, path
     assert started == []
+
+
+def test_viewers_do_not_see_private_pages(client):
+    c, _ = client
+    viewer = c.application.test_client()
+    for path in ("/profil", "/api/profile", "/maschine", "/api/maschine", "/api/profiles"):
+        assert viewer.get(path, environ_base=REMOTE).status_code == 403, path
+        assert c.get(path, environ_base=LOCAL).status_code == 200, path
+    assert viewer.get("/", environ_base=REMOTE).status_code == 200
 
 
 def test_pin_login_first_device_controls_and_takeover(client):

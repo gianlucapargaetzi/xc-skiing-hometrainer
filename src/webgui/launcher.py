@@ -224,12 +224,15 @@ def create_app(args) -> Flask:
         except Exception as e:
             print(f"⚠️ Konfiguration nicht lesbar: {e}")
         routes = [dict(route_entry(name)) for name in list_route_files(ROUTES_DIR)]
-        # Weiterlaufen: Endpunkt des letzten Trainings auf dieser Strecke – nur wenn noch genug Strecke übrig ist
-        try:
-            resume = resume_points()
-        except Exception as e:
-            print(f"⚠️ Fortsetzungspunkte nicht bestimmt: {e}")
-            resume = {}
+        # Weiterlaufen: Endpunkt des letzten Trainings auf dieser Strecke – nur wenn noch genug Strecke übrig ist.
+        # Das Lesen aller Trainingsdateien dauert nach dem Start bis ~25 s: solange läuft es im Hintergrund
+        # (resume_warmup), und die Strecken kommen sofort, «Weiterlaufen» folgt beim nächsten Abruf.
+        resume, pending = {}, not resume_ready.is_set()
+        if not pending:
+            try:
+                resume = resume_points()
+            except Exception as e:
+                print(f"⚠️ Fortsetzungspunkte nicht bestimmt: {e}")
         for r in routes:
             point = resume.get(r["file"])
             if point and "length_km" in r and 0.05 < point["km"] < r["length_km"] - RESUME_MIN_REST_KM:
@@ -239,6 +242,7 @@ def create_app(args) -> Flask:
             "skier_available": state["settings"].motor_rated_torque_nm > 0,
             "has_comparison": comparison_info() is not None,
             "routes": routes,
+            "resume_pending": pending,
         })
 
     @app.route("/api/launcher/route")
@@ -375,6 +379,23 @@ def create_app(args) -> Flask:
                 latest[e["route_file"]] = {"km": round(e["end_m"] / 1000.0, 2), "start": e["start"], "file": path.name}
         return latest
 
+    resume_ready = threading.Event()
+    resume_lock = threading.Lock()
+    _resume_points = resume_points
+
+    def resume_points() -> dict:          # noqa: F811 – gleiche Funktion, aber nur ein Thread liest gleichzeitig
+        with resume_lock:
+            return _resume_points()
+
+    def resume_warmup():
+        try:
+            resume_points()
+        except Exception as e:
+            print(f"⚠️ Fortsetzungspunkte nicht bestimmt: {e}")
+        resume_ready.set()
+    app.config["XSKI_RESUME_READY"] = resume_ready
+    threading.Thread(target=resume_warmup, name="resume-warmup", daemon=True).start()
+
     @app.route("/auswertung")
     def analysis_page():
         return render_template("auswertung.html")
@@ -385,8 +406,8 @@ def create_app(args) -> Flask:
 
     @app.route("/api/trainings/upload", methods=["POST"])
     def api_trainings_upload():
-        if not allow_remote and request.remote_addr not in ("127.0.0.1", "::1"):
-            return jsonify({"ok": False, "message": "Dateien können nur direkt am x-ski geladen werden."}), 403
+        if not can_control(allow_remote):
+            return jsonify({"ok": False, "message": "Dateien kann nur das Steuergerät laden."}), 403
         f = request.files.get("file")
         if f is None or not f.filename:
             return jsonify({"ok": False, "message": "Keine Datei gewählt."}), 400

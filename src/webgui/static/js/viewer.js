@@ -38,9 +38,13 @@
   function lockControls() {
     const css = document.createElement("style");
     css.textContent =
-      "button:not(.xski-login), input, select, textarea, a.nav-link, .tile, .item, dialog { pointer-events: none !important; }" +
-      "button:not(.xski-login), input, select, textarea { opacity: .55 !important; }" +
-      ".xski-login { pointer-events: auto !important; opacity: 1 !important; }" +
+      "button:not(.xski-login), input, select, textarea, a.nav-link:not(.xski-free), .tile, .item, dialog { pointer-events: none !important; }" +
+      // Bedienelemente ausblenden statt nur sperren (Platz bleibt, damit die Anzeige nicht verrutscht);
+      // in der Kopfzeile ganz weg: Navigation, Profil, Konfiguration, Neu starten/Ausschalten
+      "button:not(.xski-login), input[type=button], input[type=submit], input[type=range], select, textarea { visibility: hidden !important; }" +
+      ".header-actions > *:not(.xski-free) { display: none !important; }" +
+      "#xski-pause-bar button { display: none !important; }" +
+      ".xski-login, .xski-free { pointer-events: auto !important; opacity: 1 !important; visibility: visible !important; }" +
       "#xski-viewer-badge { position: fixed; right: 10px; bottom: 10px; z-index: 100001; background: #12324a; color: #fff;" +
       " font: 600 15px sans-serif; padding: 7px 12px; border-radius: 10px; opacity: .95; display: flex; align-items: center; }";
     document.head.appendChild(css);

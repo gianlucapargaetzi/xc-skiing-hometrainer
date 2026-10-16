@@ -268,9 +268,12 @@
     }
   }, 2000);
 
-  // Das Steuergerät braucht den Weg zurück zu den Bedienelementen (Pause, Stop …)
+  // Zurück zur 2D-Ansicht: das Steuergerät zu den Bedienelementen (Pause, Stop …)
+  // Zuschauer kommen über «/» zurück und folgen dort wieder automatisch der Seite des Steuergeräts
   fetch("/api/role", { cache: "no-store" }).then((r) => r.json()).then((r) => {
-    if (r.control) document.getElementById("back2d").style.display = "block";
+    const back = document.getElementById("back2d");
+    back.href = r.control ? "/strecke" : "/";
+    back.style.display = "block";
   }).catch(() => {});
 
   // Ohne WebGL keine 3D-Karte: klar sagen statt leer bleiben
